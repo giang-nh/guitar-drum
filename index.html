@@ -736,37 +736,65 @@
     if(!target.autoFillIn)return false;
     activeFillStyle='medium';
     activeFillVariant=fillVariantCounter++%3;
+    activeFillTargetKind=sectionKind(rows[targetIndex].s);
     fillRemaining=4;
     fillBtn.textContent='AUTO → '+rows[targetIndex].s;
     return true;
   }
-  function scheduleFillBeat(t,q,step,p,style='medium',variant=0){
+  function scheduleFillBeat(t,q,step,p,style='medium',variant=0,targetKind=activeFillTargetKind){
     humanContext.fill=true;
     const v=((Number(variant)||0)%3+3)%3;
+    const chorusTarget=targetKind==='chorus';
+    const outroTarget=targetKind==='outro';
+    const bridgeTarget=targetKind==='bridge';
     if(style==='small'){
-      hat(t,.46*p);
-      if(step===0&&v===2)kick(t,.62*p);
+      if(outroTarget&&step>=2){
+        hat(t,.34*p);
+        if(step===2)rim(t+q*.58,.32*p);
+        if(step===3)tom(t+q*.58,.42*p,128);
+        return;
+      }
+      hat(t,(chorusTarget?.52:.46)*p);
+      if(step===0&&(v===2||chorusTarget))kick(t,(chorusTarget?.72:.62)*p);
       if(step===1&&v===1)snare(t+q*.5,.28*p);
       if(step===2){if(v===0)tom(t+q*.5,.48*p,145);else snare(t+q*.5,.36*p)}
       if(step===3){
         if(v===0){tom(t,.52*p,132);snare(t+q*.68,.52*p)}
         else if(v===1){snare(t,.42*p);tom(t+q*.55,.54*p,125)}
         else{tom(t+q*.45,.48*p,150);tom(t+q*.72,.54*p,124)}
+        if(chorusTarget)kick(t+q*.82,.36*p);
       }
       return;
     }
     if(style==='big'){
+      if(bridgeTarget){
+        ride(t,.56*p,step===3);
+        if(step===0)kick(t,.82*p);
+        if(step===1)tom(t+q*.55,.64*p,148);
+        if(step===2)snare(t,.62*p);
+        if(step===3){tom(t,.72*p,128);snare(t+q*.62,.72*p)}
+        return;
+      }
       hat(t,.78*p);
       if(step===0){kick(t,.95*p);tom(t+q*.42,.72*p,v===1?178:165);if(v===2)snare(t+q*.72,.42*p)}
       if(step===1){tom(t,.78*p,154);tom(t+q*.36,.82*p,138);snare(t+q*.72,.48*p)}
       if(step===2){snare(t,.66*p);tom(t+q*.32,.92*p,122);tom(t+q*.68,.9*p,108)}
       if(step===3){
         tom(t,.9*p,132);snare(t+q*.34,.72*p);tom(t+q*.56,.82*p,112);snare(t+q*.76,.9*p);
-        if(v!==1)kick(t+q*.82,.55*p);
+        if(v!==1||chorusTarget)kick(t+q*.82,.55*p);
+        if(chorusTarget&&v===1)tom(t+q*.88,.62*p,104);
       }
       return;
     }
-    hat(t,.7*p);
+    if(outroTarget){
+      hat(t,.48*p);
+      if(step===0)kick(t,.68*p);
+      if(step===1)rim(t+q*.5,.34*p);
+      if(step===2)tom(t+q*.52,.48*p,142);
+      if(step===3)tom(t+q*.66,.52*p,118);
+      return;
+    }
+    if(bridgeTarget)ride(t,.58*p,step===3);else hat(t,.7*p);
     if(step===0){kick(t,.85*p);if(v===1)snare(t+q*.65,.28*p);else tom(t+q*.5,.65*p,165)}
     if(step===1){tom(t,.7*p,v===2?168:155);tom(t+q*.5,.78*p,v===1?125:135)}
     if(step===2){snare(t,.58*p);tom(t+q*.5,.9*p,v===2?108:118)}
@@ -870,6 +898,7 @@
       }else if(beatsToTarget<=4){
         activeFillStyle=pendingSectionTransition.fillStyle||'medium';
         activeFillVariant=pendingSectionTransition.variant||0;
+        activeFillTargetKind=sectionKind(pendingSectionTransition.targetName);
         fillRemaining=4;
         pendingSectionTransition.stage='filling';
         fillBtn.textContent='AI '+activeFillStyle.toUpperCase()+' FILL → '+pendingSectionTransition.targetName;
@@ -877,7 +906,7 @@
         fillBtn.textContent='PLAN '+String(pendingSectionTransition.fillStyle||'medium').toUpperCase()+' → '+pendingSectionTransition.targetName;
       }
     }else if(fillRequested && beat===0){
-      fillRequested=false;activeFillStyle='medium';activeFillVariant=fillVariantCounter++%3;fillRemaining=4;fillBtn.textContent='🥁 Fill'
+      fillRequested=false;activeFillStyle='medium';activeFillVariant=fillVariantCounter++%3;activeFillTargetKind=kind;fillRemaining=4;fillBtn.textContent='🥁 Fill'
     }else maybeStartAutoFill();
     let didFill=false;
     if(followSilenceMode==='thin'){
@@ -887,7 +916,7 @@
       if(beat===2)snare(t,.20*p);
     }else if(fillRemaining>0){
       didFill=true;
-      scheduleFillBeat(t,q,4-fillRemaining,p,activeFillStyle,activeFillVariant);
+      scheduleFillBeat(t,q,4-fillRemaining,p,activeFillStyle,activeFillVariant,activeFillTargetKind);
       fillRemaining--;
       if(fillRemaining===0){
         if(pendingSectionTransition&&pendingSectionTransition.stage==='filling'){
