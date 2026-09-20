@@ -136,6 +136,10 @@
           <label for="intensity">Độ mạnh · 1–5</label>
           <input id="intensity" type="range" min="1" max="5" value="3" step="1" />
         </div>
+        <div>
+          <label for="humanize">Human feel · <span id="humanizeLabel">55%</span></label>
+          <input id="humanize" type="range" min="0" max="100" value="55" step="5" />
+        </div>
         <button id="fill" class="fillBtn" type="button" disabled>🥁 Fill</button>
       </div>
       <div class="drumHint">Arrangement riêng cho từng bài · tự fill trước Chorus/cao trào · Fill tay vẫn vào đầu ô nhịp kế tiếp.</div>
@@ -159,7 +163,7 @@
 (() => {
   const $ = s => document.querySelector(s);
   const songSel=$('#songSelect'), keySel=$('#keySelect'), bpm=$('#bpm'), bpmLabel=$('#bpmLabel');
-  const intensity=$('#intensity'), intensityLabel=$('#intensityLabel'), fillBtn=$('#fill'), drumStyle=$('#drumStyle'), drumPattern=$('#drumPattern');
+  const intensity=$('#intensity'), intensityLabel=$('#intensityLabel'), humanize=$('#humanize'), humanizeLabel=$('#humanizeLabel'), fillBtn=$('#fill'), drumStyle=$('#drumStyle'), drumPattern=$('#drumPattern');
   const titleEl=$('#songTitle'), metaEl=$('#songMeta');
   const toggleBtn=$('#toggle'), stopBtn=$('#stop'), status=$('#status'), sectionLabel=$('#section'), position=$('#position'), sheet=$('#sheet');
   const viewBtn=$('#viewToggle'), sheetCard=document.querySelector('.sheet');
@@ -303,7 +307,7 @@
     try{
       const previous=loadState(songId);
       localStorage.setItem(stateKey(songId),JSON.stringify({
-        ...previous,row:currentRow,key:keySel.value,bpm:bpm.value,showAll,intensity:intensity.value
+        ...previous,row:currentRow,key:keySel.value,bpm:bpm.value,showAll,intensity:intensity.value,humanize:humanize.value
       }));
       localStorage.setItem(STORAGE_KEY+'-last-song',songId);
     }catch{}
@@ -455,6 +459,8 @@
     bpmLabel.textContent=bpm.value;
     intensity.value=saved.intensity!=null?String(Math.max(1,Math.min(5,Number(saved.intensity)||3))):'3';
     intensityLabel.textContent=intensity.value;
+    humanize.value=saved.humanize!=null?String(Math.max(0,Math.min(100,Number(saved.humanize)||0))):'55';
+    humanizeLabel.textContent=humanize.value+'%';
     drumStyle.textContent=song.drumStyle||'Acoustic';
     showAll=Boolean(saved.showAll);
     currentRow=Math.max(0,Math.min(rows.length-1,Number(saved.row)||0));
@@ -475,6 +481,8 @@
   let ctx=null,master=null,noise=null,timer=null,playing=false,paused=false,nextTime=0,quarter=0,countIn=4,songBeat=0,visualTimers=[];
   let fillRequested=false,fillRemaining=0,pendingSectionTransition=null,pendingHarmonicAnchor=null;
   let activeFillStyle='medium',activeFillVariant=0,fillVariantCounter=0;
+  let humanContext={songBeat:0,quarter:0,beat:0,pattern:'',fill:false};
+  let humanHitSerial=0;
   let followSilenceMode='normal',followHeld=false,pendingFollowHold=false,pendingFollowResume=false;
 
   function setup(){
@@ -484,12 +492,45 @@
     }
     return ctx.state==='suspended'?ctx.resume():Promise.resolve();
   }
-  function kick(t,p=1){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.setValueAtTime(118,t);o.frequency.exponentialRampToValueAtTime(45,t+.12);g.gain.setValueAtTime(.65*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.2);o.connect(g);g.connect(master);o.start(t);o.stop(t+.21)}
-  function snare(t,p=1){const s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=1100;g.gain.setValueAtTime(.24*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.13);s.connect(hp);hp.connect(g);g.connect(master);s.start(t);s.stop(t+.14)}
-  function hat(t,p=1){const s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=6500;g.gain.setValueAtTime(.05*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.04);s.connect(hp);hp.connect(g);g.connect(master);s.start(t);s.stop(t+.05)}
-  function openHat(t,p=1){const s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=5200;g.gain.setValueAtTime(.07*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.22);s.connect(hp);hp.connect(g);g.connect(master);s.start(t);s.stop(t+.24)}
-  function tom(t,p=1,f=150){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.setValueAtTime(f,t);o.frequency.exponentialRampToValueAtTime(Math.max(70,f*.62),t+.16);g.gain.setValueAtTime(.28*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.2);o.connect(g);g.connect(master);o.start(t);o.stop(t+.21)}
-  function crash(t,p=1){const s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=3600;g.gain.setValueAtTime(.12*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.55);s.connect(hp);hp.connect(g);g.connect(master);s.start(t);s.stop(t+.58)}
+  function humanAmount(){return Math.max(0,Math.min(1,(Number(humanize.value)||0)/100))}
+  function humanHash(seed){
+    let x=(seed|0)+0x6D2B79F5;
+    x=Math.imul(x^(x>>>15),x|1);
+    x^=x+Math.imul(x^(x>>>7),x|61);
+    return ((x^(x>>>14))>>>0)/4294967295;
+  }
+  function voiceCode(voice){
+    return {kick:11,snare:23,ghost:29,hat:37,openHat:41,tom:53,crash:67}[voice]||79;
+  }
+  function humanHit(voice,t,p=1){
+    const amount=humanAmount();
+    const serial=humanHitSerial++;
+    const base=(humanContext.songBeat+1)*131+(humanContext.quarter+1)*47+(humanContext.beat+1)*17+serial*71+voiceCode(voice)*97;
+    const r1=humanHash(base),r2=humanHash(base+991);
+    const centered=r1*2-1;
+    const fillScale=humanContext.fill?.72:1;
+    const timingMs={
+      kick:humanContext.beat===0?1.2:3.0,
+      snare:5.5,ghost:7.0,hat:6.5,openHat:5.0,tom:6.0,crash:1.8
+    }[voice]||4;
+    let timing=centered*timingMs*amount*fillScale;
+    if(voice==='snare'&&!humanContext.fill)timing+=2.2*amount;
+    if((voice==='kick'||voice==='crash')&&humanContext.beat===0)timing=Math.max(-.8,timing);
+    const velocityRange={kick:.045,snare:.075,ghost:.16,hat:.14,openHat:.10,tom:.08,crash:.045}[voice]||.06;
+    let velocity=1+(r2*2-1)*velocityRange*amount;
+    if(voice==='hat'){
+      const accent=humanContext.beat%2===0?1.035:.965;
+      velocity*=1+(accent-1)*amount;
+    }
+    return {t:Math.max(ctx.currentTime+.002,t+timing/1000),p:Math.max(.05,p*velocity),r:r2};
+  }
+  function kick(t,p=1){const h=humanHit('kick',t,p),o=ctx.createOscillator(),g=ctx.createGain();const f=116+h.r*4;o.frequency.setValueAtTime(f,h.t);o.frequency.exponentialRampToValueAtTime(45,h.t+.12);g.gain.setValueAtTime(.65*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.2);o.connect(g);g.connect(master);o.start(h.t);o.stop(h.t+.21)}
+  function snare(t,p=1){const h=humanHit('snare',t,p),s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=1020+h.r*180;g.gain.setValueAtTime(.24*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.13);s.connect(hp);hp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+.14)}
+  function ghostSnare(t,p=1){const h=humanHit('ghost',t,p),s=ctx.createBufferSource(),bp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;bp.type='bandpass';bp.frequency.value=1450+h.r*280;bp.Q.value=.65;g.gain.setValueAtTime(.055*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.075);s.connect(bp);bp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+.08)}
+  function hat(t,p=1){const h=humanHit('hat',t,p),s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=6100+h.r*1500;const decay=.032+h.r*.022;g.gain.setValueAtTime(.05*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+decay);s.connect(hp);hp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+decay+.01)}
+  function openHat(t,p=1){const h=humanHit('openHat',t,p),s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=4900+h.r*800;const decay=.19+h.r*.07;g.gain.setValueAtTime(.07*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+decay);s.connect(hp);hp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+decay+.02)}
+  function tom(t,p=1,f=150){const h=humanHit('tom',t,p),o=ctx.createOscillator(),g=ctx.createGain();const hf=f*(.985+h.r*.03);o.frequency.setValueAtTime(hf,h.t);o.frequency.exponentialRampToValueAtTime(Math.max(70,hf*.62),h.t+.16);g.gain.setValueAtTime(.28*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.2);o.connect(g);g.connect(master);o.start(h.t);o.stop(h.t+.21)}
+  function crash(t,p=1){const h=humanHit('crash',t,p),s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=3400+h.r*500;g.gain.setValueAtTime(.12*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.55);s.connect(hp);hp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+.58)}
   function click(t,strong){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=strong?1050:820;g.gain.setValueAtTime(strong?.15:.09,t);g.gain.exponentialRampToValueAtTime(.001,t+.04);o.connect(g);g.connect(master);o.start(t);o.stop(t+.05)}
   function rowForBeat(b){for(let i=0;i<rows.length;i++)if(b>=rows[i].start&&b<rows[i].end)return i;return rows.length-1}
   function sectionKind(name){
@@ -642,6 +683,7 @@
     return true;
   }
   function scheduleFillBeat(t,q,step,p,style='medium',variant=0){
+    humanContext.fill=true;
     const v=((Number(variant)||0)%3+3)%3;
     if(style==='small'){
       hat(t,.46*p);
@@ -703,6 +745,8 @@
     const beat=quarter%4;
     if(countIn>0){click(t,beat===0);visualBeat(beat,t,true);countIn--;quarter++;return}
     const q=60/Number(bpm.value);
+    humanContext={songBeat,quarter,beat,pattern:'',fill:false};
+    humanHitSerial=0;
 
     if(pendingFollowHold&&beat===0&&!followHeld){
       pendingFollowHold=false;
@@ -748,6 +792,7 @@
 
     const rowIndex=rowForBeat(songBeat), current=rows[rowIndex], kind=sectionKind(current.s);
     const arr=arrangementForRow(rowIndex), pattern=arr.pattern||kind, p=drumPower(rowIndex);
+    humanContext.pattern=pattern;
     const nextIndex=rowForBeat(Math.min(total-1,songBeat+1));
     const autoTurn=nextIndex!==rowIndex && rows[nextIndex].s!==current.s;
     if(followSilenceMode==='thin'){
@@ -819,6 +864,14 @@
       if((pattern==='openPlus'||pattern==='finale')&&beat===0&&songBeat%8===0)crash(t,.48*p);
       if(pattern==='finale'&&beat===0)kick(t+q*.5,.26*p);
       if(song.drumStyle==='Acoustic Pop'&&pattern!=='air'&&beat===2)kick(t+q*.5,.24*p);
+    }
+    if(!didFill&&followSilenceMode==='normal'&&humanAmount()>=.15){
+      const ghostEligible=pattern==='pocket'||pattern==='pocketPlus'||pattern==='build'||pattern==='open'||pattern==='openPlus';
+      if(ghostEligible&&(beat===0||beat===2)){
+        const seed=(songBeat+1)*101+(beat+1)*37+(pattern.length*19);
+        const chance=(pattern==='build'?.56:pattern.includes('Plus')?.44:.30)*humanAmount();
+        if(humanHash(seed)<chance)ghostSnare(t+q*.74,.72*p);
+      }
     }
     if(autoTurn&&!didFill&&fillRemaining===0){
       tom(t+q*.52,.42*p,150);
@@ -925,6 +978,7 @@
   keySel.addEventListener('change',changeKey);
   bpm.addEventListener('input',()=>{bpmLabel.textContent=bpm.value;saveState()});
   intensity.addEventListener('input',()=>{intensityLabel.textContent=intensity.value;updateDrummerUI(rows[currentRow].s,currentRow);saveState()});
+  humanize.addEventListener('input',()=>{humanizeLabel.textContent=humanize.value+'%';saveState()});
   fillBtn.addEventListener('click',queueFill);
   toggleBtn.addEventListener('click',toggle);
   stopBtn.addEventListener('click',stopToBeginning);
