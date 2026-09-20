@@ -253,3 +253,12 @@ This creates one decision authority for the drummer while keeping each detector 
 ### Stop / Resume Intent
 
 Follow v2 now treats silence and re-entry as musical intent rather than only low volume. A reliable strum onset refreshes `lastMusicalActivityAt`. Roughly 1.7 s without new guitar activity requests `THIN`, where the drum engine suppresses fills and plays a sparse kick/hat/snare texture. Roughly 3.8 s of silence requests `HOLD`; the engine waits for the next beat 1, freezes `songBeat`, keeps only an internal silent clock, and clears old tempo/bar/chord evidence. On new playing, the fusion layer enters `RE-LOCK` and requires fresh tempo confidence, beat-1 phase stability, and several recent onsets. While held, the silent transport may hard-align its clock to the next detected guitar downbeat; only then is `REJOIN` queued. Re-entry happens on beat 1 with a light crash and the normal groove resumes. Manual play/jump/pause controls override auto hold, and disabling Auto Follow releases any thin/hold state.
+
+
+### Predictive Transition Planner
+
+Follow v2 now separates **decision time** from **performance time**. Once tempo/bar are locked and `sectionPrediction` is stable, the planner combines section confidence, guitar energy trend, arrangement gain delta, current intensity, bar confidence, tempo confidence, harmonic agreement, and distance to the next section. It produces a plan state such as `STAY`, `BUILD`, `FILL-SMALL`, `FILL-MEDIUM`, or `FILL-BIG`.
+
+A plan must remain stable before it can be armed. When armed, the main drum engine stores the target section and fill style but keeps the current groove running. It only starts the 1-bar fill when the target section is within the final 4 beats, then anchors/crashes into the target on beat 1. If a plan somehow reaches the target late, a fail-safe anchors without leaving a stuck pending plan.
+
+Fill rendering now has three intensity classes (`small`, `medium`, `big`) with three deterministic variants per class. The planner rotates variants to reduce repetition. Existing automatic fills are suppressed while a predictive transition is pending, so two fill systems cannot compete.
