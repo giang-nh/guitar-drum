@@ -525,6 +525,7 @@
   }
 
   function stopListening(message) {
+    if(calibrationActive)cancelCalibration('',true);
     const transport=api.getTransport?.();
     if (
       transport?.playing &&
@@ -1077,7 +1078,8 @@
     renderCalibration();
   }
 
-  function cancelCalibration(message='Calibration đã hủy.') {
+  function cancelCalibration(message='Calibration đã hủy.',silent=false) {
+    const wasActive=calibrationActive;
     calibrationActive=false;
     calibrationCapturing=false;
     calibrationCurrentSamples=[];
@@ -1085,8 +1087,8 @@
     ui.calOpen.textContent=calibrationProfile?'Recalibrate':'Calibrate';
     ui.calCapture.disabled=false;
     ui.calCancel.textContent='Cancel';
-    recordTelemetryEvent('calibration-cancel');
-    if(message)api.setStatus?.('🧪 '+message);
+    if(wasActive)recordTelemetryEvent('calibration-cancel');
+    if(message&&!silent)api.setStatus?.('🧪 '+message);
     renderCalibration();
   }
 
@@ -1251,10 +1253,11 @@
       0,1
     );
 
+    const thresholds=calibrationThresholds();
     let nextClass='mix';
-    if(ui.cleanInputToggle.checked&&drumPenalty>.55&&guitarEvidence<.50) nextClass='drum';
-    else if(guitarEvidence>.48&&transient>.18) nextClass='guitar';
-    else if(voiceLike>.62&&transient<.30) nextClass='voice';
+    if(ui.cleanInputToggle.checked&&drumPenalty>thresholds.classDrum&&guitarEvidence<Math.max(thresholds.guitarEvidenceMin+.18,.46)) nextClass='drum';
+    else if(guitarEvidence>thresholds.classGuitar&&transient>.18) nextClass='guitar';
+    else if(voiceLike>thresholds.classVoice&&transient<Math.max(.26,thresholds.voiceTransientMax+.08)) nextClass='voice';
     else if(total<1e-5) nextClass='quiet';
 
     if(nextClass!==inputClass){
@@ -1271,11 +1274,12 @@
 
   function cleanInputEnergy(rawEnergy,evidence) {
     if(!ui.cleanInputToggle.checked)return rawEnergy;
+    const thresholds=calibrationThresholds();
     let factor=1;
-    if(evidence.drumPenalty>.58&&evidence.guitarEvidence<.48){
+    if(evidence.drumPenalty>thresholds.drumReject&&evidence.guitarEvidence<Math.max(thresholds.guitarEvidenceMin+.18,.46)){
       factor*=1-.62*evidence.drumPenalty;
     }
-    if(evidence.voiceLike>.68&&evidence.transient<.22){
+    if(evidence.voiceLike>thresholds.voiceReject&&evidence.transient<thresholds.voiceTransientMax){
       factor*=.62;
     }
     return clamp(rawEnergy*factor,0,1);
@@ -1312,7 +1316,8 @@
     if (db < ambientDb) ambientDb = ambientDb * 0.90 + db * 0.10;
     else ambientDb = ambientDb * 0.998 + db * 0.002;
 
-    if (db > peakDb && drumPenalty < 0.58) peakDb = peakDb * 0.72 + db * 0.28;
+    const thresholds=calibrationThresholds();
+    if (db > peakDb && drumPenalty < thresholds.drumReject) peakDb = peakDb * 0.72 + db * 0.28;
     else peakDb = peakDb * 0.998 + db * 0.002;
 
     ambientDb = clamp(ambientDb, -70, -34);
@@ -1330,15 +1335,16 @@
     const rise = energy - onsetEnvelope;
     onsetEnvelope = onsetEnvelope * 0.84 + energy * 0.16;
     const clean=Boolean(ui.cleanInputToggle.checked);
+    const thresholds=calibrationThresholds();
     const extraDrumGate=clean ? evidence.drumPenalty*0.075 : 0;
     const extraVoiceGate=clean ? evidence.voiceLike*0.040 : 0;
-    const requiredRise=0.105+extraDrumGate+extraVoiceGate;
+    const requiredRise=thresholds.onsetRiseBase+extraDrumGate+extraVoiceGate;
     const spectralOk=!clean ||
-      evidence.guitarEvidence>=0.28 ||
-      (evidence.drumPenalty<0.35 && evidence.flux>=0.08);
+      evidence.guitarEvidence>=thresholds.guitarEvidenceMin ||
+      (evidence.drumPenalty<Math.max(.28,thresholds.drumReject-.20) && evidence.flux>=0.08);
     const accept =
       rise>requiredRise &&
-      energy>0.20 &&
+      energy>thresholds.minEnergy &&
       spectralOk &&
       now-lastOnsetAt>120;
 
@@ -1349,10 +1355,10 @@
       recordOnset(now, energy);
     } else if (
       clean &&
-      rise>0.105 &&
-      energy>0.20 &&
+      rise>thresholds.onsetRiseBase &&
+      energy>thresholds.minEnergy &&
       now-lastOnsetAt>120 &&
-      (evidence.drumPenalty>0.45 || evidence.voiceLike>0.58)
+      (evidence.drumPenalty>Math.max(.38,thresholds.drumReject-.12) || evidence.voiceLike>Math.max(.52,thresholds.voiceReject-.10))
     ) {
       rejectedOnsets++;
     }
@@ -1893,8 +1899,9 @@
       const concentration=chromaEma.reduce((sum,v)=>sum+v*v,0);
       const effectivePitchClasses=concentration>0?1/concentration:0;
       if (effectivePitchClasses<2.05) return null;
-      if (spectralFrame.drumPenalty>.68 && spectralFrame.guitarEvidence<.48) return null;
-      if (spectralFrame.voiceLike>.72 && spectralFrame.transient<.18) return null;
+      const thresholds=calibrationThresholds();
+      if (spectralFrame.drumPenalty>thresholds.chordDrumReject && spectralFrame.guitarEvidence<Math.max(thresholds.guitarEvidenceMin+.18,.46)) return null;
+      if (spectralFrame.voiceLike>thresholds.chordVoiceReject && spectralFrame.transient<Math.max(.16,thresholds.voiceTransientMax-.04)) return null;
     }
     const chromaNorm = normalizeVector(chromaEma);
     const ranked = descs.map(desc => {
@@ -1990,13 +1997,13 @@
 
   function updateHarmonicFollow(now) {
     if (!running || !frequencyBuffer) return;
-    if (
-      ui.cleanInputToggle.checked &&
-      (
-        (spectralFrame.drumPenalty>.72 && spectralFrame.guitarEvidence<.52) ||
-        (spectralFrame.voiceLike>.78 && spectralFrame.transient<.16)
-      )
-    ) return;
+    if (ui.cleanInputToggle.checked) {
+      const thresholds=calibrationThresholds();
+      if (
+        (spectralFrame.drumPenalty>Math.min(.90,thresholds.chordDrumReject+.04) && spectralFrame.guitarEvidence<Math.max(thresholds.guitarEvidenceMin+.22,.50)) ||
+        (spectralFrame.voiceLike>Math.min(.92,thresholds.chordVoiceReject+.06) && spectralFrame.transient<Math.max(.14,thresholds.voiceTransientMax-.06))
+      ) return;
+    }
     const shift=soundingShift();
     if (lastHarmonicShift == null) lastHarmonicShift=shift;
     if (shift !== lastHarmonicShift) {
