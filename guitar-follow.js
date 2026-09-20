@@ -19,6 +19,10 @@
   const TEMPO_CONFIDENCE_MIN = 0.62;
   const TEMPO_STABLE_MS = 2400;
   const TEMPO_APPLY_MS = 850;
+  const BAR_WINDOW_MS = 12000;
+  const BAR_CONFIDENCE_MIN = 0.70;
+  const BAR_MIN_ALIGNED = 10;
+  const BAR_SYNC_COOLDOWN_MS = 7000;
 
   let audioCtx = null;
   let stream = null;
@@ -42,11 +46,15 @@
   let onsetWindowStartedAt = performance.now();
   let lastOnsetAt = 0;
   let onsetTimes = [];
+  let onsetEvents = [];
   let tempoEstimate = null;
   let tempoConfidence = 0;
   let tempoCandidate = null;
   let tempoCandidateSince = 0;
   let lastTempoApplyAt = 0;
+  let barEstimate = null;
+  let barConfidence = 0;
+  let lastBarSyncAt = 0;
 
   injectStyles();
   const ui = buildUi();
@@ -66,11 +74,11 @@
       .gd-follow-meter{height:10px;border-radius:999px;background:#e5e7ea;overflow:hidden}
       .gd-follow-meter>div{height:100%;width:0;background:var(--accent);transition:width .12s linear}
       .gd-follow-value{min-width:54px;text-align:right;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
-      .gd-follow-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px}
+      .gd-follow-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-top:9px}
       .gd-follow-stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:7px 8px}
       .gd-follow-stat span{display:block;font-size:9px;color:var(--muted);font-weight:800;text-transform:uppercase}
       .gd-follow-stat strong{display:block;margin-top:2px;font-size:13px}
-      .gd-follow-controls{display:grid;grid-template-columns:auto minmax(110px,1fr) auto;gap:10px;align-items:end;margin-top:10px}
+      .gd-follow-controls{display:grid;grid-template-columns:auto minmax(110px,1fr) auto auto;gap:10px;align-items:end;margin-top:10px}
       .gd-follow-controls button{min-width:134px;min-height:40px;padding:0 12px}
       .gd-follow-controls label{font-size:11px;margin:0}
       .gd-follow-controls input[type=range]{margin-top:5px}
@@ -103,6 +111,7 @@
         <div class="gd-follow-stat"><span>Mic</span><strong id="gdFollowDb">— dB</strong></div>
         <div class="gd-follow-stat"><span>Strum</span><strong id="gdFollowStrums">0.0/s</strong></div>
         <div class="gd-follow-stat"><span>Tempo</span><strong id="gdFollowTempo">— BPM</strong><span id="gdFollowTempoConfidence">chưa đủ onset</span></div>
+        <div class="gd-follow-stat"><span>Bar</span><strong id="gdFollowBarState">—</strong><span id="gdFollowBarConfidence">chưa thấy beat 1</span></div>
       </div>
       <div class="gd-follow-controls">
         <button type="button" id="gdFollowToggle">🎙 Bật Auto Follow</button>
@@ -111,8 +120,9 @@
           <input id="gdFollowSensitivity" type="range" min="-12" max="12" value="0" step="1" />
         </div>
         <label class="gd-follow-tempo-option" for="gdTempoFollow"><input id="gdTempoFollow" type="checkbox" checked /> Follow BPM</label>
+        <label class="gd-follow-tempo-option" for="gdBarFollow"><input id="gdBarFollow" type="checkbox" checked /> Sync beat 1</label>
       </div>
-      <div id="gdFollowHint" class="gd-follow-hint">POC: mic follow lực đàn và có thể kéo BPM từ từ khi tempo ước lượng đủ ổn định. Section vẫn theo song map. Tempo Follow tốt nhất khi giảm loa hoặc dùng tai nghe để mic ít bắt tiếng drum.</div>
+      <div id="gdFollowHint" class="gd-follow-hint">POC: mic follow lực đàn + tempo. “Sync beat 1” chỉ can thiệp khi accent pattern đủ rõ và chỉ nudge/re-index ô nhịp nhẹ; section vẫn theo song map. Dùng tai nghe hoặc giảm loa sẽ giảm mic bleed.</div>
     `;
     const hint = drummer.querySelector('.drumHint');
     if (hint) hint.insertAdjacentElement('afterend', host);
@@ -128,9 +138,12 @@
       strums: host.querySelector('#gdFollowStrums'),
       tempo: host.querySelector('#gdFollowTempo'),
       tempoConfidence: host.querySelector('#gdFollowTempoConfidence'),
+      barState: host.querySelector('#gdFollowBarState'),
+      barConfidence: host.querySelector('#gdFollowBarConfidence'),
       toggle: host.querySelector('#gdFollowToggle'),
       sensitivity: host.querySelector('#gdFollowSensitivity'),
       tempoToggle: host.querySelector('#gdTempoFollow'),
+      barToggle: host.querySelector('#gdBarFollow'),
       hint: host.querySelector('#gdFollowHint')
     };
   }
@@ -145,6 +158,13 @@
       saveSettings();
       resetTempoTracking();
       renderTempo();
+      renderBar();
+    });
+    ui.barToggle.addEventListener('change', () => {
+      saveSettings();
+      barEstimate = null;
+      barConfidence = 0;
+      renderBar();
     });
 
     document.querySelector('#songSelect')?.addEventListener('change', () => {
@@ -155,6 +175,7 @@
       resetTempoTracking();
       renderState('silent', 0, -80, 0);
       renderTempo();
+      renderBar();
     });
 
     document.querySelector('#gdToneMic')?.addEventListener('click', () => {
@@ -169,6 +190,7 @@
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
       if (saved.sensitivity != null) ui.sensitivity.value = String(Math.max(-12, Math.min(12, Number(saved.sensitivity) || 0)));
       if (saved.tempoFollow != null) ui.tempoToggle.checked = Boolean(saved.tempoFollow);
+      if (saved.barFollow != null) ui.barToggle.checked = Boolean(saved.barFollow);
     } catch {}
   }
 
@@ -176,7 +198,8 @@
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         sensitivity:Number(ui.sensitivity.value) || 0,
-        tempoFollow:Boolean(ui.tempoToggle.checked)
+        tempoFollow:Boolean(ui.tempoToggle.checked),
+        barFollow:Boolean(ui.barToggle.checked)
       }));
     } catch {}
   }
@@ -224,7 +247,7 @@
       ui.toggle.textContent = '■ Tắt Auto Follow';
       ui.pill.textContent = 'LISTENING';
       setHint(ui.tempoToggle.checked
-        ? 'Đang nghe guitar. Dynamics phản ứng ngay; BPM chỉ thay đổi sau khi tempo ổn định đủ lâu.'
+        ? 'Đang nghe guitar. Dynamics phản ứng ngay; BPM và beat 1 chỉ thay đổi khi tín hiệu đủ ổn định.'
         : 'Đang nghe guitar. Follow BPM đang tắt; app chỉ phản ứng theo lực đàn.');
       raf = requestAnimationFrame(frame);
     } catch (error) {
@@ -244,7 +267,8 @@
     resetTempoTracking();
     renderState('silent', 0, -80, 0);
     renderTempo();
-    if (message) setHint(message + ' Intensity và BPM trở lại điều khiển tay.');
+    renderBar();
+    if (message) setHint(message + ' Intensity, BPM và bar sync trở lại điều khiển tay.');
   }
 
   function cleanupAudio() {
@@ -281,10 +305,12 @@
     smoothedEnergy = smoothedEnergy * 0.80 + energy * 0.20;
     const strumRate = updateOnsetRate(ts, smoothedEnergy);
     updateTempoFollow(ts);
+    updateBarFollow(ts);
     const state = stateForEnergy(smoothedEnergy, ts);
     updateState(state, ts);
     renderState(currentState, smoothedEnergy, db, strumRate);
     renderTempo();
+    renderBar();
   }
 
   function rmsOf(data) {
@@ -318,7 +344,7 @@
     if (rise > 0.11 && energy > 0.20 && now - lastOnsetAt > 120) {
       onsetCount++;
       lastOnsetAt = now;
-      recordOnset(now);
+      recordOnset(now, energy);
     }
     const elapsed = now - onsetWindowStartedAt;
     if (elapsed >= 2400) {
@@ -332,18 +358,25 @@
 
   function resetTempoTracking() {
     onsetTimes = [];
+    onsetEvents = [];
     if (ui?.strums) ui.strums.dataset.rate = '0';
     tempoEstimate = null;
     tempoConfidence = 0;
     tempoCandidate = null;
     tempoCandidateSince = 0;
     lastTempoApplyAt = 0;
+    barEstimate = null;
+    barConfidence = 0;
+    lastBarSyncAt = 0;
   }
 
-  function recordOnset(now) {
+  function recordOnset(now, energy) {
     onsetTimes.push(now);
+    onsetEvents.push({time:now, strength:clamp(Number(energy)||0, 0, 1)});
     const cutoff = now - TEMPO_WINDOW_MS;
     while (onsetTimes.length && onsetTimes[0] < cutoff) onsetTimes.shift();
+    const barCutoff = now - BAR_WINDOW_MS;
+    while (onsetEvents.length && onsetEvents[0].time < barCutoff) onsetEvents.shift();
   }
 
   function normalizeBpmFromInterval(intervalMs, minBpm, maxBpm) {
@@ -444,6 +477,118 @@
     ui.tempoConfidence.textContent = Math.round(tempoConfidence * 100) + '% confidence';
   }
 
+  function phaseError(time, anchor, period) {
+    const raw = ((time - anchor + period / 2) % period + period) % period - period / 2;
+    return raw;
+  }
+
+  function estimateBar() {
+    if (!tempoEstimate || tempoConfidence < 0.66 || onsetEvents.length < BAR_MIN_ALIGNED) return null;
+    const beatMs = 60000 / tempoEstimate;
+    const recent = onsetEvents.filter(e => onsetEvents[onsetEvents.length - 1].time - e.time <= BAR_WINDOW_MS);
+    if (recent.length < BAR_MIN_ALIGNED) return null;
+
+    let bestAnchor = null;
+    let bestScore = -Infinity;
+    const tolerance = beatMs * 0.20;
+
+    for (const candidate of recent) {
+      let score = 0;
+      for (const event of recent) {
+        const err = Math.abs(phaseError(event.time, candidate.time, beatMs));
+        const closeness = clamp(1 - err / Math.max(1, tolerance), 0, 1);
+        score += closeness * (0.35 + event.strength);
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestAnchor = candidate.time;
+      }
+    }
+    if (bestAnchor == null) return null;
+
+    const residueScores = [0,0,0,0];
+    const residueCounts = [0,0,0,0];
+    let aligned = 0;
+
+    for (const event of recent) {
+      const err = Math.abs(phaseError(event.time, bestAnchor, beatMs));
+      if (err > tolerance) continue;
+      const k = Math.round((event.time - bestAnchor) / beatMs);
+      const residue = ((k % 4) + 4) % 4;
+      const closeness = clamp(1 - err / Math.max(1, tolerance), 0, 1);
+      residueScores[residue] += (0.25 + event.strength) * closeness;
+      residueCounts[residue]++;
+      aligned++;
+    }
+    if (aligned < BAR_MIN_ALIGNED) return null;
+
+    const means = residueScores.map((score, i) => residueCounts[i] ? score / residueCounts[i] : 0);
+    const order = [0,1,2,3].sort((a,b) => means[b] - means[a]);
+    const bestResidue = order[0], secondResidue = order[1];
+    const best = means[bestResidue], second = means[secondResidue];
+    if (best <= 0) return null;
+
+    const contrast = clamp((best - second) / Math.max(0.15, best), 0, 1);
+    const pulseCoverage = clamp(aligned / Math.max(1, recent.length), 0, 1);
+    const sampleScore = clamp(aligned / 16, 0, 1);
+    const confidence = clamp(0.55 * contrast + 0.20 * pulseCoverage + 0.25 * sampleScore, 0, 1);
+    const baseDownbeat = bestAnchor + bestResidue * beatMs;
+
+    return {beatMs, baseDownbeat, confidence, aligned, contrast};
+  }
+
+  function nearestBarTime(baseDownbeat, beatMs, targetTime) {
+    const barMs = beatMs * 4;
+    const n = Math.round((targetTime - baseDownbeat) / barMs);
+    return baseDownbeat + n * barMs;
+  }
+
+  function updateBarFollow(now) {
+    const estimate = estimateBar();
+    barEstimate = estimate;
+    barConfidence = estimate?.confidence ?? 0;
+
+    if (!ui.barToggle.checked || !ui.tempoToggle.checked) return;
+    if (!estimate || estimate.confidence < BAR_CONFIDENCE_MIN || estimate.aligned < BAR_MIN_ALIGNED) return;
+    if (now - lastBarSyncAt < BAR_SYNC_COOLDOWN_MS) return;
+    if (typeof api.getTransport !== 'function' || typeof api.syncNextBeat !== 'function') return;
+
+    const transport = api.getTransport();
+    if (!transport?.playing || transport.paused || transport.countIn > 0 || !Number.isFinite(transport.nextBeatPerformanceMs)) return;
+
+    const guitarDownbeat = nearestBarTime(estimate.baseDownbeat, estimate.beatMs, transport.nextBeatPerformanceMs);
+    const delta = guitarDownbeat - transport.nextBeatPerformanceMs;
+    if (Math.abs(delta) > 85) return;
+    if (transport.nextBeatIndex === 0 && Math.abs(delta) < 24) return;
+
+    const synced = api.syncNextBeat(guitarDownbeat, 0);
+    if (!synced) return;
+    lastBarSyncAt = now;
+    api.setStatus?.('🎸 Beat 1 nhận diện ' + Math.round(estimate.confidence * 100) + '% · drummer đã sync ô nhịp.');
+  }
+
+  function renderBar() {
+    if (!ui.barState) return;
+    if (!ui.barToggle.checked) {
+      ui.barState.textContent = 'OFF';
+      ui.barConfidence.textContent = 'bar sync tắt';
+      return;
+    }
+    if (!ui.tempoToggle.checked) {
+      ui.barState.textContent = 'WAIT';
+      ui.barConfidence.textContent = 'cần Follow BPM';
+      return;
+    }
+    if (!barEstimate) {
+      ui.barState.textContent = '—';
+      ui.barConfidence.textContent = onsetEvents.length + '/' + BAR_MIN_ALIGNED + ' onset';
+      return;
+    }
+    ui.barState.textContent = 'Beat 1';
+    const justSynced = performance.now() - lastBarSyncAt < 2400;
+    ui.barConfidence.textContent = Math.round(barConfidence * 100) + '% ' + (justSynced ? '· synced' : 'confidence');
+  }
+
   function stateForEnergy(energy, now) {
     if (energy < 0.12) {
       if (!silentSince) silentSince = now;
@@ -528,7 +673,10 @@
       peakDb,
       tempoEstimate,
       tempoConfidence,
-      tempoFollow:Boolean(ui.tempoToggle.checked)
+      tempoFollow:Boolean(ui.tempoToggle.checked),
+      barConfidence,
+      barFollow:Boolean(ui.barToggle.checked),
+      barEstimate
     })
   };
 })();
