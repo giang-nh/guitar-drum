@@ -370,3 +370,12 @@ Phrase awareness is derived from the existing manual beat/section map; it does n
 Phrase endings may trigger a short deterministic `schedulePhraseTurn()` pickup on the final beat of a phrase. This is deliberately a sub-beat flourish, not a transport action or full one-bar fill. It is suppressed during RED Health, predictive section transitions, active fills, and the actual section-turn beat so it cannot double-trigger the existing planner/transition machinery. Destination-aware full fills remain owned by the Predictive Transition Planner.
 
 The planner now queries `GuitarDrumAPI.getPhraseContext()`. Phrase progress/alignment contributes a small part of transition confidence and fill-size choice: a section target that coincides with the current phrase ending gains support, while a big fill requires the phrase to be reasonably mature. Plan diagnostics expose `P x/y` plus phrase-alignment metadata, and telemetry captures the phrase context through both performance intent and transition-plan snapshots.
+
+
+### Playing Mode + Developer Mode
+
+The Follow UI now has two presentation layers over the same runtime state. **Playing Mode** is the default and keeps only the controls/status needed during performance: Auto Follow plus a compact summary such as `GREEN 82% · Chorus 2 · P6/8 · BUILD`. BPM, Intensity and Human Feel remain in the existing main drummer controls, and Tone/Capo remain in their existing user-facing area.
+
+**Developer Mode** is toggled from the Follow header and reveals the existing detailed meter, Guitar/Mic/Strum/Tempo/Bar/Section/Chord/Fusion/Plan/Input/Health cards, sensitivity, individual Follow subsystem toggles, Calibration, Debug Recorder, Auto-Tune and Regression Replay. Developer Mode is a UI visibility setting only; it does not change detector or transport behavior. The preference is persisted locally.
+
+The compact summary combines `Follow Health`, current transport section, `phraseContextAtBeat()` and transition-plan mode. The main drum engine emits a lightweight `guitar-drum-transport` event when song position/row changes so the compact summary continues updating even when the microphone/Auto Follow analysis loop is not running. Current UI mode is also exposed through `GuitarFollowAPI.getState()` and debug telemetry.
