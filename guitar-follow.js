@@ -485,11 +485,13 @@
     const sensitivity = Number(ui.sensitivity.value) || 0;
     const db = rawDb + sensitivity;
 
-    updateAdaptiveRange(db);
-    const energy = normalizeEnergy(db);
+    spectralFrame = analyzeSpectrum(ts);
+    updateAdaptiveRange(db, spectralFrame.drumPenalty);
+    const rawEnergy = normalizeEnergy(db);
+    const energy = cleanInputEnergy(rawEnergy, spectralFrame);
     smoothedEnergy = smoothedEnergy * 0.80 + energy * 0.20;
     recordEnergy(ts, smoothedEnergy);
-    const strumRate = updateOnsetRate(ts, smoothedEnergy);
+    const strumRate = updateOnsetRate(ts, smoothedEnergy, spectralFrame);
     updateActivityEvidence(ts);
     updateTempoFollow(ts);
     updateBarFollow(ts);
@@ -505,6 +507,172 @@
     renderHarmonic();
     renderFusion();
     renderPlan();
+    renderInput();
+  }
+
+  function resetInputTracking() {
+    selfHits=[];
+    previousSpectrum=null;
+    spectralFrame={flux:0,flatness:0,lowRatio:0,midRatio:0,highRatio:0,drumPenalty:0,voiceLike:0,guitarEvidence:0};
+    inputClass='unknown';
+    inputClassSince=0;
+    acceptedOnsets=0;
+    rejectedOnsets=0;
+  }
+
+  function handleSelfDrumHit(event) {
+    const d=event?.detail;
+    if (!d || !Number.isFinite(Number(d.time))) return;
+    selfHits.push({
+      voice:String(d.voice||''),
+      time:Number(d.time),
+      power:Math.max(0,Number(d.power)||0)
+    });
+    const cutoff=performance.now()-SELF_HIT_HISTORY_MS;
+    while(selfHits.length&&selfHits[0].time<cutoff)selfHits.shift();
+  }
+
+  function drumVoiceWindow(voice) {
+    return {
+      kick:170,snare:145,ghost:85,hat:65,openHat:210,tom:155,crash:260,click:90
+    }[voice]||100;
+  }
+
+  function drumVoiceWeight(voice) {
+    return {
+      kick:.92,snare:.88,ghost:.22,hat:.24,openHat:.42,tom:.62,crash:.82,click:.28
+    }[voice]||.35;
+  }
+
+  function predictedDrumPenalty(now, features) {
+    let penalty=0;
+    const cutoff=now-SELF_HIT_HISTORY_MS;
+    while(selfHits.length&&selfHits[0].time<cutoff)selfHits.shift();
+
+    for(const hit of selfHits){
+      const age=now-hit.time;
+      const post=drumVoiceWindow(hit.voice);
+      if(age<-SELF_HIT_PRE_MS||age>post)continue;
+      const envelope=age<0
+        ? clamp(1+age/SELF_HIT_PRE_MS,0,1)
+        : clamp(1-age/post,0,1);
+      let spectralMatch=.35;
+      if(hit.voice==='kick'){
+        spectralMatch=clamp(.35+features.lowRatio*.95-features.highRatio*.25,0,1);
+      }else if(hit.voice==='snare'||hit.voice==='crash'||hit.voice==='openHat'||hit.voice==='hat'){
+        spectralMatch=clamp(.20+features.flatness*.62+features.highRatio*.42,0,1);
+      }else if(hit.voice==='tom'){
+        spectralMatch=clamp(.25+features.lowRatio*.35+features.midRatio*.50,0,1);
+      }
+      const power=clamp(hit.power/1.25,0.25,1);
+      penalty=Math.max(penalty,envelope*drumVoiceWeight(hit.voice)*spectralMatch*power);
+    }
+    return clamp(penalty,0,1);
+  }
+
+  function analyzeSpectrum(now) {
+    if(!analyser||!frequencyBuffer||!audioCtx){
+      return {flux:0,flatness:0,lowRatio:0,midRatio:0,highRatio:0,drumPenalty:0,voiceLike:0,guitarEvidence:0};
+    }
+    analyser.getFloatFrequencyData(frequencyBuffer);
+    const binHz=audioCtx.sampleRate/analyser.fftSize;
+    if(!previousSpectrum||previousSpectrum.length!==frequencyBuffer.length){
+      previousSpectrum=new Float32Array(frequencyBuffer.length);
+    }
+
+    let low=0,mid=0,high=0,total=0,fluxNum=0;
+    let logSum=0,arith=0,flatCount=0;
+    for(let i=1;i<frequencyBuffer.length;i++){
+      const f=i*binHz;
+      if(f<70||f>5000)continue;
+      const db=frequencyBuffer[i];
+      const mag=Number.isFinite(db)?Math.pow(10,db/20):0;
+      const prev=previousSpectrum[i]||0;
+      if(mag>prev)fluxNum+=mag-prev;
+      previousSpectrum[i]=mag;
+      total+=mag;
+      if(f<180)low+=mag;
+      else if(f<1200)mid+=mag;
+      else high+=mag;
+      if(f>=180&&f<=4200){
+        const safe=Math.max(1e-9,mag);
+        logSum+=Math.log(safe);
+        arith+=safe;
+        flatCount++;
+      }
+    }
+    const denom=Math.max(1e-9,total);
+    const flux=clamp(fluxNum/denom,0,2);
+    const lowRatio=low/denom,midRatio=mid/denom,highRatio=high/denom;
+    const flatness=flatCount>0&&arith>0
+      ? clamp(Math.exp(logSum/flatCount)/(arith/flatCount),0,1)
+      : 0;
+    const transient=clamp((flux-.025)/.24,0,1);
+    const provisional={flux,flatness,lowRatio,midRatio,highRatio};
+    const drumPenalty=predictedDrumPenalty(now,provisional);
+    const voiceLike=clamp(
+      (1-transient)*.48 +
+      clamp((midRatio-.42)/.38,0,1)*.34 +
+      clamp((.23-highRatio)/.23,0,1)*.18,
+      0,1
+    );
+    const tonal=1-clamp(flatness/.72,0,1);
+    const guitarEvidence=clamp(
+      transient*.52 +
+      clamp((midRatio-.24)/.46,0,1)*.22 +
+      clamp(highRatio/.32,0,1)*.12 +
+      tonal*.14,
+      0,1
+    );
+
+    let nextClass='mix';
+    if(ui.cleanInputToggle.checked&&drumPenalty>.55&&guitarEvidence<.50) nextClass='drum';
+    else if(guitarEvidence>.48&&transient>.18) nextClass='guitar';
+    else if(voiceLike>.62&&transient<.30) nextClass='voice';
+    else if(total<1e-5) nextClass='quiet';
+
+    if(nextClass!==inputClass){
+      if(!inputClassSince||now-inputClassSince>INPUT_CLASS_HOLD_MS){
+        inputClass=nextClass;
+        inputClassSince=now;
+      }
+    }else{
+      inputClassSince=now;
+    }
+
+    return {flux,flatness,lowRatio,midRatio,highRatio,drumPenalty,voiceLike,guitarEvidence,transient};
+  }
+
+  function cleanInputEnergy(rawEnergy,evidence) {
+    if(!ui.cleanInputToggle.checked)return rawEnergy;
+    let factor=1;
+    if(evidence.drumPenalty>.58&&evidence.guitarEvidence<.48){
+      factor*=1-.62*evidence.drumPenalty;
+    }
+    if(evidence.voiceLike>.68&&evidence.transient<.22){
+      factor*=.62;
+    }
+    return clamp(rawEnergy*factor,0,1);
+  }
+
+  function renderInput() {
+    if(!ui.input)return;
+    if(!running){
+      ui.input.textContent=ui.cleanInputToggle.checked?'CLEAN':'RAW';
+      ui.inputDetail.textContent='bật Auto Follow để phân loại';
+      return;
+    }
+    if(!ui.cleanInputToggle.checked){
+      ui.input.textContent='RAW';
+      ui.inputDetail.textContent='rejection tắt';
+      return;
+    }
+    const labels={guitar:'GUITAR',voice:'VOICE',drum:'DRUM',mix:'MIX',quiet:'QUIET',unknown:'—'};
+    ui.input.textContent=labels[inputClass]||String(inputClass).toUpperCase();
+    ui.inputDetail.textContent=
+      'flux '+Math.round((spectralFrame.flux||0)*100)+
+      ' · mask '+Math.round((spectralFrame.drumPenalty||0)*100)+
+      '% · ok/rej '+acceptedOnsets+'/'+rejectedOnsets;
   }
 
   function rmsOf(data) {
@@ -513,12 +681,12 @@
     return Math.sqrt(sum / Math.max(1, data.length));
   }
 
-  function updateAdaptiveRange(db) {
+  function updateAdaptiveRange(db, drumPenalty=0) {
     if (db < -75) return;
     if (db < ambientDb) ambientDb = ambientDb * 0.90 + db * 0.10;
     else ambientDb = ambientDb * 0.998 + db * 0.002;
 
-    if (db > peakDb) peakDb = peakDb * 0.72 + db * 0.28;
+    if (db > peakDb && drumPenalty < 0.58) peakDb = peakDb * 0.72 + db * 0.28;
     else peakDb = peakDb * 0.998 + db * 0.002;
 
     ambientDb = clamp(ambientDb, -70, -34);
@@ -532,13 +700,35 @@
     return clamp((db - floor) / (ceiling - floor), 0, 1);
   }
 
-  function updateOnsetRate(now, energy) {
+  function updateOnsetRate(now, energy, evidence=spectralFrame) {
     const rise = energy - onsetEnvelope;
     onsetEnvelope = onsetEnvelope * 0.84 + energy * 0.16;
-    if (rise > 0.11 && energy > 0.20 && now - lastOnsetAt > 120) {
+    const clean=Boolean(ui.cleanInputToggle.checked);
+    const extraDrumGate=clean ? evidence.drumPenalty*0.075 : 0;
+    const extraVoiceGate=clean ? evidence.voiceLike*0.040 : 0;
+    const requiredRise=0.105+extraDrumGate+extraVoiceGate;
+    const spectralOk=!clean ||
+      evidence.guitarEvidence>=0.28 ||
+      (evidence.drumPenalty<0.35 && evidence.flux>=0.08);
+    const accept =
+      rise>requiredRise &&
+      energy>0.20 &&
+      spectralOk &&
+      now-lastOnsetAt>120;
+
+    if (accept) {
       onsetCount++;
+      acceptedOnsets++;
       lastOnsetAt = now;
       recordOnset(now, energy);
+    } else if (
+      clean &&
+      rise>0.105 &&
+      energy>0.20 &&
+      now-lastOnsetAt>120 &&
+      (evidence.drumPenalty>0.45 || evidence.voiceLike>0.58)
+    ) {
+      rejectedOnsets++;
     }
     const elapsed = now - onsetWindowStartedAt;
     if (elapsed >= 2400) {
