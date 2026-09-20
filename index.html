@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Guitar Drum" />
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <title>Nàng Thơ · Guitar Drum</title>
+  <title>Guitar Drum</title>
   <style>
     :root{
       color-scheme:light;
@@ -26,7 +26,7 @@
     .sub{color:var(--muted);font-size:16px}
     .bpmBox{min-width:74px;text-align:center;background:var(--panel);border-radius:14px;padding:10px}
     .bpmBox strong{display:block;font-size:28px}.bpmBox span{font-size:12px;color:var(--muted)}
-    .controls{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+    .controls{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:18px;margin-top:18px}
     label{display:block;font-weight:650;font-size:14px;margin-bottom:7px}
     select{width:100%;height:46px;border:1px solid var(--border);border-radius:10px;background:var(--panel);padding:0 12px}
     input[type=range]{width:100%;margin-top:10px}
@@ -54,7 +54,7 @@
     .row.active{background:var(--accent-bg);box-shadow:inset 4px 0 0 var(--accent)}
     .lineWrap.active .num{color:var(--accent)}
     .chord{display:inline-block;padding:0 .26em;margin:0 .05em;border:1px solid var(--border);border-radius:5px;background:var(--card);font-size:.9em;line-height:1.35;font-weight:800;white-space:nowrap}
-    .hint{color:var(--muted);font-size:12px;margin:0 0 8px 40px}
+    @media(max-width:800px){.controls{grid-template-columns:1fr 1fr}}
     @media(max-width:700px){
       .app{padding:10px 8px 28px}.card{border-radius:14px;padding:14px}
       h1{font-size:23px}.sub{font-size:14px}.controls{grid-template-columns:1fr;gap:12px}
@@ -69,32 +69,26 @@
   <section class="card">
     <div class="top">
       <div>
-        <h1>Nàng Thơ · Hoàng Dũng</h1>
-        <div class="sub">Ballad · 4/4</div>
+        <h1 id="songTitle">Nàng Thơ · Hoàng Dũng</h1>
+        <div id="songMeta" class="sub">Ballad · 4/4</div>
       </div>
       <div class="bpmBox"><strong id="bpmLabel">62</strong><span>BPM</span></div>
     </div>
     <div class="controls">
       <div>
-        <label for="keySelect">Tone</label>
-        <select id="keySelect">
-          <option value="10">A# · nam trầm / nữ cao</option>
-          <option value="11">B · nam trầm–trung / nữ cao</option>
-          <option value="0" selected>C · tone gốc / nam trung</option>
-          <option value="1">C# · nam trung–cao</option>
-          <option value="2">D · nam cao</option>
-          <option value="3">D#</option>
-          <option value="4">E</option>
-          <option value="5">F · nữ trầm</option>
-          <option value="6">F# · nữ trầm–trung</option>
-          <option value="7">G · nữ trung</option>
-          <option value="8">G# · nữ trung</option>
-          <option value="9">A · nữ trung–cao</option>
+        <label for="songSelect">Bài hát</label>
+        <select id="songSelect">
+          <option value="nang-tho">Nàng Thơ · Hoàng Dũng</option>
+          <option value="que-xa">Quê Xa · Quang Dũng</option>
         </select>
       </div>
       <div>
+        <label for="keySelect">Tone</label>
+        <select id="keySelect"></select>
+      </div>
+      <div>
         <label for="bpm">Tempo</label>
-        <input id="bpm" type="range" min="50" max="80" value="62" step="1" />
+        <input id="bpm" type="range" min="50" max="90" value="62" step="1" />
       </div>
     </div>
   </section>
@@ -124,72 +118,125 @@
 <script>
 (() => {
   const $ = s => document.querySelector(s);
-  const keySel=$('#keySelect'), bpm=$('#bpm'), bpmLabel=$('#bpmLabel'), toggleBtn=$('#toggle'), stopBtn=$('#stop');
-  const status=$('#status'), sectionLabel=$('#section'), position=$('#position'), sheet=$('#sheet');
+  const songSel=$('#songSelect'), keySel=$('#keySelect'), bpm=$('#bpm'), bpmLabel=$('#bpmLabel');
+  const titleEl=$('#songTitle'), metaEl=$('#songMeta');
+  const toggleBtn=$('#toggle'), stopBtn=$('#stop'), status=$('#status'), sectionLabel=$('#section'), position=$('#position'), sheet=$('#sheet');
   const viewBtn=$('#viewToggle');
   const beatEls=[...document.querySelectorAll('.beat')];
+
   const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const noteMap={C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
-  const STORAGE_KEY='guitar-drum-state-v2';
-  let shift=0,currentRow=0,showAll=false;
-  function loadState(){
-    try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')}catch{return {}}
+  const STORAGE_KEY='guitar-drum-state-v3';
+
+  const songs={
+    'nang-tho':{
+      title:'Nàng Thơ',artist:'Hoàng Dũng',meta:'Ballad · 4/4',baseKey:0,defaultBpm:62,
+      rows:[
+        ['Intro',24,['C',' · ','F',' · ','G',' · ','C',' · ','F',' · ','Cm',' · ','Dm',' · ','G']],
+        ['Verse 1',6,['C','Em, ngày em đánh ','Em7','rơi nụ cười vào ','Am7','anh']],
+        ['Verse 1',6,['Gm7','Có nghĩ sau ','C7','này em sẽ ','F','chờ']],
+        ['Verse 1',6,['Dm','Và vô tư cho đi hết ','G','những ngây thơ ','A#',' ','G','']],
+        ['Verse 1',6,['C','Anh, một người hát ','Em7','mãi những điều mong ','Am7','manh']],
+        ['Verse 1',6,['Gm7','Lang thang tìm ','C7','niềm vui đã ','F','lỡ']],
+        ['Verse 1',6,['Dm7','Chẳng buồn dặn lòng quên hết ','G','những chơ vơ']],
+        ['Tiền ĐK',6,['','Ta ','Am','yêu nhau bằng nỗi ','G','nhớ chưa khô trên ','F','những bức thư']],
+        ['Tiền ĐK',6,['','Ta ','Am','đâu bao giờ có ','G','lỗi khi không nghe ','F','tim chối từ']],
+        ['Tiền ĐK',4,['','Chỉ ','G','tiếc rằng']],
+        ['Chorus 1',5,['','Em không là nàng ','C','thơ']],
+        ['Chorus 1',6,['','Anh ','G','cũng không ','E7','còn là nhạc ','Am7','sĩ mộng mơ']],
+        ['Chorus 1',5,['','Tình này nhẹ như ','Dm','gió']],
+        ['Chorus 1',6,['','Lại trĩu lên tim ta ','G','những vết hằn']],
+        ['Chorus 1',5,['','Tiếng yêu này mỏng ','C','manh']],
+        ['Chorus 1',6,['','Giờ tan ','Em7','vỡ, thôi ','Am7','cũng đành']],
+        ['Chorus 1',6,['Gm7','Xếp riêng ','C','những ngày ','F','tháng hồn nhiên ','Dm7','']],
+        ['Chorus 1',5,['','Trả ','G','lại…']],
+        ['Interlude',8,['C',' · ','F',' · ','G',' · ','C','']],
+        ['Interlude',8,['F',' · ','C',' · ','A#',' · ','G','']],
+        ['Verse 2',6,['C','Mai, rồi em sẽ ','Em7','quên ngày mình khờ ','Am7','dại']],
+        ['Verse 2',6,['Gm7','Mong em kỷ ','C7','niệm này cất ','F','lại']],
+        ['Verse 2',6,['Dm7','Mong em ngày buồn thôi ướt ','G','đẫm trên vai ','A#',' ','G','']],
+        ['Verse 2',6,['C','Mai, ngày em sải ','Em7','bước bên đời thênh ','Am7','thang']],
+        ['Verse 2',6,['Gm7','Chỉ cần một ','C7','điều em hãy ','F','nhớ']],
+        ['Verse 2',6,['','Có một ','Dm','người từng yêu em tha thiết vô bờ ','G','']],
+        ['Chorus 2',5,['','Em không là nàng ','C','thơ']],
+        ['Chorus 2',6,['','Anh ','G','cũng không ','E7','còn là nhạc ','Am7','sĩ mộng mơ']],
+        ['Chorus 2',5,['','Tình này nhẹ như ','Dm','gió']],
+        ['Chorus 2',6,['','Lại trĩu lên tim ta ','G','những vết hằn']],
+        ['Chorus 2',5,['','Tiếng yêu này mỏng ','C','manh']],
+        ['Chorus 2',6,['','Giờ tan ','Em7','vỡ, thôi ','Am7','cũng đành']],
+        ['Chorus 2',6,['Gm7','Xếp riêng ','C','những ngày ','F','tháng hồn nhiên ','Dm7','']],
+        ['Chorus 2',5,['','Trả ','G','hết cho ','C','em ','Em',' ','Am7',' ','Gm7',' ','C7',' ','F',' ','Dm7',' ','G',' ','A','']],
+        ['Final +1 Tone',5,['','Em không là nàng ','D','thơ']],
+        ['Final +1 Tone',6,['','Anh cũng ','F#m7','không còn là nhạc ','Bm7','sĩ mộng mơ']],
+        ['Final +1 Tone',5,['','Tình này nhẹ như ','Em','gió']],
+        ['Final +1 Tone',6,['','Lại trĩu lên tim ta ','A','những vết hằn']],
+        ['Final +1 Tone',5,['','Tiếng yêu này mỏng ','D','manh']],
+        ['Final +1 Tone',6,['','Giờ tan ','F#m7','vỡ, thôi ','Bm7','cũng đành']],
+        ['Final +1 Tone',6,['Am7','Xếp riêng ','D','những ngày ','G','tháng hồn nhiên ','Em7','']],
+        ['Final +1 Tone',8,['','Trả ','A','hết cho ','G','em ','A',' ','G',' ','A',' ','G',' ','C',' ','D','']]
+      ]
+    },
+    'que-xa':{
+      title:'Quê Xa',artist:'Quang Dũng',meta:'Ballad · 4/4 · tone gốc D/Dm',baseKey:2,defaultBpm:62,
+      rows:[
+        ['Verse 1',8,['','Bỗng ','D',' dưng thấy đời buồn thiu không ','Em7b5','mê xem phim chán ','D/A','cà phê chiều']],
+        ['Verse 1',8,['','Gió ','Gm',' mang nỗi buồn quạnh ','Em7b5','hiu gửi chút thương ','Bb',' yêu về nơi tôi ','A7',' nhớ']],
+        ['Verse 1',8,['','Tối ','D',' qua tôi nằm ngủ ','Am/C','mơ, trong cơn ','Em7b5',' mơ tôi thấy tôi ','D/A',' xa đời']],
+        ['Verse 1',8,['','Quá ','Gm',' nhanh có kịp chào ','Em7b5','ai chào mỗi em ','Bb',' thôi, dù em xa ','A7',' lắm']],
+        ['Điệp khúc',8,['','Gió ','Gm',' ơi nhắn gửi dùm ','Eb','tôi, tôi xa quê ','Cm',' tôi đã bao năm ','Gm',' rồi']],
+        ['Điệp khúc',8,['','Biết ','Am7',' em có còn là ','D/A','quê? Miền quê xa ','E7',' đó có bao buồn ','A',' vui']],
+        ['Verse 2',8,['','Sáng ','D',' nay có người bảo tôi nghe đâu sang ','Em7b5',' năm chắc em ','D/A',' lấy chồng']],
+        ['Verse 2',8,['','Đúng ','Gm',' ra đó là chuyện ','Em7b5','vui thầm chúc cho ','Bb',' em niềm vui duyên ','A7',' mới']],
+        ['Verse 2',8,['','Chắc ','D',' tôi sẽ ở vậy ','Am/C','thôi xa quê bao ','Em7b5',' năm đã lâu lắm ','D/A',' rồi']],
+        ['Verse 2',8,['','Có ','Gm',' đâu dám về lại ','Em7b5','thăm thà nhớ thương ','Bb',' thôi chứ về buồn ','A7',' lắm !']],
+        ['Verse 2',8,['','Có ','Gm',' khi cách trở mà ','Eb','hay bên nhau ','Cm',' không vui sống xa nhớ ','Gm',' nhiều']],
+        ['Verse 2',8,['','Tôi ','Am7',' thôi cứ là vậy ','D/A','thôi vậy thôi tôi ','E7',' nhé nhớ nhau vậy ','A',' thôi']],
+        ['Điệp khúc 2',8,['','Gió ','Gm',' ơi nhắn gửi dùm tôi, tôi xa quê ','Cm',' tôi đã bao năm ','Gm',' rồi']],
+        ['Điệp khúc 2',8,['','Biết ','Am7',' em có còn là ','D/A','quê? Miền quê xa ','E7',' đó có bao buồn ','A',' vui']],
+        ['Verse 3',8,['','Sáng ','D',' nay có người bảo tôi nghe đâu sang ','Em7b5',' năm chắc em ','D/A',' lấy chồng']],
+        ['Verse 3',8,['','Đúng ','Gm',' ra đó là chuyện ','Em7b5','vui thầm chúc cho ','Bb',' em niềm vui duyên ','A7',' mới']],
+        ['Verse 3',8,['','Chắc ','D',' tôi sẽ ở vậy ','Am/C','thôi xa quê bao ','Gm',' năm đã lâu lắm ','D/A',' rồi']],
+        ['Verse 3',8,['','Có ','Gm',' đâu dám về lại ','Em7b5','thăm thà nhớ thương ','Bb',' thôi chứ về buồn ','A7',' lắm !']],
+        ['Verse 3',8,['','Có ','Gm',' khi cách trở mà ','Eb','hay bên nhau ','Cm',' không vui sống xa nhớ ','Gm',' nhiều']],
+        ['Verse 3',8,['','Tôi ','Am7',' thôi cứ là vậy ','D/A','thôi vậy thôi tôi ','E7',' nhé nhớ nhau vậy ','A',' thôi']],
+        ['Outro',8,['','Tối ','D',' qua tôi lại nằm mơ, trong cơn ','Em7b5',' mơ tôi thấy tôi ','D/A',' xa đời']],
+        ['Outro',8,['','Quá ','Gm',' nhanh có kịp chào ','Em7b5','ai chào mỗi em ','Bb',' thôi ','A','cách xa nghìn ','Dm',' trùng']],
+        ['Outro',8,['','Quá ','Gm',' nhanh có kịp chào ','Em7b5','ai chào mỗi quê ','Bb',' thôi ','A','đã xa nghìn ','Dm',' trùng']],
+        ['Outro',8,['','ứ... ','Gm',' ư.... ứ ứ....ư.... chào mỗi em ','Bb',' thôi cách ','A7',' xa nghìn ','Dm',' trùng']]
+      ]
+    }
+  };
+
+  let songId='nang-tho', song=songs[songId], rows=[], total=0, shift=0, currentRow=0, showAll=false;
+
+  function stateKey(id){return STORAGE_KEY+'-'+id}
+  function loadState(id){
+    try{return JSON.parse(localStorage.getItem(stateKey(id))||'{}')}catch{return {}}
   }
   function saveState(){
     try{
-      localStorage.setItem(STORAGE_KEY,JSON.stringify({
-        row:currentRow,
-        key:keySel.value,
-        bpm:bpm.value,
-        showAll
+      localStorage.setItem(stateKey(songId),JSON.stringify({
+        row:currentRow,key:keySel.value,bpm:bpm.value,showAll
       }));
+      localStorage.setItem(STORAGE_KEY+'-last-song',songId);
     }catch{}
   }
 
-  const raw=[
-    ['Intro',24,['C',' · ','F',' · ','G',' · ','C',' · ','F',' · ','Cm',' · ','Dm',' · ','G']],
-    ['Verse 1',6,['C','Em, ngày em đánh ','Em7','rơi nụ cười vào ','Am7','anh']],
-    ['Verse 1',6,['Gm7','Có nghĩ sau ','C7','này em sẽ ','F','chờ']],
-    ['Verse 1',6,['Dm','Và vô tư cho đi hết ','G','những ngây thơ ','A#',' ','G','']],
-    ['Verse 1',6,['C','Anh, một người hát ','Em7','mãi những điều mong ','Am7','manh']],
-    ['Verse 1',6,['Gm7','Lang thang tìm ','C7','niềm vui đã ','F','lỡ']],
-    ['Verse 1',6,['Dm7','Chẳng buồn dặn lòng quên hết ','G','những chơ vơ']],
-    ['Tiền ĐK',6,['','Ta ','Am','yêu nhau bằng nỗi ','G','nhớ chưa khô trên ','F','những bức thư']],
-    ['Tiền ĐK',6,['','Ta ','Am','đâu bao giờ có ','G','lỗi khi không nghe ','F','tim chối từ']],
-    ['Tiền ĐK',4,['','Chỉ ','G','tiếc rằng']],
-    ['Chorus 1',5,['','Em không là nàng ','C','thơ']],
-    ['Chorus 1',6,['','Anh ','G','cũng không ','E7','còn là nhạc ','Am7','sĩ mộng mơ']],
-    ['Chorus 1',5,['','Tình này nhẹ như ','Dm','gió']],
-    ['Chorus 1',6,['','Lại trĩu lên tim ta ','G','những vết hằn']],
-    ['Chorus 1',5,['','Tiếng yêu này mỏng ','C','manh']],
-    ['Chorus 1',6,['','Giờ tan ','Em7','vỡ, thôi ','Am7','cũng đành']],
-    ['Chorus 1',6,['Gm7','Xếp riêng ','C','những ngày ','F','tháng hồn nhiên ','Dm7','']],
-    ['Chorus 1',5,['','Trả ','G','lại…']],
-    ['Interlude',8,['C',' · ','F',' · ','G',' · ','C','']],
-    ['Interlude',8,['F',' · ','C',' · ','A#',' · ','G','']],
-    ['Verse 2',6,['C','Mai, rồi em sẽ ','Em7','quên ngày mình khờ ','Am7','dại']],
-    ['Verse 2',6,['Gm7','Mong em kỷ ','C7','niệm này cất ','F','lại']],
-    ['Verse 2',6,['Dm7','Mong em ngày buồn thôi ướt ','G','đẫm trên vai ','A#',' ','G','']],
-    ['Verse 2',6,['C','Mai, ngày em sải ','Em7','bước bên đời thênh ','Am7','thang']],
-    ['Verse 2',6,['Gm7','Chỉ cần một ','C7','điều em hãy ','F','nhớ']],
-    ['Verse 2',6,['','Có một ','Dm','người từng yêu em tha thiết vô bờ ','G','']],
-    ['Chorus 2',5,['','Em không là nàng ','C','thơ']],
-    ['Chorus 2',6,['','Anh ','G','cũng không ','E7','còn là nhạc ','Am7','sĩ mộng mơ']],
-    ['Chorus 2',5,['','Tình này nhẹ như ','Dm','gió']],
-    ['Chorus 2',6,['','Lại trĩu lên tim ta ','G','những vết hằn']],
-    ['Chorus 2',5,['','Tiếng yêu này mỏng ','C','manh']],
-    ['Chorus 2',6,['','Giờ tan ','Em7','vỡ, thôi ','Am7','cũng đành']],
-    ['Chorus 2',6,['Gm7','Xếp riêng ','C','những ngày ','F','tháng hồn nhiên ','Dm7','']],
-    ['Chorus 2',5,['','Trả ','G','hết cho ','C','em ','Em',' ','Am7',' ','Gm7',' ','C7',' ','F',' ','Dm7',' ','G',' ','A','']],
-    ['Final +1 Tone',5,['','Em không là nàng ','D','thơ']],
-    ['Final +1 Tone',6,['','Anh cũng ','F#m7','không còn là nhạc ','Bm7','sĩ mộng mơ']],
-    ['Final +1 Tone',5,['','Tình này nhẹ như ','Em','gió']],
-    ['Final +1 Tone',6,['','Lại trĩu lên tim ta ','A','những vết hằn']],
-    ['Final +1 Tone',5,['','Tiếng yêu này mỏng ','D','manh']],
-    ['Final +1 Tone',6,['','Giờ tan ','F#m7','vỡ, thôi ','Bm7','cũng đành']],
-    ['Final +1 Tone',6,['Am7','Xếp riêng ','D','những ngày ','G','tháng hồn nhiên ','Em7','']],
-    ['Final +1 Tone',8,['','Trả ','A','hết cho ','G','em ','A',' ','G',' ','A',' ','G',' ','C',' ','D','']]
-  ];
+  function buildRows(){
+    rows=[]; total=0;
+    song.rows.forEach((d,i)=>{const r={s:d[0],b:d[1],parts:d[2],start:total,i};total+=r.b;r.end=total;rows.push(r)});
+  }
+
+  function populateKeys(target){
+    keySel.innerHTML='';
+    notes.forEach((n,i)=>{
+      const o=document.createElement('option');
+      o.value=String(i);
+      o.textContent=n+(i===song.baseKey?' · tone gốc':'');
+      if(i===target)o.selected=true;
+      keySel.appendChild(o);
+    });
+  }
 
   function transposeChord(ch){
     const m=ch.match(/^([A-G])([#b]?)(.*)$/); if(!m) return ch;
@@ -199,16 +246,13 @@
   function isChord(v){return /^[A-G](?:#|b)?(?:m|maj|dim|aug|sus|add)?\d*(?:\/\w+)?$/.test(v)}
   function renderParts(parts){return parts.map(v=>isChord(v)?'<span class="chord">'+transposeChord(v)+'</span>':v).join('')}
 
-  const rows=[]; let total=0;
-  raw.forEach((d,i)=>{const r={s:d[0],b:d[1],parts:d[2],start:total,i}; total+=r.b; r.end=total; rows.push(r)});
-
   function renderSheet(){
     sheet.innerHTML='';
     let indices=[];
     if(showAll) indices=rows.map((_,i)=>i);
     else{
-      let start=Math.max(0,currentRow-2), end=Math.min(rows.length,start+5);
-      start=Math.max(0,end-5); for(let i=start;i<end;i++) indices.push(i);
+      let start=Math.max(0,currentRow-2),end=Math.min(rows.length,start+5);
+      start=Math.max(0,end-5);for(let i=start;i<end;i++)indices.push(i);
     }
     let prev=null;
     indices.forEach(i=>{
@@ -220,17 +264,42 @@
       row.setAttribute('role','button');row.setAttribute('tabindex','0');row.setAttribute('aria-label','Nhảy tới dòng '+(i+1));
       row.addEventListener('click',()=>jumpToRow(i));
       row.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();jumpToRow(i)}});
-      wrap.append(num,row); sheet.appendChild(wrap);
+      wrap.append(num,row);sheet.appendChild(wrap);
     });
     viewBtn.textContent=showAll?'↑ Show 5 lines':'↓ Show all';
   }
 
-  function updateRow(i){currentRow=Math.max(0,Math.min(rows.length-1,i));sectionLabel.textContent=rows[currentRow].s;renderSheet();saveState()}
   function updateTime(){const sec=Math.round(songBeat*60/Number(bpm.value));position.textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}
+  function updateRow(i){currentRow=Math.max(0,Math.min(rows.length-1,i));sectionLabel.textContent=rows[currentRow].s;renderSheet();saveState()}
   function jumpToRow(i){songBeat=rows[i].start;updateRow(i);updateTime();status.textContent=playing&&!paused?'Đã nhảy tới Line '+(i+1)+'.':'Sẵn sàng từ Line '+(i+1)+'.';if(playing&&!paused){nextTime=ctx.currentTime+.08;quarter=songBeat%4}}
-  function changeKey(){shift=(Number(keySel.value)+12)%12;renderSheet();saveState()}
+  function changeKey(){shift=(Number(keySel.value)-song.baseKey+12)%12;renderSheet();saveState()}
+
+  function loadSong(id,resetAudio=true){
+    if(resetAudio) stopPlaybackOnly();
+    songId=id;song=songs[id];songSel.value=id;
+    buildRows();
+    const saved=loadState(id);
+    const targetKey=saved.key!=null?Number(saved.key):song.baseKey;
+    populateKeys(targetKey);
+    bpm.value=saved.bpm!=null?String(saved.bpm):String(song.defaultBpm);
+    bpmLabel.textContent=bpm.value;
+    showAll=Boolean(saved.showAll);
+    currentRow=Math.max(0,Math.min(rows.length-1,Number(saved.row)||0));
+    shift=(Number(keySel.value)-song.baseKey+12)%12;
+    songBeat=rows[currentRow].start;
+    quarter=songBeat%4;countIn=4;
+    titleEl.textContent=song.title+' · '+song.artist;
+    metaEl.textContent=song.meta;
+    document.title=song.title+' · Guitar Drum';
+    sectionLabel.textContent=rows[currentRow].s;
+    updateTime();
+    status.textContent=currentRow===0?'Sẵn sàng.':'Sẵn sàng từ Line '+(currentRow+1)+'.';
+    renderSheet();
+    saveState();
+  }
 
   let ctx=null,master=null,noise=null,timer=null,playing=false,paused=false,nextTime=0,quarter=0,countIn=4,songBeat=0,visualTimers=[];
+
   function setup(){
     if(!ctx){
       const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();master=ctx.createGain();master.gain.value=.7;master.connect(ctx.destination);
@@ -243,16 +312,17 @@
   function hat(t,p=1){const s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=6500;g.gain.setValueAtTime(.05*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.04);s.connect(hp);hp.connect(g);g.connect(master);s.start(t);s.stop(t+.05)}
   function click(t,strong){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=strong?1050:820;g.gain.setValueAtTime(strong?.15:.09,t);g.gain.exponentialRampToValueAtTime(.001,t+.04);o.connect(g);g.connect(master);o.start(t);o.stop(t+.05)}
   function rowForBeat(b){for(let i=0;i<rows.length;i++)if(b>=rows[i].start&&b<rows[i].end)return i;return rows.length-1}
+
   function visualBeat(beat,t,isCount){
     const delay=Math.max(0,(t-ctx.currentTime)*1000);
     visualTimers.push(setTimeout(()=>{
       if(!playing||paused)return;
       beatEls.forEach((el,i)=>el.classList.toggle('on',i===beat));
-      if(isCount) status.textContent='Count-in: '+(beat+1);
+      if(isCount)status.textContent='Count-in: '+(beat+1);
       else{
-        const next=rowForBeat(songBeat); if(next!==currentRow) updateRow(next);
-        updateTime(); status.textContent='Line '+(currentRow+1)+' · Beat '+(beat+1); songBeat++;
-        if(songBeat>=total) stopToBeginning();
+        const next=rowForBeat(songBeat);if(next!==currentRow)updateRow(next);
+        updateTime();status.textContent='Line '+(currentRow+1)+' · Beat '+(beat+1);songBeat++;
+        if(songBeat>=total)stopToBeginning();
       }
     },delay));
   }
@@ -261,7 +331,7 @@
     if(countIn>0){click(t,beat===0);visualBeat(beat,t,true);countIn--;quarter++;return}
     const q=60/Number(bpm.value);hat(t,1);hat(t+q/2,.55);if(beat===0)kick(t,.95);if(beat===1||beat===3)snare(t,.85);if(beat===2)kick(t,.65);visualBeat(beat,t,false);quarter++;
   }
-  function tick(){if(!playing||paused)return;const q=60/Math.max(50,Math.min(80,Number(bpm.value)||62));while(nextTime<ctx.currentTime+.12){scheduleBeat(nextTime);nextTime+=q}}
+  function tick(){if(!playing||paused)return;const q=60/Math.max(50,Math.min(90,Number(bpm.value)||62));while(nextTime<ctx.currentTime+.12){scheduleBeat(nextTime);nextTime+=q}}
 
   async function toggle(){
     await setup();
@@ -269,32 +339,29 @@
     if(!paused){paused=true;toggleBtn.textContent='▶ Play';status.textContent='Đã pause ở Line '+(currentRow+1)+'.';visualTimers.forEach(clearTimeout);visualTimers=[];return}
     paused=false;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';status.textContent='Tiếp tục Line '+(currentRow+1)+'…';
   }
-  function stopToBeginning(){
+
+  function stopPlaybackOnly(){
     playing=false;paused=false;if(timer)clearInterval(timer);timer=null;visualTimers.forEach(clearTimeout);visualTimers=[];
-    songBeat=0;quarter=0;countIn=4;currentRow=0;position.textContent='0:00';sectionLabel.textContent='Intro';
-    toggleBtn.textContent='▶ Play';stopBtn.disabled=true;beatEls.forEach(el=>el.classList.remove('on'));status.textContent='Đã dừng · trở về đầu bài.';renderSheet();saveState();
+    toggleBtn.textContent='▶ Play';stopBtn.disabled=true;beatEls.forEach(el=>el.classList.remove('on'));
   }
 
+  function stopToBeginning(){
+    stopPlaybackOnly();
+    songBeat=0;quarter=0;countIn=4;currentRow=0;position.textContent='0:00';sectionLabel.textContent=rows[0].s;
+    status.textContent='Đã dừng · trở về đầu bài.';renderSheet();saveState();
+  }
+
+  songSel.addEventListener('change',()=>loadSong(songSel.value,true));
   viewBtn.addEventListener('click',()=>{showAll=!showAll;renderSheet();saveState()});
   keySel.addEventListener('change',changeKey);
   bpm.addEventListener('input',()=>{bpmLabel.textContent=bpm.value;saveState()});
   toggleBtn.addEventListener('click',toggle);
   stopBtn.addEventListener('click',stopToBeginning);
 
-  const saved=loadState();
-  if(saved.key!=null) keySel.value=String(saved.key);
-  if(saved.bpm!=null) bpm.value=String(saved.bpm);
-  bpmLabel.textContent=bpm.value;
-  showAll=Boolean(saved.showAll);
-  shift=(Number(keySel.value)+12)%12;
-  currentRow=Math.max(0,Math.min(rows.length-1,Number(saved.row)||0));
-  songBeat=rows[currentRow].start;
-  sectionLabel.textContent=rows[currentRow].s;
-  updateTime();
-  status.textContent=currentRow===0?'Sẵn sàng.':'Sẵn sàng từ Line '+(currentRow+1)+'.';
-  renderSheet();
+  const lastSong=localStorage.getItem(STORAGE_KEY+'-last-song');
+  loadSong(songs[lastSong]?lastSong:'nang-tho',false);
 
-  if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 })();
 </script>
 </body>
