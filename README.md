@@ -66,3 +66,5 @@ On iPad: open the site in Safari → Share → Add to Home Screen.
 Deployment workflow is configured in `.github/workflows/pages.yml`.
 
 The main app now includes **Tìm tone giọng** and **Tone + Capo** controls. Per-song prebuilt reference data lives in `tone-references.json`.
+
+- **Debug Session / Telemetry Recorder**: local-only recorder for iPad tuning; samples Follow state roughly 4x/sec, records state changes/marks, and exports a JSON session via iOS Share sheet or download. It does not record audio.
