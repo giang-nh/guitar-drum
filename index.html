@@ -419,7 +419,7 @@
 
   function updateTime(){const sec=Math.round(songBeat*60/Number(bpm.value));position.textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}
   function updateRow(i){currentRow=Math.max(0,Math.min(rows.length-1,i));sectionLabel.textContent=rows[currentRow].s;renderSheet();saveState()}
-  function jumpToRow(i){fillRequested=false;fillRemaining=0;pendingSectionTransition=null;pendingHarmonicAnchor=null;fillBtn.textContent='🥁 Fill';songBeat=rows[i].start;updateRow(i);updateTime();status.textContent=playing&&!paused?'Đã nhảy tới Line '+(i+1)+'.':'Sẵn sàng từ Line '+(i+1)+'.';if(playing&&!paused){nextTime=ctx.currentTime+.08;quarter=songBeat%4}}
+  function jumpToRow(i){fillRequested=false;fillRemaining=0;pendingSectionTransition=null;pendingHarmonicAnchor=null;followSilenceMode='normal';followHeld=false;pendingFollowHold=false;pendingFollowResume=false;fillBtn.textContent='🥁 Fill';songBeat=rows[i].start;updateRow(i);updateTime();status.textContent=playing&&!paused?'Đã nhảy tới Line '+(i+1)+'.':'Sẵn sàng từ Line '+(i+1)+'.';if(playing&&!paused){nextTime=ctx.currentTime+.08;quarter=songBeat%4}}
   async function playFromRow(i){
     fillRequested=false;fillRemaining=0;pendingSectionTransition=null;pendingHarmonicAnchor=null;
     followSilenceMode='normal';followHeld=false;pendingFollowHold=false;pendingFollowResume=false;fillBtn.textContent='🥁 Fill';
@@ -789,12 +789,14 @@
     await setup();
     if(!playing){followSilenceMode='normal';followHeld=false;pendingFollowHold=false;pendingFollowResume=false;playing=true;paused=false;countIn=4;quarter=songBeat%4;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';stopBtn.disabled=false;fillBtn.disabled=false;status.textContent='Chuẩn bị…';tick();timer=setInterval(tick,25);return}
     if(!paused){pausePlayback();return}
+    followSilenceMode='normal';followHeld=false;pendingFollowHold=false;pendingFollowResume=false;
     paused=false;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';fillBtn.disabled=false;status.textContent='Tiếp tục Line '+(currentRow+1)+'…';
   }
 
   function stopPlaybackOnly(){
     playing=false;paused=false;if(timer)clearInterval(timer);timer=null;visualTimers.forEach(clearTimeout);visualTimers=[];
-    fillRequested=false;fillRemaining=0;pendingSectionTransition=null;pendingHarmonicAnchor=null;fillBtn.textContent='🥁 Fill';
+    fillRequested=false;fillRemaining=0;pendingSectionTransition=null;pendingHarmonicAnchor=null;
+    followSilenceMode='normal';followHeld=false;pendingFollowHold=false;pendingFollowResume=false;fillBtn.textContent='🥁 Fill';
     toggleBtn.textContent='▶ Play';stopBtn.disabled=true;fillBtn.disabled=true;beatEls.forEach(el=>el.classList.remove('on'));
   }
 
