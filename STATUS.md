@@ -139,3 +139,6 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 
 - test **Phrase-aware Drummer** on sections of 4, 8, 12+ bars: `P x/y` should reset at phrase boundaries, later bars should build subtly rather than jump, and mini-turns must not fire on top of predictive/full fills or actual section-turn flourishes.
 - compare Chorus occurrence 1 vs 2 and an Outro from start→end; the repeat lift/decay should be audible but modest. Verify Plan diagnostics show phrase position and that phrase alignment only nudges confidence rather than forcing a transition.
+
+- test **Playing Mode** on iPad with Auto Follow both ON and OFF. The compact summary must keep section/phrase position in sync during playback, while Developer toggle should reveal/hide diagnostics without resetting Follow state or transport.
+- verify a fresh install defaults to Playing Mode; after explicitly enabling Developer Mode, reload should preserve that preference.
