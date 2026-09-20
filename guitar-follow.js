@@ -798,7 +798,10 @@
         intensity:Number(intensity.value)||0,
         humanFeel:Number(humanizeInput?.value)||0,
         sensitivity:Number(ui.sensitivity.value)||0
-      }
+      },
+      performance:typeof api.getPerformanceIntent==='function'
+        ? api.getPerformanceIntent()
+        : null
     };
   }
 
