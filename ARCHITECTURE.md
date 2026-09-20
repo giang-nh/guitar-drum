@@ -248,3 +248,8 @@ Key rules:
 - A shared fusion cooldown prevents a section fill and a harmonic re-anchor from competing in the same musical moment.
 
 This creates one decision authority for the drummer while keeping each detector independently debuggable.
+
+
+### Stop / Resume Intent
+
+Follow v2 now treats silence and re-entry as musical intent rather than only low volume. A reliable strum onset refreshes `lastMusicalActivityAt`. Roughly 1.7 s without new guitar activity requests `THIN`, where the drum engine suppresses fills and plays a sparse kick/hat/snare texture. Roughly 3.8 s of silence requests `HOLD`; the engine waits for the next beat 1, freezes `songBeat`, keeps only an internal silent clock, and clears old tempo/bar/chord evidence. On new playing, the fusion layer enters `RE-LOCK` and requires fresh tempo confidence, beat-1 phase stability, and several recent onsets. While held, the silent transport may hard-align its clock to the next detected guitar downbeat; only then is `REJOIN` queued. Re-entry happens on beat 1 with a light crash and the normal groove resumes. Manual play/jump/pause controls override auto hold, and disabling Auto Follow releases any thin/hold state.
