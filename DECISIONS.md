@@ -77,3 +77,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** Tempo Follow dùng onset timestamps trong một cửa sổ ngắn để ước lượng BPM, nhưng chỉ được điều khiển drummer khi có đủ mẫu, confidence vượt ngưỡng và candidate BPM giữ ổn định trong nhiều giây. Khi áp dụng, BPM chỉ dịch từng bước nhỏ (hiện 1 BPM mỗi khoảng 850 ms). User có thể tắt Tempo Follow riêng mà vẫn giữ dynamics follow.
 
 **Reason:** acoustic strumming có 8th notes, syncopation và mic bleed từ drum speaker nên tempo estimate có thể alias hoặc nhiễu. Một drummer nghe tự nhiên nên giữ pocket và điều chỉnh dần thay vì nhảy theo từng estimate tức thời.
+
+
+## D013 — Beat-1 sync chỉ được re-phase khi confidence cao
+
+**Decision:** downbeat/bar sync dùng accent pattern của onset guitar trên lưới 4/4. Candidate beat 1 phải có confidence cao và giữ cùng phase trong nhiều giây; chỉ khi predicted downbeat nằm rất gần next unscheduled drummer beat mới được nudge timing và re-index quarter counter về beat 1. Không thay đổi `songBeat` hoặc nhảy dòng lời.
+
+**Reason:** xác định beat 1 từ acoustic strumming khó hơn BPM, đặc biệt với quạt 8th/syncopated và mic bleed. Re-phase nhỏ giữ cảm giác pocket trong khi tránh phá song position nếu detector sai.
