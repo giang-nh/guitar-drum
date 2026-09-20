@@ -320,3 +320,14 @@ Health has hysteretic modes: `GREEN / Full Auto`, `YELLOW / Safe Follow`, and `R
 If Health drops to RED, the Follow layer calls the main transport's fail-safe cancellation hook to discard pending AI section/harmonic anchors. A GREEN→YELLOW downgrade also cancels pending Full-Auto actions so an older high-risk decision is not executed after confidence falls. If a fill is already sounding, it may finish acoustically, but its pending section anchor is removed. When Health recovers from RED, the current detected dynamics level is re-applied so intensity automation does not remain stuck at a stale value.
 
 Health score, component scores, mode and permissions are exposed through `GuitarFollowAPI` and included in debug telemetry.
+
+
+### Auto-Tune Engine / Profile Suggestions
+
+Auto-Tune is deliberately a **suggestion layer**, not an autonomous optimizer. It can analyze the current in-memory debug session or import a previously exported debug JSON file. Manual `Mark` events define ±3.5 second analysis windows. Within each window the engine summarizes input classes, guitar/drum/voice evidence, energy, onset accept/reject deltas, tempo/bar confidence, Health and harmonic margin.
+
+The engine only produces threshold deltas when a marked window has directional evidence such as `drum-false-positive`, `voice-false-positive`, `guitar-over-reject`, or `guitar-under-detect`. A clean harmonic-ambiguity mark is explicitly treated as a song-position/chord-map problem and does not tune mic thresholds. Adjustments are accumulated conservatively, scaled by the number of directional marks, capped per threshold, and clamped to safe ranges.
+
+Before Apply, Auto-Tune compares current vs proposed thresholds on the recorded samples. The comparison estimates guitar-sample retention and contaminated-sample pass rate. If estimated guitar retention falls by more than 8 percentage points, or contamination pass rises by more than 3.5 points, Apply is safety-blocked. Confidence is also capped by mark count so a single mark cannot look like a highly validated model update.
+
+Apply is always explicit. It writes the proposed thresholds into the local Mic Profile and records Auto-Tune metadata (source, confidence, mark count, changes). The previous profile is persisted as an Undo backup; Undo survives reload and restores either the prior calibrated/tuned profile or default thresholds. A new calibration/reset clears stale Auto-Tune rollback state. Debug export v26 includes the active profile and any current Auto-Tune suggestion/compare metadata.
