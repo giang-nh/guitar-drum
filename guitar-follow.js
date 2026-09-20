@@ -922,7 +922,15 @@
         sensitivity:Number(ui.sensitivity.value)||0,
         intensity:Number(intensity.value)||0,
         humanFeel:Number(humanizeInput?.value)||0,
-        calibrationProfile
+        calibrationProfile,
+        autoTuneSuggestion:autoTuneSuggestion?{
+          sourceLabel:autoTuneSuggestion.sourceLabel,
+          confidence:round(autoTuneSuggestion.confidence),
+          marks:autoTuneSuggestion.marks,
+          changes:autoTuneSuggestion.changes,
+          compare:autoTuneSuggestion.compare,
+          safetyBlocked:autoTuneSuggestion.safetyBlocked
+        }:null
       },
       summary:{
         samples:telemetrySamples.length,
@@ -1155,7 +1163,7 @@
       }
     });
 
-    const confidence=clamp(
+    const confidenceBase=clamp(
       .18+
       .10*Math.min(4,marks.length)+
       .28*clamp(directional.length/Math.max(1,marks.length),0,1)+
@@ -1163,7 +1171,17 @@
       .12*(calibrationProfile?.quality||.5),
       0,1
     );
+    const confidence=Math.min(confidenceBase,.48+.12*Math.min(3,marks.length));
     const compare=compareThresholds(session,before,proposed,marks);
+    const guitarLoss=
+      compare.guitarRetentionBefore!=null&&compare.guitarRetentionAfter!=null
+        ? compare.guitarRetentionBefore-compare.guitarRetentionAfter
+        : 0;
+    const contaminationWorse=
+      compare.contaminationPassBefore!=null&&compare.contaminationPassAfter!=null
+        ? compare.contaminationPassAfter-compare.contaminationPassBefore
+        : 0;
+    const safetyBlocked=guitarLoss>.08||contaminationWorse>.035;
     const reasons=[];
     const counts={};
     analyses.flatMap(a=>a.flags).forEach(f=>counts[f]=(counts[f]||0)+1);
@@ -1186,6 +1204,10 @@
       proposed,
       changes,
       compare,
+      safetyBlocked,
+      safetyReason:safetyBlocked
+        ? (guitarLoss>.08?'estimated guitar retention drops too much':'estimated contamination pass gets worse')
+        : '',
       reasons,
       analyses
     };
@@ -1224,7 +1246,11 @@
       changeText+'\n'+
       'Estimate: guitar retention '+fmtPct(cmp.guitarRetentionBefore)+' → '+fmtPct(cmp.guitarRetentionAfter)+
       ' · contamination pass '+fmtPct(cmp.contaminationPassBefore)+' → '+fmtPct(cmp.contaminationPassAfter);
-    ui.tuneApply.disabled=s.confidence<.45;
+    if(s.safetyBlocked){
+      ui.tuneResult.textContent+=
+        '\n⚠ Safety block: '+s.safetyReason+'. Suggestion chỉ để xem, không Apply.';
+    }
+    ui.tuneApply.disabled=s.confidence<.55||s.safetyBlocked;
   }
 
   function analyzeSessionForTune(session,label) {
@@ -1272,7 +1298,7 @@
 
   function applyAutoTuneSuggestion() {
     const s=autoTuneSuggestion;
-    if(!s?.changes?.length||s.confidence<.45)return;
+    if(!s?.changes?.length||s.confidence<.55||s.safetyBlocked)return;
     autoTuneBackupProfile=calibrationProfile
       ? deepClone(calibrationProfile)
       : {__defaultProfile:true};
@@ -1505,6 +1531,10 @@
       resetIntentTracking();
       resetPlannerTracking();
       resetHealthTracking();
+      autoTuneBackupProfile=null;
+      autoTuneSuggestion=null;
+      ui.tuneUndo.disabled=true;
+      ui.tuneApply.disabled=true;
       ui.calOpen.textContent='Recalibrate';
       ui.calCapture.disabled=true;
       ui.calCancel.textContent='Close';
@@ -1537,6 +1567,10 @@
   function resetCalibrationProfile() {
     if(calibrationActive)cancelCalibration('',true);
     calibrationProfile=null;
+    autoTuneBackupProfile=null;
+    autoTuneSuggestion=null;
+    ui.tuneUndo.disabled=true;
+    ui.tuneApply.disabled=true;
     saveSettings();
     resetInputTracking();
     resetTempoTracking();
