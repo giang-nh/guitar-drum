@@ -71,7 +71,9 @@ Các bài mới sẽ tiếp tục được thêm vào cùng cấu trúc này.
 - Drum phải chạy đồng bộ với BPM và dòng lời hiện tại.
 - Có **Auto Follow guitar (POC)**: khi user chủ động bật microphone, app đo năng lượng đàn acoustic realtime và phân loại ổn định thành `silent / soft / medium / big` để tự điều khiển Intensity của drummer.
 - Follow guitar phải dùng smoothing/hysteresis/hold time để không đổi groove lực theo từng cú quạt riêng lẻ.
-- POC hiện chỉ follow **dynamics/intensity**; BPM, downbeat và section vẫn theo tempo/song map hiện tại. Tempo/section following là bước nâng cấp sau khi POC này được test tốt trên iPad.
+- Auto Follow có **Tempo Follow (POC)** tùy chọn: dùng onset guitar gần đây để ước lượng BPM + confidence, chỉ cập nhật khi candidate đủ ổn định và phải glide từ từ thay vì nhảy BPM.
+- Tempo Follow phải cho phép tắt riêng để user vẫn dùng dynamics follow mà giữ BPM thủ công.
+- POC hiện follow **dynamics + tempo**, nhưng downbeat/beat 1 và section vẫn theo song map hiện tại. Downbeat/bar sync là bước nâng cấp kế tiếp.
 
 ## 7. Điều khiển khi tập
 
