@@ -38,7 +38,7 @@ The repository is intended to contain enough context that a new agent can contin
 - PWA-style install support
 - Integrated vocal tone detection for the 3 current songs
 - Tone + Capo recommendations that favor common guitar chord shapes
-- Microphone **Follow guitar** POC: listens to acoustic-guitar energy, maps stable `silent / soft / medium / big` states to drummer Intensity, estimates strumming tempo, gradually steers BPM when confidence is high, and can conservatively sync detected beat 1 / bar phase
+- Microphone **Follow guitar** POC: listens to acoustic-guitar energy, maps stable `silent / soft / medium / big` states to drummer Intensity, estimates strumming tempo, gradually steers BPM, conservatively syncs beat 1 / bar phase, and predicts the next high-energy section from the known song map + guitar energy trend to arm an adaptive fill/transition
 
 ## Architecture summary
 
