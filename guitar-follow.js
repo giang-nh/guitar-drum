@@ -50,7 +50,7 @@
   const RESUME_TEMPO_MIN = 0.58;
   const RESUME_BAR_MIN = 0.60;
   const PLAN_STABLE_MS = 1200;
-  const PLAN_ARM_MIN = 0.78;
+  const PLAN_ARM_MIN = 0.74;
   const PLAN_HARMONIC_SUPPORT_MIN = 0.68;
   const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const NOTES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
@@ -1554,17 +1554,23 @@
     transitionPlan=buildTransitionPlan(now,transport,harmonicStrong);
 
     if (!tempoLocked) {
+      transitionPlan={mode:'stay',confidence:0,reason:'waiting tempo lock'};
+      updatePlanCandidate(null,now);
       performanceState={mode:'acquiring',confidence:tempoConfidence,reason:'tempo'};
       updateFusionCandidate(null,now);
       return;
     }
     if (!barLocked) {
+      transitionPlan={mode:'stay',confidence:0,reason:'waiting beat 1'};
+      updatePlanCandidate(null,now);
       performanceState={mode:'listening',confidence:0.55*tempoConfidence+0.45*barConfidence,reason:'beat-1'};
       updateFusionCandidate(null,now);
       return;
     }
 
     if (harmonicAmbiguous) {
+      transitionPlan={mode:'stay',confidence:position?.fusionScore||harmonicMatch?.confidence||0,reason:'ambiguous chord position'};
+      updatePlanCandidate(null,now);
       performanceState={
         mode:'ambiguous',
         confidence:position?.fusionScore||harmonicMatch?.confidence||0,
