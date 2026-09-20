@@ -1025,7 +1025,7 @@
     const song=api.getCurrentSong?.()||{};
     const payload={
       schema:'guitar-drum-debug-v1',
-      appCache:'v32',
+      appCache:'v33',
       startedAt:telemetryStartedIso,
       durationMs:Math.round(telemetryDurationMs()),
       note:'Local telemetry only; no audio samples are recorded.',
@@ -1101,7 +1101,7 @@
   function sessionFromCurrentTelemetry() {
     return {
       schema:'guitar-drum-debug-v1',
-      appCache:'v32',
+      appCache:'v33',
       samples:telemetrySamples.slice(),
       events:telemetryEvents.slice(),
       settings:{calibrationProfile:deepClone(calibrationProfile)}
