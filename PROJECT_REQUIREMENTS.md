@@ -69,6 +69,9 @@ Các bài mới sẽ tiếp tục được thêm vào cùng cấu trúc này.
 - Khi chuyển section mà không có fill, engine có accent ngắn để chuyển đoạn tự nhiên hơn.
 - Mỗi bài hiện có một style mặc định: Acoustic Pop / Soft Ballad / Acoustic Ballad.
 - Drum phải chạy đồng bộ với BPM và dòng lời hiện tại.
+- Có **Auto Follow guitar (POC)**: khi user chủ động bật microphone, app đo năng lượng đàn acoustic realtime và phân loại ổn định thành `silent / soft / medium / big` để tự điều khiển Intensity của drummer.
+- Follow guitar phải dùng smoothing/hysteresis/hold time để không đổi groove lực theo từng cú quạt riêng lẻ.
+- POC hiện chỉ follow **dynamics/intensity**; BPM, downbeat và section vẫn theo tempo/song map hiện tại. Tempo/section following là bước nâng cấp sau khi POC này được test tốt trên iPad.
 
 ## 7. Điều khiển khi tập
 
