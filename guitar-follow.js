@@ -376,6 +376,12 @@
   }
 
   function stopListening(message) {
+    const transport=api.getTransport?.();
+    if (
+      transport?.playing &&
+      (transport.followHeld||transport.followSilenceMode==='thin'||transport.pendingFollowHold) &&
+      typeof api.requestFollowResume==='function'
+    ) api.requestFollowResume();
     cleanupAudio();
     ui.toggle.textContent = '🎙 Bật Auto Follow';
     ui.pill.textContent = 'OFF';
@@ -1369,6 +1375,8 @@
         intentActionAt=now;
         intentStage='active';
         performanceState={mode:'rejoin',confidence:0.72,reason:'guitar returned before hold'};
+        updateFusionCandidate(null,now);
+        return;
       }
     } else {
       intentStage='active';
