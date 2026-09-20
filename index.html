@@ -47,19 +47,19 @@
     button:disabled{opacity:.45;cursor:default}
     .sheet{padding:12px 10px}
     .sheetToolbar{display:flex;justify-content:flex-end;margin-bottom:8px}
-    .sectionLabel{margin:13px 0 5px 40px;color:var(--muted);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
-    .lineWrap{display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:5px}
-    .num{text-align:right;padding-right:4px;color:var(--muted);font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
-    .row{width:100%;display:block;text-align:left;background:transparent;border-radius:8px;padding:9px 10px;font-size:17px;line-height:1.65;color:var(--text);cursor:pointer;-webkit-tap-highlight-color:transparent}
+    .sectionLabel{margin:10px 0 3px 44px;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+    .lineWrap{display:grid;grid-template-columns:40px minmax(0,1fr);align-items:center;gap:4px}
+    .num{text-align:right;padding-right:5px;color:var(--muted);font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .row{width:100%;display:block;text-align:left;background:transparent;border-radius:8px;padding:6px 8px;font-size:15px;line-height:1.45;color:var(--text);cursor:pointer;-webkit-tap-highlight-color:transparent}
     .row:hover{background:var(--panel)}
     .row.active{background:var(--accent-bg);box-shadow:inset 4px 0 0 var(--accent)}
     .lineWrap.active .num{color:var(--accent)}
-    .chord{display:inline-block;padding:0 .26em;margin:0 .05em;border:1px solid var(--border);border-radius:5px;background:var(--card);font-size:.9em;line-height:1.35;font-weight:800;white-space:nowrap}
+    .chord{display:inline-block;padding:0 .22em;margin:0 .04em;border:1px solid var(--border);border-radius:5px;background:var(--card);font-size:.88em;line-height:1.28;font-weight:800;white-space:nowrap}
     @media(max-width:800px){.controls{grid-template-columns:1fr 1fr}}
     @media(max-width:700px){
       .app{padding:10px 8px 28px}.card{border-radius:14px;padding:14px}
       h1{font-size:23px}.sub{font-size:14px}.controls{grid-template-columns:1fr;gap:12px}
-      .row{font-size:15px;padding:8px 7px}.sectionLabel{margin-left:35px}.lineWrap{grid-template-columns:30px minmax(0,1fr)}
+      .row{font-size:14px;padding:6px 6px}.sectionLabel{margin-left:40px}.lineWrap{grid-template-columns:36px minmax(0,1fr)}
       .buttons button{padding:0 14px}.actions{align-items:flex-end}
     }
     @media(display-mode:standalone){body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}}
@@ -126,6 +126,7 @@
   const beatEls=[...document.querySelectorAll('.beat')];
 
   const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const notesFlat=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
   const noteMap={C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
   const STORAGE_KEY='guitar-drum-state-v3';
 
@@ -178,7 +179,7 @@
       ]
     },
     'que-xa':{
-      title:'Quê Xa',artist:'Quang Dũng',meta:'Ballad · 4/4 · tone gốc D/Dm',baseKey:2,defaultBpm:62,
+      title:'Quê Xa',artist:'Quang Dũng',meta:'Ballad · 4/4 · tone gốc D/Dm',baseKey:2,defaultBpm:62,preferFlats:true,
       rows:[
         ['Verse 1',8,['','Bỗng ','D',' dưng thấy đời buồn thiu không ','Em7b5','mê xem phim chán ','D/A','cà phê chiều']],
         ['Verse 1',8,['','Gió ','Gm',' mang nỗi buồn quạnh ','Em7b5','hiu gửi chút thương ','Bb',' yêu về nơi tôi ','A7',' nhớ']],
@@ -243,7 +244,8 @@
 
   function populateKeys(target){
     keySel.innerHTML='';
-    notes.forEach((n,i)=>{
+    const displayNotes=song.preferFlats?notesFlat:notes;
+    displayNotes.forEach((n,i)=>{
       const o=document.createElement('option');
       o.value=String(i);
       const bits=[n];
@@ -258,9 +260,10 @@
   function transposeChord(ch){
     const m=ch.match(/^([A-G])([#b]?)(.*)$/); if(!m) return ch;
     const n=noteMap[m[1]+m[2]]; if(n===undefined) return ch;
-    return notes[(n+shift+12)%12]+m[3];
+    const outNotes=song.preferFlats?notesFlat:notes;
+    return outNotes[(n+shift+12)%12]+m[3];
   }
-  function isChord(v){return /^[A-G](?:#|b)?(?:m|maj|dim|aug|sus|add)?\d*(?:\/\w+)?$/.test(v)}
+  function isChord(v){return /^[A-G](?:#|b)?(?:m|maj|dim|aug|sus|add)?\d*(?:b5|#5|b9|#9|11|13)?(?:\/[A-G](?:#|b)?)?$/.test(v)}
   function renderParts(parts){return parts.map(v=>isChord(v)?'<span class="chord">'+transposeChord(v)+'</span>':v).join('')}
 
   function renderSheet(){
