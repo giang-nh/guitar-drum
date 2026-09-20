@@ -298,3 +298,14 @@ The Follow panel includes a local-only debug recorder intended for real-device t
 Each snapshot can include transport/song position, mic energy/classification, Clean Mic spectral metrics, accepted/rejected onset counters, tempo/bar confidence, chord/harmonic match, section prediction, Sensor Fusion state, transition plan, intensity/human-feel controls, and stop/resume state. Session size is bounded by ring limits (7,200 samples and 1,200 events; roughly 30 minutes at the current sample rate).
 
 Export uses a versioned JSON schema (`guitar-drum-debug-v1`). On supported iOS/iPadOS browsers it first tries the native Share sheet with a JSON file; otherwise it falls back to a local download. No telemetry is uploaded automatically. The exported file is intended to be attached back to an agent for threshold/timing analysis.
+
+
+### Mic Calibration Mode
+
+Calibration is a local 5-stage wizard embedded in the Follow panel: `Quiet`, `Drum only`, `Guitar only`, `Voice only`, and `Full mix`. Each stage is user-started after the environment is prepared and captures only numerical spectral/energy features for roughly 5–7 seconds; no audio is stored.
+
+During calibration, normal Follow actions are suspended: tempo/bar may still be estimated for observation, but BPM steering, beat-phase correction, intensity changes, fills, holds/re-entry decisions and song-position actions are not allowed to fire from the calibration material.
+
+The resulting versioned `calibrationProfile` is stored locally in the existing Follow settings. It derives a quality score and a bounded sensitivity recommendation (±6 dB), then learns/blends thresholds including base onset-rise, minimum guitar energy/evidence, self-drum rejection, vocal rejection, voice transient ceiling, input-class gates and stricter chord contamination gates. If source separation in the samples is weak, the profile quality falls and learned values are blended back toward the v22/v23 defaults rather than trusted fully.
+
+`Clean mic` and chord/onset logic read `calibrationThresholds()` at runtime. With no profile, the original default thresholds remain effectively unchanged. Debug JSON includes the active calibration profile so future analysis can reproduce which thresholds were in effect.
