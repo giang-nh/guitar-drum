@@ -599,9 +599,9 @@
     const q=60/Number(bpm.value);
 
     if(pendingSectionTransition&&pendingSectionTransition.stage==='anchor'&&beat===0){
+      const targetRowIndex=pendingSectionTransition.targetRowIndex;
       songBeat=pendingSectionTransition.targetStartBeat;
-      currentRow=pendingSectionTransition.targetRowIndex;
-      crash(t,.72*drumPower(currentRow));
+      crash(t,.72*drumPower(targetRowIndex));
       status.textContent='AI → '+pendingSectionTransition.targetName;
       pendingSectionTransition=null;
       fillBtn.textContent='🥁 Fill';
