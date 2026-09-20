@@ -3717,6 +3717,7 @@
     getState:() => ({
       state:currentState,
       energy:smoothedEnergy,
+      developerMode:Boolean(developerMode),
       ambientDb,
       peakDb,
       tempoEstimate,
