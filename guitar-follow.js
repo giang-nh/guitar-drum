@@ -415,7 +415,9 @@
       resetInputTracking();
       resetTempoTracking();
       resetHarmonicTracking();
+      resetHealthTracking();
       renderInput();
+      renderHealth();
     });
 
     document.querySelector('#songSelect')?.addEventListener('change', () => {
@@ -436,6 +438,7 @@
       resetIntentTracking();
       resetPlannerTracking();
       resetInputTracking();
+      resetHealthTracking();
       renderFusion();
       renderPlan();
       renderInput();
@@ -525,6 +528,7 @@
       resetIntentTracking();
       resetPlannerTracking();
       resetInputTracking();
+      resetHealthTracking();
       ui.toggle.textContent = '■ Tắt Auto Follow';
       ui.pill.textContent = 'LISTENING';
       setHint(ui.tempoToggle.checked
@@ -559,6 +563,7 @@
     resetIntentTracking();
     resetPlannerTracking();
     resetInputTracking();
+    resetHealthTracking();
     renderState('silent', 0, -80, 0);
     renderTempo();
     renderBar();
@@ -567,6 +572,7 @@
     renderFusion();
     renderPlan();
     renderInput();
+    renderHealth();
     if (message) setHint(message + ' Intensity, BPM, bar sync, section và harmonic follow trở lại điều khiển tay.');
   }
 
@@ -689,6 +695,14 @@
         matchMargin:round(harmonicMatch?.margin),
         targetRow:Number.isFinite(harmonicMatch?.target?.rowIndex)?harmonicMatch.target.rowIndex:null,
         targetSection:harmonicMatch?.target?.section||null
+      },
+      health:{
+        level:followHealth.level,
+        mode:followHealth.mode,
+        score:round(followHealth.score),
+        raw:round(followHealth.raw),
+        reason:followHealth.reason,
+        components:{...(followHealth.components||{})}
       },
       section:{
         next:sectionPrediction?.next?.name||null,
@@ -2396,7 +2410,8 @@
       'fill-big':'FILL L',
       armed:'ARMED',
       drop:'DROP',
-      rejoin:'REJOIN'
+      rejoin:'REJOIN',
+      safe:'SAFE'
     };
     ui.plan.textContent=labels[transitionPlan.mode]||String(transitionPlan.mode||'stay').toUpperCase();
     const conf=Math.round(clamp(transitionPlan.confidence||0,0,1)*100);
@@ -2607,6 +2622,14 @@
       }
     } else {
       intentStage='active';
+    }
+
+    if(followHealth.level==='red'){
+      transitionPlan={mode:'stay',confidence:followHealth.score,reason:'health red · manual safe'};
+      updatePlanCandidate(null,now);
+      performanceState={mode:'safe',confidence:followHealth.score,reason:'manual safe · '+followHealth.reason};
+      updateFusionCandidate(null,now);
+      return;
     }
 
     const tempoLocked=tempoConfidence>=TEMPO_CONFIDENCE_MIN;
@@ -2882,6 +2905,7 @@
         events:telemetryEvents.length,
         durationMs:Math.round(telemetryDurationMs())
       },
+      healthPermissions:healthPermissions(),
       calibration:{
         active:calibrationActive,
         step:CALIBRATION_STEPS[calibrationStepIndex]?.id||null,
