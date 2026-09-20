@@ -68,6 +68,7 @@
   let sectionPrediction = null;
   let sectionCandidateIndex = null;
   let sectionCandidateSince = 0;
+  let sectionArmedIndex = null;
   let lastSectionActionAt = 0;
 
   injectStyles();
@@ -650,6 +651,7 @@
     sectionPrediction = null;
     sectionCandidateIndex = null;
     sectionCandidateSince = 0;
+    sectionArmedIndex = null;
     lastSectionActionAt = 0;
   }
 
@@ -736,7 +738,7 @@
       beatsAway,
       trend:signal.trend,
       confidence,
-      armed:false
+      armed:sectionArmedIndex===next.index && now-lastSectionActionAt<SECTION_ACTION_COOLDOWN_MS
     };
 
     if (confidence < SECTION_CONFIDENCE_MIN) {
@@ -756,6 +758,7 @@
     const accepted = api.requestSectionTransition(next.index);
     if (!accepted) return;
     lastSectionActionAt = now;
+    sectionArmedIndex = next.index;
     sectionPrediction.armed = true;
     api.setStatus?.('🎸 Section Follow ' + Math.round(confidence*100) + '% · chuẩn bị fill → ' + next.name + '.');
   }
