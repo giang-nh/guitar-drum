@@ -587,6 +587,7 @@
     spectralFrame = analyzeSpectrum(ts);
     updateAdaptiveRange(db, spectralFrame.drumPenalty);
     const rawEnergy = normalizeEnergy(db);
+    captureCalibrationFrame(ts, rawDb, rawEnergy);
     const energy = cleanInputEnergy(rawEnergy, spectralFrame);
     smoothedEnergy = smoothedEnergy * 0.80 + energy * 0.20;
     recordEnergy(ts, smoothedEnergy);
@@ -596,9 +597,15 @@
     updateBarFollow(ts);
     updateSectionFollow(ts);
     updateHarmonicFollow(ts);
-    updatePerformanceFusion(ts);
+    if(calibrationActive){
+      const step=CALIBRATION_STEPS[calibrationStepIndex];
+      performanceState={mode:'listening',confidence:0,reason:'calibrating '+(step?.id||'profile')};
+      transitionPlan={mode:'stay',confidence:0,reason:'calibration'};
+    }else{
+      updatePerformanceFusion(ts);
+    }
     const state = stateForEnergy(smoothedEnergy, ts);
-    updateState(state, ts);
+    if(!calibrationActive)updateState(state, ts);
     renderState(currentState, smoothedEnergy, db, strumRate);
     renderTempo();
     renderBar();
@@ -607,6 +614,7 @@
     renderFusion();
     renderPlan();
     renderInput();
+    renderCalibration(ts);
     recordTelemetryFrame(ts, db);
     renderTelemetryStatus(ts);
   }
@@ -875,6 +883,257 @@
     a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1500);
     api.setStatus?.('Debug session đã export JSON.');
+  }
+
+  function percentile(values,p=0.5) {
+    const nums=values.filter(v=>Number.isFinite(Number(v))).map(Number).sort((a,b)=>a-b);
+    if(!nums.length)return null;
+    const pos=(nums.length-1)*clamp(p,0,1);
+    const lo=Math.floor(pos),hi=Math.ceil(pos);
+    if(lo===hi)return nums[lo];
+    return nums[lo]+(nums[hi]-nums[lo])*(pos-lo);
+  }
+
+  function calibrationThresholds() {
+    const defaults={
+      onsetRiseBase:.105,
+      minEnergy:.20,
+      guitarEvidenceMin:.28,
+      drumReject:.58,
+      voiceReject:.68,
+      voiceTransientMax:.22,
+      classDrum:.55,
+      classGuitar:.48,
+      classVoice:.62,
+      chordDrumReject:.68,
+      chordVoiceReject:.72
+    };
+    return calibrationProfile?.thresholds
+      ? {...defaults,...calibrationProfile.thresholds}
+      : defaults;
+  }
+
+  function calibrationMetric(samples,key,p=.5,fallback=0) {
+    const value=percentile((samples||[]).map(s=>s[key]),p);
+    return value==null?fallback:value;
+  }
+
+  function buildCalibrationProfile() {
+    const quiet=calibrationSamples.quiet||[];
+    const drum=calibrationSamples.drum||[];
+    const guitar=calibrationSamples.guitar||[];
+    const voice=calibrationSamples.voice||[];
+    const mix=calibrationSamples.mix||[];
+
+    const quietDb=calibrationMetric(quiet,'rawDb',.5,-58);
+    const quietEnergy=calibrationMetric(quiet,'rawEnergy',.90,.05);
+    const guitarEvidence=calibrationMetric(guitar,'guitarEvidence',.30,.38);
+    const guitarEnergy=calibrationMetric(guitar,'rawEnergy',.25,.32);
+    const drumGuitarFalse=calibrationMetric(drum,'guitarEvidence',.80,.28);
+    const voiceGuitarFalse=calibrationMetric(voice,'guitarEvidence',.80,.28);
+    const negativeGuitar=Math.max(drumGuitarFalse,voiceGuitarFalse);
+    const separation=guitarEvidence-negativeGuitar;
+
+    const learnedGuitarMin=separation>.04
+      ? clamp(negativeGuitar+separation*.46,.22,.52)
+      : .28;
+    const drumP=calibrationMetric(drum,'drumPenalty',.72,.62);
+    const voiceP=calibrationMetric(voice,'voiceLike',.55,.70);
+    const voiceTransient=calibrationMetric(voice,'transient',.80,.20);
+    const mixGuitar=calibrationMetric(mix,'guitarEvidence',.25,guitarEvidence);
+
+    const sampleCoverage=CALIBRATION_STEPS.reduce((sum,step)=>{
+      const count=(calibrationSamples[step.id]||[]).length;
+      return sum+clamp(count/Math.max(1,step.ms/ANALYSIS_MS*.72),0,1);
+    },0)/CALIBRATION_STEPS.length;
+    const separationScore=clamp((separation+.02)/.22,0,1);
+    const mixScore=clamp((mixGuitar-.20)/.35,0,1);
+    const quality=clamp(.46*sampleCoverage+.36*separationScore+.18*mixScore,0,1);
+
+    const blend=quality<.45?.35:quality<.65?.65:1;
+    const blendValue=(learned,base)=>base+(learned-base)*blend;
+    const recommendedSensitivity=clamp(Math.round(-56-quietDb),-6,6);
+
+    return {
+      version:CALIBRATION_PROFILE_VERSION,
+      createdAt:new Date().toISOString(),
+      quality:round(quality),
+      recommendedSensitivity,
+      metrics:{
+        quietDb:round(quietDb,1),
+        quietEnergy:round(quietEnergy),
+        guitarEvidence:round(guitarEvidence),
+        negativeGuitarEvidence:round(negativeGuitar),
+        separation:round(separation),
+        drumPenalty:round(drumP),
+        voiceLike:round(voiceP),
+        voiceTransient:round(voiceTransient),
+        mixGuitarEvidence:round(mixGuitar)
+      },
+      thresholds:{
+        onsetRiseBase:round(blendValue(clamp(.09+quietEnergy*.08,.09,.13),.105)),
+        minEnergy:round(blendValue(clamp(guitarEnergy*.52,.14,.25),.20)),
+        guitarEvidenceMin:round(blendValue(learnedGuitarMin,.28)),
+        drumReject:round(blendValue(clamp(drumP*.78,.44,.76),.58)),
+        voiceReject:round(blendValue(clamp(voiceP*.90,.56,.82),.68)),
+        voiceTransientMax:round(blendValue(clamp(voiceTransient+.045,.16,.34),.22)),
+        classDrum:round(blendValue(clamp(drumP*.72,.42,.74),.55)),
+        classGuitar:round(blendValue(clamp(learnedGuitarMin+.14,.38,.62),.48)),
+        classVoice:round(blendValue(clamp(voiceP*.84,.54,.78),.62)),
+        chordDrumReject:round(blendValue(clamp(drumP*.90,.58,.84),.68)),
+        chordVoiceReject:round(blendValue(clamp(voiceP*.98,.64,.88),.72))
+      }
+    };
+  }
+
+  async function startCalibrationWizard() {
+    if(calibrationActive){
+      ui.calPanel.classList.add('on');
+      renderCalibration();
+      return;
+    }
+    if(!running)await startListening();
+    if(!running)return;
+    calibrationActive=true;
+    calibrationStepIndex=0;
+    calibrationCapturing=false;
+    calibrationSamples={};
+    calibrationCurrentSamples=[];
+    ui.calPanel.classList.add('on');
+    ui.calOpen.textContent='Calibrating…';
+    ui.calCancel.textContent='Cancel';
+    ui.calCapture.disabled=false;
+    ui.calResult.textContent='Chuẩn bị đúng cảnh rồi bấm Start sample.';
+    recordTelemetryEvent('calibration-start');
+    renderCalibration();
+    api.setStatus?.('🧪 Mic calibration bắt đầu · Follow actions tạm khóa.');
+  }
+
+  function startCalibrationCapture() {
+    if(!calibrationActive||calibrationCapturing)return;
+    const step=CALIBRATION_STEPS[calibrationStepIndex];
+    if(!step)return;
+    calibrationCurrentSamples=[];
+    calibrationCaptureStartedAt=performance.now();
+    calibrationCapturing=true;
+    ui.calCapture.disabled=true;
+    ui.calResult.textContent='Đang đo '+step.label+'…';
+    recordTelemetryEvent('calibration-step-start',{step:step.id});
+    renderCalibration();
+  }
+
+  function captureCalibrationFrame(now,rawDb,rawEnergy) {
+    if(!calibrationActive||!calibrationCapturing)return;
+    const step=CALIBRATION_STEPS[calibrationStepIndex];
+    if(!step)return;
+    calibrationCurrentSamples.push({
+      rawDb:round(rawDb,2),
+      rawEnergy:round(rawEnergy),
+      flux:round(spectralFrame.flux),
+      flatness:round(spectralFrame.flatness),
+      lowRatio:round(spectralFrame.lowRatio),
+      midRatio:round(spectralFrame.midRatio),
+      highRatio:round(spectralFrame.highRatio),
+      drumPenalty:round(spectralFrame.drumPenalty),
+      voiceLike:round(spectralFrame.voiceLike),
+      guitarEvidence:round(spectralFrame.guitarEvidence),
+      transient:round(spectralFrame.transient)
+    });
+    if(now-calibrationCaptureStartedAt>=step.ms)finishCalibrationStep();
+  }
+
+  function finishCalibrationStep() {
+    const step=CALIBRATION_STEPS[calibrationStepIndex];
+    if(!step)return;
+    calibrationSamples[step.id]=calibrationCurrentSamples.slice();
+    calibrationCapturing=false;
+    recordTelemetryEvent('calibration-step-stop',{step:step.id,samples:calibrationCurrentSamples.length});
+    calibrationCurrentSamples=[];
+
+    if(calibrationStepIndex>=CALIBRATION_STEPS.length-1){
+      calibrationProfile=buildCalibrationProfile();
+      calibrationActive=false;
+      const recommended=Number(calibrationProfile.recommendedSensitivity)||0;
+      ui.sensitivity.value=String(recommended);
+      saveSettings();
+      resetInputTracking();
+      resetTempoTracking();
+      resetHarmonicTracking();
+      resetFusionTracking();
+      resetIntentTracking();
+      resetPlannerTracking();
+      ui.calOpen.textContent='Recalibrate';
+      ui.calCapture.disabled=true;
+      ui.calCancel.textContent='Close';
+      recordTelemetryEvent('calibration-complete',{profile:calibrationProfile});
+      api.setStatus?.('🧪 Calibration xong · Mic Profile đã áp dụng.');
+      renderCalibration();
+      return;
+    }
+
+    calibrationStepIndex++;
+    ui.calCapture.disabled=false;
+    ui.calResult.textContent='Đã đo '+step.label+'. Chuẩn bị bước kế tiếp rồi bấm Start sample.';
+    renderCalibration();
+  }
+
+  function cancelCalibration(message='Calibration đã hủy.') {
+    calibrationActive=false;
+    calibrationCapturing=false;
+    calibrationCurrentSamples=[];
+    ui.calPanel.classList.remove('on');
+    ui.calOpen.textContent=calibrationProfile?'Recalibrate':'Calibrate';
+    ui.calCapture.disabled=false;
+    ui.calCancel.textContent='Cancel';
+    recordTelemetryEvent('calibration-cancel');
+    if(message)api.setStatus?.('🧪 '+message);
+    renderCalibration();
+  }
+
+  function resetCalibrationProfile() {
+    calibrationProfile=null;
+    saveSettings();
+    resetInputTracking();
+    resetTempoTracking();
+    resetHarmonicTracking();
+    ui.calOpen.textContent='Calibrate';
+    ui.calResult.textContent='Đã reset về default thresholds. Mic sensitivity giữ nguyên để bạn chỉnh tay nếu cần.';
+    api.setStatus?.('🧪 Mic Profile đã reset về default.');
+    renderCalibration();
+  }
+
+  function renderCalibration(now=performance.now()) {
+    if(!ui.calProfile)return;
+    if(calibrationProfile){
+      const q=Math.round((calibrationProfile.quality||0)*100);
+      const t=calibrationProfile.thresholds||{};
+      ui.calProfile.textContent='Profile '+q+'% · sens '+(calibrationProfile.recommendedSensitivity>=0?'+':'')+calibrationProfile.recommendedSensitivity+' dB';
+      if(!calibrationActive&&ui.calPanel.classList.contains('on')){
+        ui.calStep.textContent='Calibration complete';
+        ui.calInstruction.textContent='Profile đang được dùng cho Clean mic / onset / chord gates.';
+        ui.calProgress.style.width='100%';
+        ui.calResult.textContent=
+          'guitar≥'+round(t.guitarEvidenceMin,2)+
+          ' · drum≥'+round(t.drumReject,2)+
+          ' · voice≥'+round(t.voiceReject,2)+
+          ' · onset>'+round(t.onsetRiseBase,3);
+      }
+    }else{
+      ui.calProfile.textContent='Default thresholds';
+    }
+
+    if(!calibrationActive){
+      ui.calOpen.textContent=calibrationProfile?'Recalibrate':'Calibrate';
+      return;
+    }
+    const step=CALIBRATION_STEPS[calibrationStepIndex];
+    if(!step)return;
+    ui.calStep.textContent=step.label;
+    ui.calInstruction.textContent=step.instruction;
+    const elapsed=calibrationCapturing?now-calibrationCaptureStartedAt:0;
+    ui.calProgress.style.width=Math.round(clamp(elapsed/step.ms,0,1)*100)+'%';
+    ui.calCapture.textContent=calibrationCapturing?'Measuring…':'Start sample';
+    ui.calCapture.disabled=calibrationCapturing;
   }
 
   function resetInputTracking() {
@@ -1185,6 +1444,12 @@
     tempoEstimate = estimate?.bpm ?? null;
     tempoConfidence = estimate?.confidence ?? 0;
 
+    if (calibrationActive) {
+      tempoCandidate=null;
+      tempoCandidateSince=0;
+      return;
+    }
+
     if (!ui.tempoToggle.checked || !estimate || estimate.confidence < TEMPO_CONFIDENCE_MIN) {
       tempoCandidate = null;
       tempoCandidateSince = 0;
@@ -1308,6 +1573,7 @@
     barEstimate = estimate;
     barConfidence = estimate?.confidence ?? 0;
 
+    if (calibrationActive) return;
     if (!ui.barToggle.checked || !ui.tempoToggle.checked) return;
     if (!estimate || estimate.confidence < BAR_CONFIDENCE_MIN || estimate.aligned < BAR_MIN_ALIGNED) {
       barCandidateBase = null;
