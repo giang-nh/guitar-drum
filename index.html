@@ -474,6 +474,7 @@
 
   let ctx=null,master=null,noise=null,timer=null,playing=false,paused=false,nextTime=0,quarter=0,countIn=4,songBeat=0,visualTimers=[];
   let fillRequested=false,fillRemaining=0,pendingSectionTransition=null,pendingHarmonicAnchor=null;
+  let activeFillStyle='medium',activeFillVariant=0,fillVariantCounter=0;
   let followSilenceMode='normal',followHeld=false,pendingFollowHold=false,pendingFollowResume=false;
 
   function setup(){
@@ -559,23 +560,30 @@
     }
     return out;
   }
-  function requestSectionTransition(targetSectionIndex){
+  function requestSectionTransition(targetSectionIndex,plan={}){
     if(!playing||paused||countIn>0||followHeld||pendingFollowHold||pendingSectionTransition||pendingHarmonicAnchor)return false;
     const timeline=sectionTimeline();
     const currentIndex=timeline.findIndex(s=>songBeat>=s.startBeat&&songBeat<s.endBeat);
     const target=timeline[targetSectionIndex];
     if(currentIndex<0||!target||targetSectionIndex!==currentIndex+1)return false;
     const beatsAway=target.startBeat-songBeat;
-    if(beatsAway<5||beatsAway>14)return false;
+    if(beatsAway<5||beatsAway>16)return false;
+    const fillStyle=['small','medium','big'].includes(plan.fillStyle)?plan.fillStyle:'medium';
+    const variant=Number.isFinite(Number(plan.variant))
+      ? Math.max(0,Math.min(2,Math.round(Number(plan.variant))))
+      : (fillVariantCounter++%3);
     pendingSectionTransition={
       targetSectionIndex,
       targetStartBeat:target.startBeat,
       targetRowIndex:target.startRow,
       targetName:target.name,
+      fillStyle,
+      variant,
+      confidence:Number(plan.confidence)||0,
       stage:'queued'
     };
-    fillBtn.textContent='AI → '+target.name;
-    status.textContent='AI drummer đoán sắp vào '+target.name+' · chờ đầu ô nhịp để fill.';
+    fillBtn.textContent='PLAN '+fillStyle.toUpperCase()+' → '+target.name;
+    status.textContent='AI plan '+fillStyle+' fill → '+target.name+' · giữ groove đến bar cuối.';
     return true;
   }
   function requestHarmonicAnchor(targetBeat,targetRowIndex,confidence=0){
@@ -630,12 +638,40 @@
     fillBtn.textContent='AUTO → '+rows[targetIndex].s;
     return true;
   }
-  function scheduleFillBeat(t,q,step,p){
+  function scheduleFillBeat(t,q,step,p,style='medium',variant=0){
+    const v=((Number(variant)||0)%3+3)%3;
+    if(style==='small'){
+      hat(t,.46*p);
+      if(step===0&&v===2)kick(t,.62*p);
+      if(step===1&&v===1)snare(t+q*.5,.28*p);
+      if(step===2){if(v===0)tom(t+q*.5,.48*p,145);else snare(t+q*.5,.36*p)}
+      if(step===3){
+        if(v===0){tom(t,.52*p,132);snare(t+q*.68,.52*p)}
+        else if(v===1){snare(t,.42*p);tom(t+q*.55,.54*p,125)}
+        else{tom(t+q*.45,.48*p,150);tom(t+q*.72,.54*p,124)}
+      }
+      return;
+    }
+    if(style==='big'){
+      hat(t,.78*p);
+      if(step===0){kick(t,.95*p);tom(t+q*.42,.72*p,v===1?178:165);if(v===2)snare(t+q*.72,.42*p)}
+      if(step===1){tom(t,.78*p,154);tom(t+q*.36,.82*p,138);snare(t+q*.72,.48*p)}
+      if(step===2){snare(t,.66*p);tom(t+q*.32,.92*p,122);tom(t+q*.68,.9*p,108)}
+      if(step===3){
+        tom(t,.9*p,132);snare(t+q*.34,.72*p);tom(t+q*.56,.82*p,112);snare(t+q*.76,.9*p);
+        if(v!==1)kick(t+q*.82,.55*p);
+      }
+      return;
+    }
     hat(t,.7*p);
-    if(step===0){kick(t,.85*p);tom(t+q*.5,.65*p,165)}
-    if(step===1){tom(t,.7*p,155);tom(t+q*.5,.78*p,135)}
-    if(step===2){snare(t,.58*p);tom(t+q*.5,.9*p,118)}
-    if(step===3){tom(t,.86*p,132);snare(t+q*.48,.9*p);snare(t+q*.72,.72*p);crash(t+q*.92,.85*p)}
+    if(step===0){kick(t,.85*p);if(v===1)snare(t+q*.65,.28*p);else tom(t+q*.5,.65*p,165)}
+    if(step===1){tom(t,.7*p,v===2?168:155);tom(t+q*.5,.78*p,v===1?125:135)}
+    if(step===2){snare(t,.58*p);tom(t+q*.5,.9*p,v===2?108:118)}
+    if(step===3){
+      if(v===0){tom(t,.86*p,132);snare(t+q*.48,.9*p);snare(t+q*.72,.72*p)}
+      else if(v===1){snare(t,.58*p);tom(t+q*.34,.74*p,142);tom(t+q*.66,.86*p,115)}
+      else{tom(t,.72*p,155);tom(t+q*.32,.8*p,132);snare(t+q*.62,.78*p);tom(t+q*.8,.72*p,110)}
+    }
   }
   function queueFill(){
     if(!playing||paused){status.textContent='Bấm Play rồi dùng Fill để vào ô nhịp kế tiếp.';return}
@@ -717,11 +753,19 @@
       pendingSectionTransition=null;
       fillBtn.textContent='🥁 Fill';
     }else if(pendingSectionTransition&&pendingSectionTransition.stage==='queued'&&beat===0){
-      fillRemaining=4;
-      pendingSectionTransition.stage='filling';
-      fillBtn.textContent='AI FILL → '+pendingSectionTransition.targetName;
-    }else if(fillRequested && beat===0){fillRequested=false;fillRemaining=4;fillBtn.textContent='🥁 Fill'}
-    else maybeStartAutoFill();
+      const beatsToTarget=pendingSectionTransition.targetStartBeat-songBeat;
+      if(beatsToTarget>0&&beatsToTarget<=4){
+        activeFillStyle=pendingSectionTransition.fillStyle||'medium';
+        activeFillVariant=pendingSectionTransition.variant||0;
+        fillRemaining=4;
+        pendingSectionTransition.stage='filling';
+        fillBtn.textContent='AI '+activeFillStyle.toUpperCase()+' FILL → '+pendingSectionTransition.targetName;
+      }else{
+        fillBtn.textContent='PLAN '+String(pendingSectionTransition.fillStyle||'medium').toUpperCase()+' → '+pendingSectionTransition.targetName;
+      }
+    }else if(fillRequested && beat===0){
+      fillRequested=false;activeFillStyle='medium';activeFillVariant=fillVariantCounter++%3;fillRemaining=4;fillBtn.textContent='🥁 Fill'
+    }else maybeStartAutoFill();
     let didFill=false;
     if(followSilenceMode==='thin'){
       didFill=true;
@@ -730,7 +774,7 @@
       if(beat===2)snare(t,.20*p);
     }else if(fillRemaining>0){
       didFill=true;
-      scheduleFillBeat(t,q,4-fillRemaining,p);
+      scheduleFillBeat(t,q,4-fillRemaining,p,activeFillStyle,activeFillVariant);
       fillRemaining--;
       if(fillRemaining===0){
         if(pendingSectionTransition&&pendingSectionTransition.stage==='filling'){
@@ -829,7 +873,7 @@
     }),
     getSectionTimeline:()=>sectionTimeline(),
     getHarmonicTimeline:()=>harmonicTimeline(),
-    requestSectionTransition:index=>requestSectionTransition(Number(index)),
+    requestSectionTransition:(index,plan)=>requestSectionTransition(Number(index),plan||{}),
     requestHarmonicAnchor:(beat,rowIndex,confidence)=>requestHarmonicAnchor(beat,rowIndex,confidence),
     requestFollowThin,
     requestFollowHold,
