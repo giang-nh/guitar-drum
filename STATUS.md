@@ -50,6 +50,7 @@ Prototype hiện đã có:
 - **Clean Mic / Bleed Rejection POC**: drum engine publishes scheduled self-hit metadata; mic analysis computes spectral flux/flatness/band ratios, estimates per-frame self-drum contamination and voice-like input, adaptively gates onsets/dynamics/chord frames, and exposes `GUITAR / VOICE / DRUM / MIX` debug plus accepted/rejected onset counts. This is heuristic rejection, not source separation;
 - **Debug Session / Telemetry Recorder**: local-only `Record / Mark / Export JSON` workflow; ~4 Hz bounded samples + state-change events capture mic/tempo/bar/chord/section/fusion/plan/transport metrics without storing audio, enabling real iPad sessions to be analyzed later;
 - **Mic Calibration Mode**: 5-step guided local calibration learns device/placement-specific mic rejection thresholds and sensitivity. Low-quality calibration automatically blends toward defaults; profile is persisted and included in debug export;
+- **Follow Health / Fail-safe Mode**: smoothed detector-health score drives `GREEN Full Auto / YELLOW Safe Follow / RED Manual Safe`; risky permissions are gated centrally, pending AI anchors are cancelled on downgrade, YELLOW disables harmonic re-position and big fills, RED freezes risky automation while preserving THIN/HOLD safety;
 
 ## Current data model
 
@@ -118,3 +119,6 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 - run at least one **debug session** per key scenario (drum-only, singing-only, guitar-only, full guitar+vocal+drum, stop/rejoin, Verse→Chorus build). Tap `Mark` whenever the app visibly/hearably makes a wrong decision, then export JSON for threshold analysis.
 
 - run **Mic Calibration** once with the actual iPad placement/volume, then run a debug session with the same setup. Compare calibration quality and `Input`/onset behavior before changing hard-coded defaults.
+
+- test **Follow Health** deliberately under clean guitar, drum-only bleed, singing-only, full mix and ambiguous chord progressions. Confirm GREEN only appears on stable evidence, YELLOW still feels useful but conservative, and RED never re-positions/fills/syncs unexpectedly.
+- specifically test downgrade while a predictive plan is ARMED: GREEN→YELLOW/RED must cancel the pending anchor; if the fill has already begun it may finish but must not jump song position afterward.
