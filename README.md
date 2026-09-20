@@ -80,3 +80,16 @@ The main app now includes **Tìm tone giọng** and **Tone + Capo** controls. Pe
 - **Performance Polish v2**: contextual groove renderer uses section pattern, Intensity, Human feel, live guitar energy and Follow Health to vary kick placement, hat openness, ride/bell articulation, rim/side-stick use and ghost-note density. Fill motifs now respond to the target section (Chorus/Bridge/Outro), while transport timing and beat-1 anchors remain unchanged.
 
 - **Phrase-aware Drummer v1**: derives 4/8-bar phrase position from the existing song/section map and feeds `P x/y`, phrase progress, section occurrence, and beats-to-phrase-end into the performance renderer and transition planner. Groove density/build/open-hat/ghost/extra-kick behavior now arcs through the phrase; Chorus repeats can lift subtly, Outro decays across the section, and deterministic mini-turns can happen at phrase ends without changing transport or replacing full predictive fills.
+
+
+## Automated tests
+
+Run the dependency-free logic suite with:
+
+```bash
+node tests/run-tests.cjs
+```
+
+Current baseline: **105 cases / 105 PASS / 0 FAIL**. The suite exercises deterministic production helpers from `tone.js`, `guitar-follow.js`, and `index.html`. GitHub Actions also runs it automatically on pushes to `main` and pull requests.
+
+This suite does not replace real-device validation for microphone input, speaker bleed, Web Audio timing, or iPad/Safari interaction.
