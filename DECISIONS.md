@@ -175,3 +175,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** Performance Polish v2 moves groove choice into a contextual, deterministic renderer driven by section pattern, Intensity, Human feel, live energy and Health. It can change articulation, extra kick/ghost density and fill phrasing, but never the scheduler clock or song-position anchors. Destination section is now part of fill phrasing.
 
 **Reason:** the drummer needs audible musical character without weakening the Follow architecture. Keeping expression downstream of transport preserves sync/debuggability, while context-aware ride/rim/hat/kick/fill decisions make repeated patterns sound less mechanical and more appropriate to Verse/Chorus/Interlude/Outro roles.
+
+
+## D027 — Phrase là expression context, không phải transport clock
+
+**Decision:** 4/8-bar phrase position is derived from the existing section beat map and used as contextual evidence for performance arcs and planner confidence. Phrase logic can alter density, articulation and short phrase-end pickups, but it cannot move `songBeat`, change BPM, re-phase the clock or independently trigger a section jump.
+
+**Reason:** phrase awareness makes the drummer feel like it is shaping a musical sentence while preserving the core safety property established by Humanization/Performance v1/v2: expression stays downstream of transport. This also avoids introducing new mandatory per-song phrase authoring until real-song testing shows it is needed.
