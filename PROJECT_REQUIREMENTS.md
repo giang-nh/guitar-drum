@@ -192,3 +192,13 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - While held, the transport may hard-align its silent clock to a newly detected guitar downbeat before re-entry.
 - Re-entry must occur on beat 1 and should sound intentional (light crash/pickup), never resume abruptly in the middle of a bar.
 - Manual transport actions and disabling Auto Follow must override/release automated thin/hold behavior.
+
+
+## Predictive Transition Planner
+
+- The drummer may decide a transition early, but must separate **plan time** from **play time**: an armed transition must keep the current groove until the final bar before the target section.
+- Planner inputs should include section confidence, energy trend, arrangement gain delta, current intensity, tempo/bar confidence, harmonic agreement, and beats-to-target.
+- A one-off loud strum must not be sufficient to arm a transition; target evidence must remain stable through the planner hold window.
+- Fill intensity must be selected contextually as small/medium/big, with multiple variants and basic repetition avoidance.
+- Existing automatic fill logic must not compete with a pending predictive transition.
+- Planned transitions must fail safe if the target boundary is reached late or evidence becomes invalid; they must never leave transport in a permanently pending state.
