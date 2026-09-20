@@ -196,3 +196,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** deterministic safety/music rules that can be pure are centralized in `core-logic.js`, consumed by the browser and tested directly with Node's built-in test runner. GitHub Pages deploy has a hard dependency on that test suite. A separate push/PR workflow runs the same suite, and the previous function-extraction runner is removed.
 
 **Reason:** syntax checks and duplicated test implementations can both pass while runtime behavior drifts. Sharing the same pure functions between production and tests gives stronger regression protection without introducing a build system or framework, and gating deployment stops known-bad commits from replacing the live iPad app.
+
+
+## D030 — Real-device validation là nguồn ground truth vận hành
+
+**Decision:** microphone/speaker behavior is validated through a guided telemetry-only iPad session rather than inferred from desktop/CI tests. The same labeled session can feed Auto-Tune and the multi-session Regression suite. Scoring rules live in shared core logic, while acoustic evidence comes only from the actual device run.
+
+**Reason:** speaker bleed, Safari microphone processing, acoustic guitar transients and latency are device/setup dependent. A repeatable guided protocol gives comparable evidence across sessions without recording audio, and connects real-world failures directly to the existing tuning/regression safety system.
