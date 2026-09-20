@@ -46,6 +46,7 @@ Prototype hiện đã có:
 - **Sensor Fusion / Follow v2**: central `PerformanceState` combines tempo, bar/downbeat, dynamics, section prediction and harmonic candidates; individual detectors no longer directly change song position. Fusion alone can request section fill/transition or harmonic re-anchor, with stable-candidate and shared cooldown gates;
 - **Stop / Resume Intent POC**: no reliable strum activity for ~1.7 s → `THIN`; ~3.8 s → queue `HOLD` on beat 1 and freeze song position; new playing → clear/study fresh tempo+bar evidence, align the silent clock to detected downbeat, then `REJOIN` on beat 1;
 - **Predictive Transition Planner POC**: stable section/chord/bar evidence can arm a transition before the final bar; the engine keeps playing the current groove until the last 4 beats, then selects `small/medium/big` fill intensity plus one of three non-repeating variants and lands on the next section beat 1;
+- **Humanization / Performance Layer**: per-hit deterministic microtiming + velocity variation, protected beat-1 timing, snare layback, hi-hat articulation, subtle timbre variation, context-aware ghost notes, and reduced humanization strength inside fills. `Human feel` slider (0–100%, default 55%) persists per song;
 
 ## Current data model
 
@@ -104,3 +105,6 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 
 - test **Predictive Transition Planner** with gradual build vs one-off loud strum: gradual build should show `BUILD → ARMED → FILL`, while a transient spike should return to `STAY` without queueing;
 - verify the planned fill starts only in the final bar before the target section and that repeated transitions rotate fill variants rather than replaying the same pattern.
+
+- test **Human feel** A/B at 0%, 55%, and ~85% on iPad speakers/headphones: groove should loosen audibly while beat 1, tempo follow and section landings remain stable;
+- listen specifically for ghost-snare overload or hi-hat timing feeling sloppy at high Human feel; tune ranges before enabling more performance complexity.
