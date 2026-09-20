@@ -49,8 +49,10 @@ Người tập guitar dùng iPad trong lúc chơi đàn, cần thao tác ít, n�
 - Count-in 4 beat.
 - Visual beat 1–2–3–4.
 - Drummer 4/4 tự đổi groove theo section (Intro / Verse / Pre-chorus / Chorus / Bridge / Interlude / Outro).
+- Mỗi bài có **drum arrangement riêng** theo tên section để Verse 1/Verse 2, Chorus 1/Chorus 2 và Final có thể tăng/giảm lực khác nhau.
+- Drummer tự chạy **auto-fill 4 beat trước Chorus/cao trào** đã đánh dấu trong arrangement.
 - Chỉnh **Intensity 1–5** để thay đổi độ mạnh của phần đệm.
-- Có nút **Fill** để xếp một fill vào đầu ô nhịp kế tiếp.
+- Có nút **Fill** để xếp một fill thủ công vào đầu ô nhịp kế tiếp.
 - Mỗi bài có drum style mặc định phù hợp với POC hiện tại.
 - Chỉnh BPM.
 - Transpose toàn bộ hợp âm.
