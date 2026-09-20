@@ -70,3 +70,5 @@ The main app now includes **Tìm tone giọng** and **Tone + Capo** controls. Pe
 - **Debug Session / Telemetry Recorder**: local-only recorder for iPad tuning; samples Follow state roughly 4x/sec, records state changes/marks, and exports a JSON session via iOS Share sheet or download. It does not record audio.
 
 - **Mic Calibration Mode**: guided 5-step local wizard (`Quiet → Drum only → Guitar only → Voice only → Full mix`) that learns device-specific Clean Mic/onset/chord thresholds and a bounded sensitivity recommendation; low-quality calibration blends back toward safe defaults instead of replacing them aggressively.
+
+- **Follow Health / Fail-safe Mode**: aggregates mic contamination, recent onset acceptance, tempo/bar confidence, harmonic ambiguity and calibration quality into `GREEN / YELLOW / RED`. GREEN enables Full Auto, YELLOW keeps Safe Follow with no harmonic re-position and no big fills, RED switches to Manual Safe and blocks risky automation while still allowing silence→THIN/HOLD safety behavior.
