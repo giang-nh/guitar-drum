@@ -161,3 +161,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** telemetry-based tuning may infer bounded threshold changes and estimate their effect, but it never silently changes the Mic Profile. Apply is explicit, confidence is limited by the amount of marked evidence, unsafe before/after estimates block Apply, and every applied tune has a persistent one-step Undo.
 
 **Reason:** a debug `Mark` indicates that something sounded or behaved wrong, but it does not provide a perfect ground-truth label. Conservative, inspectable suggestions preserve user control and prevent a single ambiguous session from degrading the detector stack.
+
+
+## D025 — Tune phải qua multi-session regression
+
+**Decision:** once historical debug sessions are loaded, an Auto-Tune suggestion cannot be applied until it passes replay across the entire suite. Any material regression in guitar retention, contamination leakage, marked-case behavior or contaminated action-risk blocks Apply. Replay is explicitly derived-telemetry replay, not full audio reconstruction.
+
+**Reason:** optimizing one marked session can overfit that room/song/device condition. Multi-session guards turn telemetry into a regression test set and prevent local improvements from silently breaking previously working scenarios, while keeping the current static/local architecture.
