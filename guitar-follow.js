@@ -67,6 +67,10 @@
   const HEALTH_RED_STABLE_MS = 650;
   const AUTOTUNE_PROFILE_VERSION = 1;
   const AUTOTUNE_MARK_WINDOW_MS = 3500;
+  const REGRESSION_MAX_SESSIONS = 12;
+  const REGRESSION_GUITAR_LOSS_BLOCK = 0.08;
+  const REGRESSION_CONTAM_WORSE_BLOCK = 0.035;
+  const REGRESSION_MARK_WORSE_BLOCK = 0.10;
   const CALIBRATION_STEPS = [
     {id:'quiet',label:'1/5 · Quiet',ms:5000,instruction:'Để phòng yên · không drum · không đàn · không hát.'},
     {id:'drum',label:'2/5 · Drum only',ms:5000,instruction:'Bật Play drum · không đàn · không hát.'},
@@ -169,6 +173,8 @@
   let autoTuneImportedSession = null;
   let autoTuneSourceLabel = '';
   let autoTuneBackupProfile = null;
+  let regressionSessions = [];
+  let regressionReport = null;
 
   injectStyles();
   const ui = buildUi();
@@ -217,6 +223,10 @@
       .gd-autotune-head button{min-height:34px;padding:0 9px;font-size:10px}
       .gd-autotune-result{margin-top:7px;font-size:10px;color:var(--muted);line-height:1.45;white-space:pre-line}
       .gd-autotune-result strong{color:var(--text)}
+      .gd-regression{margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)}
+      .gd-regression-head{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+      .gd-regression-head button{min-height:32px;padding:0 8px;font-size:10px}
+      .gd-regression-result{margin-top:6px;font-size:10px;color:var(--muted);line-height:1.45;white-space:pre-line}
       .gd-cal{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
       .gd-cal-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
       .gd-cal-title{font-size:11px;font-weight:800}
@@ -294,6 +304,15 @@
             <button type="button" id="gdTuneUndo" disabled>Undo tune</button>
           </div>
           <div id="gdTuneResult" class="gd-autotune-result">Auto‑Tune chỉ đề xuất; không tự sửa Mic Profile.</div>
+          <div class="gd-regression">
+            <div class="gd-regression-head">
+              <button type="button" id="gdRegressionImport">Load regression sessions</button>
+              <input id="gdRegressionFiles" type="file" accept="application/json,.json" multiple hidden />
+              <button type="button" id="gdRegressionRun" disabled>Replay suite</button>
+              <button type="button" id="gdRegressionClear" disabled>Clear suite</button>
+            </div>
+            <div id="gdRegressionResult" class="gd-regression-result">Regression suite: 0 session.</div>
+          </div>
         </div>
       </div>
       <div class="gd-cal">
@@ -362,6 +381,11 @@
       tuneApply: host.querySelector('#gdTuneApply'),
       tuneUndo: host.querySelector('#gdTuneUndo'),
       tuneResult: host.querySelector('#gdTuneResult'),
+      regressionImport: host.querySelector('#gdRegressionImport'),
+      regressionFiles: host.querySelector('#gdRegressionFiles'),
+      regressionRun: host.querySelector('#gdRegressionRun'),
+      regressionClear: host.querySelector('#gdRegressionClear'),
+      regressionResult: host.querySelector('#gdRegressionResult'),
       calOpen: host.querySelector('#gdCalOpen'),
       calPanel: host.querySelector('#gdCalPanel'),
       calProfile: host.querySelector('#gdCalProfile'),
@@ -390,6 +414,10 @@
     ui.tuneFile.addEventListener('change', importTelemetryForTune);
     ui.tuneApply.addEventListener('click', applyAutoTuneSuggestion);
     ui.tuneUndo.addEventListener('click', undoAutoTune);
+    ui.regressionImport.addEventListener('click', () => ui.regressionFiles.click());
+    ui.regressionFiles.addEventListener('change', importRegressionSessions);
+    ui.regressionRun.addEventListener('click', runRegressionSuite);
+    ui.regressionClear.addEventListener('click', clearRegressionSuite);
     ui.calOpen.addEventListener('click', startCalibrationWizard);
     ui.calCapture.addEventListener('click', startCalibrationCapture);
     ui.calCancel.addEventListener('click', () => cancelCalibration('Calibration đã hủy.'));
@@ -1351,6 +1379,184 @@
     renderCalibration();
     recordTelemetryEvent('autotune-undo');
     api.setStatus?.('↩ Auto‑Tune đã được hoàn tác.');
+  }
+
+  function regressionSessionLabel(payload,fileName='session') {
+    const song=payload?.song?.title||payload?.song?.id||'unknown song';
+    const started=payload?.startedAt?String(payload.startedAt).slice(0,16).replace('T',' '):'';
+    return fileName+' · '+song+(started?' · '+started:'');
+  }
+
+  function classifyMarkExpectation(analysis) {
+    const flags=analysis?.flags||[];
+    if(flags.includes('drum-false-positive')||flags.includes('voice-false-positive'))return 'less-pass';
+    if(flags.includes('guitar-over-reject')||flags.includes('guitar-under-detect'))return 'more-pass';
+    return 'neutral';
+  }
+
+  function markReplayScore(session,thresholds) {
+    const marks=manualMarks(session);
+    if(!marks.length)return {score:null,directional:0};
+    let total=0,count=0;
+    marks.forEach(mark=>{
+      const analysis=markWindowAnalysis(session,mark,thresholds);
+      if(!analysis)return;
+      const expectation=classifyMarkExpectation(analysis);
+      if(expectation==='neutral')return;
+      const samples=sessionSamplesNear(session,mark.t,2200);
+      if(!samples.length)return;
+      const pass=samples.filter(s=>samplePassEstimate(s,thresholds)).length/samples.length;
+      total+=expectation==='less-pass'?(1-pass):pass;
+      count++;
+    });
+    return {score:count?total/count:null,directional:count};
+  }
+
+  function actionRiskProxy(session,thresholds) {
+    const samples=session?.samples||[];
+    const risky=samples.filter(s=>{
+      const contaminated=
+        s?.mic?.inputClass==='drum'||s?.mic?.inputClass==='voice'||
+        Number(s?.mic?.drumPenalty)>.62||Number(s?.mic?.voiceLike)>.72;
+      const timingReady=
+        Number(s?.tempo?.confidence)>=.62&&Number(s?.tempo?.barConfidence)>=.60;
+      const actionish=
+        ['locked','following','transition','reposition'].includes(s?.fusion?.mode)||
+        ['build','fill-small','fill-medium','fill-big','armed'].includes(s?.plan?.mode);
+      return contaminated&&timingReady&&actionish;
+    });
+    if(!risky.length)return null;
+    return risky.filter(s=>samplePassEstimate(s,thresholds)).length/risky.length;
+  }
+
+  function replaySession(session,label,before,after) {
+    const marks=manualMarks(session);
+    const compare=compareThresholds(session,before,after,marks);
+    const markBefore=markReplayScore(session,before);
+    const markAfter=markReplayScore(session,after);
+    const actionBefore=actionRiskProxy(session,before);
+    const actionAfter=actionRiskProxy(session,after);
+    const guitarLoss=
+      compare.guitarRetentionBefore!=null&&compare.guitarRetentionAfter!=null
+        ? compare.guitarRetentionBefore-compare.guitarRetentionAfter
+        : 0;
+    const contaminationWorse=
+      compare.contaminationPassBefore!=null&&compare.contaminationPassAfter!=null
+        ? compare.contaminationPassAfter-compare.contaminationPassBefore
+        : 0;
+    const markWorse=
+      markBefore.score!=null&&markAfter.score!=null
+        ? markBefore.score-markAfter.score
+        : 0;
+    const actionWorse=
+      actionBefore!=null&&actionAfter!=null
+        ? actionAfter-actionBefore
+        : 0;
+    const blockers=[];
+    if(compare.guitarSamples>=10&&guitarLoss>REGRESSION_GUITAR_LOSS_BLOCK)blockers.push('guitar retention -'+Math.round(guitarLoss*100)+'pt');
+    if(compare.contaminatedSamples>=10&&contaminationWorse>REGRESSION_CONTAM_WORSE_BLOCK)blockers.push('contamination +'+Math.round(contaminationWorse*100)+'pt');
+    if(markBefore.directional>=1&&markWorse>REGRESSION_MARK_WORSE_BLOCK)blockers.push('marked cases -'+Math.round(markWorse*100)+'pt');
+    if(actionBefore!=null&&actionWorse>.06)blockers.push('action-risk proxy +'+Math.round(actionWorse*100)+'pt');
+    return {
+      label,
+      samples:(session?.samples||[]).length,
+      marks:marks.length,
+      compare,
+      markBefore,
+      markAfter,
+      actionBefore,
+      actionAfter,
+      blocked:blockers.length>0,
+      blockers
+    };
+  }
+
+  function buildRegressionReport(before,after) {
+    const sessions=regressionSessions.slice(0,REGRESSION_MAX_SESSIONS);
+    const results=sessions.map(item=>replaySession(item.session,item.label,before,after));
+    const blocked=results.filter(r=>r.blocked);
+    return {
+      createdAt:new Date().toISOString(),
+      sessions:results.length,
+      blockedSessions:blocked.length,
+      blocked:blocked.length>0,
+      results
+    };
+  }
+
+  function renderRegressionReport() {
+    if(!ui.regressionResult)return;
+    ui.regressionRun.disabled=!regressionSessions.length||!autoTuneSuggestion?.changes?.length;
+    ui.regressionClear.disabled=!regressionSessions.length;
+    if(!regressionSessions.length){
+      ui.regressionResult.textContent='Regression suite: 0 session.';
+      return;
+    }
+    if(!regressionReport){
+      ui.regressionResult.textContent='Regression suite: '+regressionSessions.length+' session · có suggestion thì bấm Replay suite.';
+      return;
+    }
+    const lines=[
+      (regressionReport.blocked?'BLOCK':'PASS')+' · '+regressionReport.sessions+' session · '+regressionReport.blockedSessions+' regression'
+    ];
+    regressionReport.results.forEach(r=>{
+      const cmp=r.compare;
+      const guitar=cmp.guitarRetentionBefore==null?'n/a':fmtPct(cmp.guitarRetentionBefore)+'→'+fmtPct(cmp.guitarRetentionAfter);
+      const contam=cmp.contaminationPassBefore==null?'n/a':fmtPct(cmp.contaminationPassBefore)+'→'+fmtPct(cmp.contaminationPassAfter);
+      const mark=r.markBefore.score==null?'n/a':fmtPct(r.markBefore.score)+'→'+fmtPct(r.markAfter.score);
+      lines.push(
+        (r.blocked?'⚠ ':'✓ ')+r.label+
+        ' · guitar '+guitar+
+        ' · contam '+contam+
+        ' · marked '+mark+
+        (r.blockers.length?' · '+r.blockers.join(', '):'')
+      );
+    });
+    ui.regressionResult.textContent=lines.join('\n');
+  }
+
+  async function importRegressionSessions(event) {
+    const files=[...(event?.target?.files||[])];
+    if(!files.length)return;
+    const added=[];
+    for(const file of files){
+      try{
+        const payload=JSON.parse(await file.text());
+        if(!Array.isArray(payload?.samples)||!Array.isArray(payload?.events))continue;
+        added.push({
+          label:regressionSessionLabel(payload,file.name),
+          session:payload
+        });
+      }catch{}
+      if(regressionSessions.length+added.length>=REGRESSION_MAX_SESSIONS)break;
+    }
+    regressionSessions=[...regressionSessions,...added].slice(-REGRESSION_MAX_SESSIONS);
+    regressionReport=null;
+    renderRegressionReport();
+    if(autoTuneSuggestion?.changes?.length)runRegressionSuite();
+    event.target.value='';
+  }
+
+  function clearRegressionSuite() {
+    regressionSessions=[];
+    regressionReport=null;
+    renderRegressionReport();
+    renderAutoTuneSuggestion();
+  }
+
+  function runRegressionSuite() {
+    if(!regressionSessions.length||!autoTuneSuggestion?.changes?.length){
+      regressionReport=null;
+      renderRegressionReport();
+      return;
+    }
+    regressionReport=buildRegressionReport(autoTuneSuggestion.before,autoTuneSuggestion.proposed);
+    renderRegressionReport();
+    renderAutoTuneSuggestion();
+    recordTelemetryEvent('regression-replay',{
+      sessions:regressionReport.sessions,
+      blockedSessions:regressionReport.blockedSessions
+    });
   }
 
   function percentile(values,p=0.5) {
