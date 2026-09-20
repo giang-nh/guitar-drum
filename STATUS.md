@@ -45,6 +45,7 @@ Prototype hiện đã có:
 - **Harmonic Position POC**: 4096-point FFT → 12-bin chroma near strum onsets → expected-chord template scoring in the current sounding key/capo → stable chord events → 3–5 chord sequence matching against the known row/chord timeline; repeated/ambiguous progressions are surfaced but do not auto-reposition;
 - **Sensor Fusion / Follow v2**: central `PerformanceState` combines tempo, bar/downbeat, dynamics, section prediction and harmonic candidates; individual detectors no longer directly change song position. Fusion alone can request section fill/transition or harmonic re-anchor, with stable-candidate and shared cooldown gates;
 - **Stop / Resume Intent POC**: no reliable strum activity for ~1.7 s → `THIN`; ~3.8 s → queue `HOLD` on beat 1 and freeze song position; new playing → clear/study fresh tempo+bar evidence, align the silent clock to detected downbeat, then `REJOIN` on beat 1;
+- **Predictive Transition Planner POC**: stable section/chord/bar evidence can arm a transition before the final bar; the engine keeps playing the current groove until the last 4 beats, then selects `small/medium/big` fill intensity plus one of three non-repeating variants and lands on the next section beat 1;
 
 ## Current data model
 
@@ -100,3 +101,6 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 
 - test **Stop / Resume Intent** on iPad with intentional rests: short break should thin only, long break should freeze line/song position, and re-entry should not occur until a fresh beat-1 lock is visible;
 - verify drum-speaker bleed does not continuously refresh guitar activity; if it does, tune onset/energy gate before making stop intent default-on for production.
+
+- test **Predictive Transition Planner** with gradual build vs one-off loud strum: gradual build should show `BUILD → ARMED → FILL`, while a transient spike should return to `STAY` without queueing;
+- verify the planned fill starts only in the final bar before the target section and that repeated transitions rotate fill variants rather than replaying the same pattern.
