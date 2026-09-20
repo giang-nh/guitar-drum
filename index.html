@@ -630,10 +630,13 @@
     return false;
   }
   function maybeStartAutoFill(){
+    if(pendingSectionTransition)return false;
     const targetIndex=sectionStartIndexAtBeat(songBeat+4);
     if(targetIndex<0||fillRequested||fillRemaining>0)return false;
     const target=arrangementForRow(targetIndex);
     if(!target.autoFillIn)return false;
+    activeFillStyle='medium';
+    activeFillVariant=fillVariantCounter++%3;
     fillRemaining=4;
     fillBtn.textContent='AUTO → '+rows[targetIndex].s;
     return true;
@@ -754,7 +757,14 @@
       fillBtn.textContent='🥁 Fill';
     }else if(pendingSectionTransition&&pendingSectionTransition.stage==='queued'&&beat===0){
       const beatsToTarget=pendingSectionTransition.targetStartBeat-songBeat;
-      if(beatsToTarget>0&&beatsToTarget<=4){
+      if(beatsToTarget<=0){
+        const targetRowIndex=pendingSectionTransition.targetRowIndex;
+        songBeat=pendingSectionTransition.targetStartBeat;
+        crash(t,.62*drumPower(targetRowIndex));
+        status.textContent='AI late-safe → '+pendingSectionTransition.targetName;
+        pendingSectionTransition=null;
+        fillBtn.textContent='🥁 Fill';
+      }else if(beatsToTarget<=4){
         activeFillStyle=pendingSectionTransition.fillStyle||'medium';
         activeFillVariant=pendingSectionTransition.variant||0;
         fillRemaining=4;
