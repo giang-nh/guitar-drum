@@ -51,6 +51,7 @@ Prototype hiện đã có:
 - **Debug Session / Telemetry Recorder**: local-only `Record / Mark / Export JSON` workflow; ~4 Hz bounded samples + state-change events capture mic/tempo/bar/chord/section/fusion/plan/transport metrics without storing audio, enabling real iPad sessions to be analyzed later;
 - **Mic Calibration Mode**: 5-step guided local calibration learns device/placement-specific mic rejection thresholds and sensitivity. Low-quality calibration automatically blends toward defaults; profile is persisted and included in debug export;
 - **Follow Health / Fail-safe Mode**: smoothed detector-health score drives `GREEN Full Auto / YELLOW Safe Follow / RED Manual Safe`; risky permissions are gated centrally, pending AI anchors are cancelled on downgrade, YELLOW disables harmonic re-position and big fills, RED freezes risky automation while preserving THIN/HOLD safety;
+- **Auto-Tune Engine / Profile Suggestions**: current or imported debug JSON + user Marks → directional failure classification → bounded Mic Profile suggestions → estimated before/after guitar retention and contamination pass → explicit Apply/Undo. Harmonic ambiguity is not mis-treated as a mic-threshold problem; unsafe comparisons disable Apply;
 
 ## Current data model
 
@@ -122,3 +123,6 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 
 - test **Follow Health** deliberately under clean guitar, drum-only bleed, singing-only, full mix and ambiguous chord progressions. Confirm GREEN only appears on stable evidence, YELLOW still feels useful but conservative, and RED never re-positions/fills/syncs unexpectedly.
 - specifically test downgrade while a predictive plan is ARMED: GREEN→YELLOW/RED must cancel the pending anchor; if the fill has already begun it may finish but must not jump song position afterward.
+
+- test **Auto-Tune** with at least 2–3 marked failures of the same type, then compare the suggestion and run a fresh debug session after Apply. Use Undo if guitar retention/tempo lock visibly worsens despite the offline estimate.
+- import an older exported debug JSON and verify Auto-Tune handles missing newer telemetry fields (for example `transient`/Health) conservatively rather than failing.
