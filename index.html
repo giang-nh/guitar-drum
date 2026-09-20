@@ -42,6 +42,17 @@
     .actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px}
     .status{color:var(--muted);font-size:14px}
     .buttons{display:flex;gap:10px}
+    .drummer{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+    .drummerTop{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+    .drummerTitle{font-size:15px;font-weight:800}
+    .drumStyle{display:inline-block;margin-left:6px;padding:4px 8px;border-radius:999px;background:var(--panel);color:var(--muted);font-size:12px;font-weight:750}
+    .drumPattern{margin-top:5px;color:var(--muted);font-size:13px}
+    .drumLevel{min-width:64px;text-align:center;background:var(--panel);border-radius:12px;padding:7px 9px}
+    .drumLevel strong{display:block;font-size:20px}.drumLevel span{font-size:10px;color:var(--muted)}
+    .drumControls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:end;margin-top:12px}
+    .drumControls label{margin-bottom:3px}
+    .fillBtn{min-width:104px;background:var(--accent-bg);border-color:transparent}
+    .drumHint{margin-top:8px;color:var(--muted);font-size:12px}
     button{min-height:46px;border-radius:10px;border:1px solid var(--border);background:var(--card);padding:0 18px;font-weight:750;cursor:pointer}
     button.primary{background:var(--accent-bg);border-color:transparent}
     button:disabled{opacity:.45;cursor:default}
@@ -112,6 +123,23 @@
     <div class="beats">
       <div class="beat">1</div><div class="beat">2</div><div class="beat">3</div><div class="beat">4</div>
     </div>
+    <div class="drummer">
+      <div class="drummerTop">
+        <div>
+          <div class="drummerTitle">🥁 Drummer <span id="drumStyle" class="drumStyle">Acoustic</span></div>
+          <div id="drumPattern" class="drumPattern">Auto theo section</div>
+        </div>
+        <div class="drumLevel"><strong id="intensityLabel">3</strong><span>INTENSITY</span></div>
+      </div>
+      <div class="drumControls">
+        <div>
+          <label for="intensity">Độ mạnh · 1–5</label>
+          <input id="intensity" type="range" min="1" max="5" value="3" step="1" />
+        </div>
+        <button id="fill" class="fillBtn" type="button" disabled>🥁 Fill</button>
+      </div>
+      <div class="drumHint">Tự đổi groove theo Intro / Verse / Chorus / Bridge. Fill sẽ vào đầu ô nhịp kế tiếp.</div>
+    </div>
     <div class="actions">
       <div id="status" class="status">Sẵn sàng.</div>
       <div class="buttons">
@@ -131,6 +159,7 @@
 (() => {
   const $ = s => document.querySelector(s);
   const songSel=$('#songSelect'), keySel=$('#keySelect'), bpm=$('#bpm'), bpmLabel=$('#bpmLabel');
+  const intensity=$('#intensity'), intensityLabel=$('#intensityLabel'), fillBtn=$('#fill'), drumStyle=$('#drumStyle'), drumPattern=$('#drumPattern');
   const titleEl=$('#songTitle'), metaEl=$('#songMeta');
   const toggleBtn=$('#toggle'), stopBtn=$('#stop'), status=$('#status'), sectionLabel=$('#section'), position=$('#position'), sheet=$('#sheet');
   const viewBtn=$('#viewToggle'), sheetCard=document.querySelector('.sheet');
@@ -143,7 +172,7 @@
 
   const songs={
     'nang-tho':{
-      title:'Nàng Thơ',artist:'Hoàng Dũng',meta:'Ballad · 4/4',baseKey:0,defaultBpm:62,
+      title:'Nàng Thơ',artist:'Hoàng Dũng',meta:'Ballad · 4/4',baseKey:0,defaultBpm:62,drumStyle:'Acoustic Pop',
       rows:[
         ['Intro',24,['C',' · ','F',' · ','G',' · ','C',' · ','F',' · ','Cm',' · ','Dm',' · ','G']],
         ['Verse 1',6,['C','Em, ngày em đánh ','Em7','rơi nụ cười vào ','Am7','anh']],
@@ -190,7 +219,7 @@
       ]
     },
     'que-xa':{
-      title:'Quê Xa',artist:'Quang Dũng',meta:'Ballad · 4/4 · tone gốc D/Dm',baseKey:2,defaultBpm:62,preferFlats:true,
+      title:'Quê Xa',artist:'Quang Dũng',meta:'Ballad · 4/4 · tone gốc D/Dm',baseKey:2,defaultBpm:62,preferFlats:true,drumStyle:'Soft Ballad',
       rows:[
         ['Verse 1',8,['','Bỗng ','D',' dưng thấy đời buồn thiu không ','Em7b5','mê xem phim chán ','D/A','cà phê chiều']],
         ['Verse 1',8,['','Gió ','Gm',' mang nỗi buồn quạnh ','Em7b5','hiu gửi chút thương ','Bb',' yêu về nơi tôi ','A7',' nhớ']],
@@ -219,7 +248,7 @@
       ]
     },
     'giac-mo-tinh-yeu':{
-      title:'Giấc Mơ Tình Yêu',artist:'Mỹ Tâm',meta:'Ballad · 4/4 · tone gốc F',baseKey:5,defaultBpm:62,preferFlats:true,
+      title:'Giấc Mơ Tình Yêu',artist:'Mỹ Tâm',meta:'Ballad · 4/4 · tone gốc F',baseKey:5,defaultBpm:62,preferFlats:true,drumStyle:'Acoustic Ballad',
       rows:[
         ['Verse 1',8,['F',' Có giấc mơ nào êm ','C7',' đềm, ','Dm',' khẽ lướt qua làn môi ','Am',' mềm']],
         ['Verse 1',8,['Bb',' Lấp lánh như ngàn tia ','F','nắng, sưởi ','Gm',' ấm cõi lòng ','C7',' em']],
@@ -250,7 +279,7 @@
     try{
       const previous=loadState(songId);
       localStorage.setItem(stateKey(songId),JSON.stringify({
-        ...previous,row:currentRow,key:keySel.value,bpm:bpm.value,showAll
+        ...previous,row:currentRow,key:keySel.value,bpm:bpm.value,showAll,intensity:intensity.value
       }));
       localStorage.setItem(STORAGE_KEY+'-last-song',songId);
     }catch{}
@@ -361,6 +390,7 @@
     nextTime=ctx.currentTime+.08;
     toggleBtn.textContent='Ⅱ Pause';
     stopBtn.disabled=false;
+    fillBtn.disabled=false;
     status.textContent='Chuẩn bị từ Line '+(i+1)+'…';
     tick();
     timer=setInterval(tick,25);
@@ -376,6 +406,9 @@
     populateKeys(targetKey);
     bpm.value=saved.bpm!=null?String(saved.bpm):String(song.defaultBpm);
     bpmLabel.textContent=bpm.value;
+    intensity.value=saved.intensity!=null?String(Math.max(1,Math.min(5,Number(saved.intensity)||3))):'3';
+    intensityLabel.textContent=intensity.value;
+    drumStyle.textContent=song.drumStyle||'Acoustic';
     showAll=Boolean(saved.showAll);
     currentRow=Math.max(0,Math.min(rows.length-1,Number(saved.row)||0));
     shift=(Number(keySel.value)-song.baseKey+12)%12;
@@ -387,11 +420,13 @@
     sectionLabel.textContent=rows[currentRow].s;
     updateTime();
     status.textContent=currentRow===0?'Sẵn sàng.':'Sẵn sàng từ Line '+(currentRow+1)+'.';
+    updateDrummerUI(rows[currentRow].s);
     renderSheet();
     saveState();
   }
 
   let ctx=null,master=null,noise=null,timer=null,playing=false,paused=false,nextTime=0,quarter=0,countIn=4,songBeat=0,visualTimers=[];
+  let fillRequested=false,fillRemaining=0;
 
   function setup(){
     if(!ctx){
@@ -403,8 +438,57 @@
   function kick(t,p=1){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.setValueAtTime(118,t);o.frequency.exponentialRampToValueAtTime(45,t+.12);g.gain.setValueAtTime(.65*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.2);o.connect(g);g.connect(master);o.start(t);o.stop(t+.21)}
   function snare(t,p=1){const s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=1100;g.gain.setValueAtTime(.24*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.13);s.connect(hp);hp.connect(g);g.connect(master);s.start(t);s.stop(t+.14)}
   function hat(t,p=1){const s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=6500;g.gain.setValueAtTime(.05*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.04);s.connect(hp);hp.connect(g);g.connect(master);s.start(t);s.stop(t+.05)}
+  function openHat(t,p=1){const s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=5200;g.gain.setValueAtTime(.07*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.22);s.connect(hp);hp.connect(g);g.connect(master);s.start(t);s.stop(t+.24)}
+  function tom(t,p=1,f=150){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.setValueAtTime(f,t);o.frequency.exponentialRampToValueAtTime(Math.max(70,f*.62),t+.16);g.gain.setValueAtTime(.28*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.2);o.connect(g);g.connect(master);o.start(t);o.stop(t+.21)}
+  function crash(t,p=1){const s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=3600;g.gain.setValueAtTime(.12*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.55);s.connect(hp);hp.connect(g);g.connect(master);s.start(t);s.stop(t+.58)}
   function click(t,strong){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=strong?1050:820;g.gain.setValueAtTime(strong?.15:.09,t);g.gain.exponentialRampToValueAtTime(.001,t+.04);o.connect(g);g.connect(master);o.start(t);o.stop(t+.05)}
   function rowForBeat(b){for(let i=0;i<rows.length;i++)if(b>=rows[i].start&&b<rows[i].end)return i;return rows.length-1}
+  function sectionKind(name){
+    const v=String(name||'').toLowerCase();
+    if(v.includes('intro'))return 'intro';
+    if(v.includes('tiền'))return 'pre';
+    if(v.includes('chorus')||v.includes('điệp khúc')||v.includes('final'))return 'chorus';
+    if(v.includes('bridge'))return 'bridge';
+    if(v.includes('interlude'))return 'interlude';
+    if(v.includes('outro'))return 'outro';
+    return 'verse';
+  }
+  function sectionPatternLabel(name){
+    const kind=sectionKind(name);
+    return {
+      intro:'Intro · nhẹ, thoáng',
+      verse:'Verse · giữ pocket',
+      pre:'Pre-chorus · build dần',
+      chorus:'Chorus · full groove',
+      bridge:'Bridge · half-time',
+      interlude:'Interlude · mở hi-hat',
+      outro:'Outro · hạ động lực'
+    }[kind];
+  }
+  function updateDrummerUI(name){
+    drumStyle.textContent=song.drumStyle||'Acoustic';
+    drumPattern.textContent=sectionPatternLabel(name);
+    intensityLabel.textContent=intensity.value;
+  }
+  function drumPower(kind){
+    const level=Math.max(1,Math.min(5,Number(intensity.value)||3));
+    const base=[.54,.7,.86,1.02,1.18][level-1];
+    const section={intro:.72,verse:.82,pre:.96,chorus:1.12,bridge:.9,interlude:1.02,outro:.68}[kind]||.85;
+    return base*section;
+  }
+  function scheduleFillBeat(t,q,step,p){
+    hat(t,.7*p);
+    if(step===0){kick(t,.85*p);tom(t+q*.5,.65*p,165)}
+    if(step===1){tom(t,.7*p,155);tom(t+q*.5,.78*p,135)}
+    if(step===2){snare(t,.58*p);tom(t+q*.5,.9*p,118)}
+    if(step===3){tom(t,.86*p,132);snare(t+q*.48,.9*p);snare(t+q*.72,.72*p);crash(t+q*.92,.85*p)}
+  }
+  function queueFill(){
+    if(!playing||paused){status.textContent='Bấm Play rồi dùng Fill để vào ô nhịp kế tiếp.';return}
+    fillRequested=true;
+    fillBtn.textContent='✓ Fill queued';
+    status.textContent='Fill đã xếp hàng · vào đầu ô nhịp kế tiếp.';
+  }
 
   function visualBeat(beat,t,isCount){
     const delay=Math.max(0,(t-ctx.currentTime)*1000);
@@ -414,6 +498,7 @@
       if(isCount)status.textContent='Count-in: '+(beat+1);
       else{
         const next=rowForBeat(songBeat);if(next!==currentRow)updateRow(next);
+        updateDrummerUI(rows[next].s);
         updateTime();status.textContent='Line '+(currentRow+1)+' · Beat '+(beat+1);songBeat++;
         if(songBeat>=total)stopToBeginning();
       }
@@ -422,7 +507,36 @@
   function scheduleBeat(t){
     const beat=quarter%4;
     if(countIn>0){click(t,beat===0);visualBeat(beat,t,true);countIn--;quarter++;return}
-    const q=60/Number(bpm.value);hat(t,1);hat(t+q/2,.55);if(beat===0)kick(t,.95);if(beat===1||beat===3)snare(t,.85);if(beat===2)kick(t,.65);visualBeat(beat,t,false);quarter++;
+    const q=60/Number(bpm.value);
+    const rowIndex=rowForBeat(songBeat), current=rows[rowIndex], kind=sectionKind(current.s), p=drumPower(kind);
+    const nextIndex=rowForBeat(Math.min(total-1,songBeat+1));
+    const autoTurn=nextIndex!==rowIndex && sectionKind(rows[nextIndex].s)!==kind;
+    if(fillRequested && beat===0){fillRequested=false;fillRemaining=4;fillBtn.textContent='🥁 Fill'}
+    if(fillRemaining>0){
+      scheduleFillBeat(t,q,4-fillRemaining,p);
+      fillRemaining--;
+    }else if(kind==='bridge'){
+      hat(t,.72*p);
+      if(beat===0)kick(t,.9*p);
+      if(beat===2)snare(t,.88*p);
+      if(Number(intensity.value)>=4)hat(t+q/2,.38*p);
+    }else{
+      const soft=kind==='intro'||kind==='verse'||kind==='outro';
+      const open=kind==='chorus'||kind==='interlude';
+      if(open && beat===3)openHat(t,.72*p);else hat(t,.9*p);
+      if(!soft||Number(intensity.value)>=3)hat(t+q/2,.42*p);
+      if(beat===0)kick(t,.96*p);
+      if(beat===2 && kind!=='intro')kick(t,(kind==='chorus'?.78:.58)*p);
+      if(beat===1||beat===3)snare(t,(soft?.68:.88)*p);
+      if(kind==='pre' && beat===3)openHat(t,.45*p);
+      if(kind==='chorus' && beat===0 && songBeat%8===0)crash(t,.45*p);
+      if(song.drumStyle==='Acoustic Pop' && beat===2)kick(t+q*.5,.3*p);
+    }
+    if(autoTurn && fillRemaining===0){
+      tom(t+q*.52,.52*p,150);
+      snare(t+q*.76,.5*p);
+    }
+    visualBeat(beat,t,false);quarter++;
   }
   function tick(){if(!playing||paused)return;const q=60/Math.max(50,Math.min(90,Number(bpm.value)||62));while(nextTime<ctx.currentTime+.12){scheduleBeat(nextTime);nextTime+=q}}
 
@@ -430,6 +544,7 @@
     if(!playing || paused)return;
     paused=true;
     toggleBtn.textContent='▶ Play';
+    fillBtn.disabled=true;
     status.textContent='Đã pause ở Line '+(currentRow+1)+'.';
     visualTimers.forEach(clearTimeout);
     visualTimers=[];
@@ -437,14 +552,15 @@
 
   async function toggle(){
     await setup();
-    if(!playing){playing=true;paused=false;countIn=4;quarter=songBeat%4;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';stopBtn.disabled=false;status.textContent='Chuẩn bị…';tick();timer=setInterval(tick,25);return}
+    if(!playing){playing=true;paused=false;countIn=4;quarter=songBeat%4;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';stopBtn.disabled=false;fillBtn.disabled=false;status.textContent='Chuẩn bị…';tick();timer=setInterval(tick,25);return}
     if(!paused){pausePlayback();return}
-    paused=false;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';status.textContent='Tiếp tục Line '+(currentRow+1)+'…';
+    paused=false;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';fillBtn.disabled=false;status.textContent='Tiếp tục Line '+(currentRow+1)+'…';
   }
 
   function stopPlaybackOnly(){
     playing=false;paused=false;if(timer)clearInterval(timer);timer=null;visualTimers.forEach(clearTimeout);visualTimers=[];
-    toggleBtn.textContent='▶ Play';stopBtn.disabled=true;beatEls.forEach(el=>el.classList.remove('on'));
+    fillRequested=false;fillRemaining=0;fillBtn.textContent='🥁 Fill';
+    toggleBtn.textContent='▶ Play';stopBtn.disabled=true;fillBtn.disabled=true;beatEls.forEach(el=>el.classList.remove('on'));
   }
 
   function stopToBeginning(){
@@ -472,6 +588,8 @@
   viewBtn.addEventListener('click',()=>{showAll=!showAll;renderSheet();saveState()});
   keySel.addEventListener('change',changeKey);
   bpm.addEventListener('input',()=>{bpmLabel.textContent=bpm.value;saveState()});
+  intensity.addEventListener('input',()=>{intensityLabel.textContent=intensity.value;updateDrummerUI(rows[currentRow].s);saveState()});
+  fillBtn.addEventListener('click',queueFill);
   toggleBtn.addEventListener('click',toggle);
   stopBtn.addEventListener('click',stopToBeginning);
 
