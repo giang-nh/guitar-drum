@@ -38,7 +38,7 @@ The repository is intended to contain enough context that a new agent can contin
 - PWA-style install support
 - Integrated vocal tone detection for the 3 current songs
 - Tone + Capo recommendations that favor common guitar chord shapes
-- Microphone **Follow guitar** POC: listens to acoustic-guitar energy, follows tempo/bar phase, predicts sections, matches chord sequences to song position, uses a central **Sensor Fusion / PerformanceState**, handles stop/resume intent, includes a **Predictive Transition Planner**, and now renders drums through a **Humanization / Performance Layer** with protected beat-1 timing, velocity variation, hi-hat articulation, ghost notes and lightly humanized fills
+- Microphone **Follow guitar** POC: listens to acoustic-guitar energy, follows tempo/bar phase, predicts sections, matches chord sequences to song position, uses a central **Sensor Fusion / PerformanceState**, handles stop/resume intent, includes a **Predictive Transition Planner**, renders through a **Humanization / Performance Layer**, and now adds **Clean mic** rejection using self-drum timing + spectral/transient evidence to reduce drum-speaker bleed and vocal-triggered false onsets/chords
 
 ## Architecture summary
 
