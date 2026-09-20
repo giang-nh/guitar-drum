@@ -1909,13 +1909,13 @@
 
   function drumVoiceWindow(voice) {
     return {
-      kick:170,snare:145,ghost:85,hat:65,openHat:210,tom:155,crash:260,click:90
+      kick:170,snare:145,ghost:85,hat:65,openHat:210,ride:180,rim:78,tom:155,crash:260,click:90
     }[voice]||100;
   }
 
   function drumVoiceWeight(voice) {
     return {
-      kick:.92,snare:.88,ghost:.22,hat:.24,openHat:.42,tom:.62,crash:.82,click:.28
+      kick:.92,snare:.88,ghost:.22,hat:.24,openHat:.42,ride:.38,rim:.34,tom:.62,crash:.82,click:.28
     }[voice]||.35;
   }
 
@@ -1934,8 +1934,9 @@
       let spectralMatch=.35;
       if(hit.voice==='kick'){
         spectralMatch=clamp(.35+features.lowRatio*.95-features.highRatio*.25,0,1);
-      }else if(hit.voice==='snare'||hit.voice==='crash'||hit.voice==='openHat'||hit.voice==='hat'){
-        spectralMatch=clamp(.20+features.flatness*.62+features.highRatio*.42,0,1);
+      }else if(hit.voice==='snare'||hit.voice==='crash'||hit.voice==='openHat'||hit.voice==='hat'||hit.voice==='ride'||hit.voice==='rim'){
+        const transientBoost=hit.voice==='rim'?.16:0;
+        spectralMatch=clamp(.20+features.flatness*.62+features.highRatio*.42+transientBoost,0,1);
       }else if(hit.voice==='tom'){
         spectralMatch=clamp(.25+features.lowRatio*.35+features.midRatio*.50,0,1);
       }
