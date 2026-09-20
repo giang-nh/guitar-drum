@@ -36,7 +36,8 @@ The repository is intended to contain enough context that a new agent can contin
 - Line numbering and current-line highlight
 - Per-song local persistence
 - PWA-style install support
-- Experimental vocal tone detection PoC for Nàng Thơ
+- Integrated vocal tone detection for the 3 current songs
+- Tone + Capo recommendations that favor common guitar chord shapes
 
 ## Architecture summary
 
@@ -62,4 +63,4 @@ On iPad: open the site in Safari → Share → Add to Home Screen.
 
 Deployment workflow is configured in `.github/workflows/pages.yml`.
 
-Experimental vocal tone PoC: `https://giang-nh.github.io/guitar-drum/tone-poc.html`
+The main app now includes **Tìm tone giọng** and **Tone + Capo** controls. Per-song prebuilt reference data lives in `tone-references.json`.
