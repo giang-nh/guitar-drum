@@ -45,21 +45,28 @@
     button{min-height:46px;border-radius:10px;border:1px solid var(--border);background:var(--card);padding:0 18px;font-weight:750;cursor:pointer}
     button.primary{background:var(--accent-bg);border-color:transparent}
     button:disabled{opacity:.45;cursor:default}
-    .sheet{padding:12px 10px}
-    .sheetToolbar{display:flex;justify-content:flex-end;margin-bottom:8px}
-    .sectionLabel{margin:10px 0 3px 44px;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+    .sheet{padding:10px 10px}
+    .sheetToolbar{display:flex;justify-content:flex-end;margin-bottom:5px}
+    .sectionLabel{margin:7px 0 2px 44px;color:var(--muted);font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
     .lineWrap{display:grid;grid-template-columns:40px minmax(0,1fr);align-items:center;gap:4px}
-    .num{text-align:right;padding-right:5px;color:var(--muted);font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
-    .row{width:100%;display:block;text-align:left;background:transparent;border-radius:8px;padding:6px 8px;font-size:15px;line-height:1.45;color:var(--text);cursor:pointer;-webkit-tap-highlight-color:transparent}
+    .num{text-align:right;padding-right:5px;color:var(--muted);font-size:10.5px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .row{width:100%;display:block;text-align:left;background:transparent;border-radius:8px;padding:5px 8px;font-size:15px;line-height:1.38;color:var(--text);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
     .row:hover{background:var(--panel)}
     .row.active{background:var(--accent-bg);box-shadow:inset 4px 0 0 var(--accent)}
     .lineWrap.active .num{color:var(--accent)}
-    .chord{display:inline-block;padding:0 .22em;margin:0 .04em;border:1px solid var(--border);border-radius:5px;background:var(--card);font-size:.88em;line-height:1.28;font-weight:800;white-space:nowrap}
+    .chord{display:inline-block;padding:0 .22em;margin:0 .04em;border:1px solid var(--border);border-radius:5px;background:var(--card);font-size:.88em;line-height:1.22;font-weight:800;white-space:nowrap}
+    .sheet.showAllMode{padding-top:8px;padding-bottom:8px}
+    .sheet.showAllMode .sheetToolbar{margin-bottom:2px}
+    .sheet.showAllMode .sectionLabel{margin-top:5px;margin-bottom:1px;font-size:10px}
+    .sheet.showAllMode .row{padding-top:3px;padding-bottom:3px;font-size:13.5px;line-height:1.26}
+    .sheet.showAllMode .num{font-size:10px}
+    .sheet.showAllMode .chord{font-size:.86em;line-height:1.14}
     @media(max-width:800px){.controls{grid-template-columns:1fr 1fr}}
     @media(max-width:700px){
       .app{padding:10px 8px 28px}.card{border-radius:14px;padding:14px}
       h1{font-size:23px}.sub{font-size:14px}.controls{grid-template-columns:1fr;gap:12px}
-      .row{font-size:14px;padding:6px 6px}.sectionLabel{margin-left:40px}.lineWrap{grid-template-columns:36px minmax(0,1fr)}
+      .row{font-size:14px;padding:5px 6px}.sectionLabel{margin-left:40px}.lineWrap{grid-template-columns:36px minmax(0,1fr)}
+      .sheet.showAllMode .row{font-size:13px;padding-top:3px;padding-bottom:3px;line-height:1.24}
       .buttons button{padding:0 14px}.actions{align-items:flex-end}
     }
     @media(display-mode:standalone){body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}}
@@ -123,7 +130,7 @@
   const songSel=$('#songSelect'), keySel=$('#keySelect'), bpm=$('#bpm'), bpmLabel=$('#bpmLabel');
   const titleEl=$('#songTitle'), metaEl=$('#songMeta');
   const toggleBtn=$('#toggle'), stopBtn=$('#stop'), status=$('#status'), sectionLabel=$('#section'), position=$('#position'), sheet=$('#sheet');
-  const viewBtn=$('#viewToggle');
+  const viewBtn=$('#viewToggle'), sheetCard=document.querySelector('.sheet');
   const beatEls=[...document.querySelectorAll('.beat')];
 
   const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -304,10 +311,28 @@
       const row=document.createElement('div');row.className='row'+(i===currentRow?' active':'');row.innerHTML=renderParts(r.parts);
       row.setAttribute('role','button');row.setAttribute('tabindex','0');row.setAttribute('aria-label','Nhảy tới dòng '+(i+1));
       row.addEventListener('click',()=>jumpToRow(i));
+      row.addEventListener('dblclick',e=>{
+        if(i===currentRow && playing && !paused){
+          e.preventDefault();
+          pausePlayback();
+        }
+      });
+      let lastTap=0;
+      row.addEventListener('touchend',e=>{
+        const now=Date.now();
+        if(i===currentRow && playing && !paused && now-lastTap<320){
+          e.preventDefault();
+          pausePlayback();
+          lastTap=0;
+          return;
+        }
+        lastTap=now;
+      },{passive:false});
       row.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();jumpToRow(i)}});
       wrap.append(num,row);sheet.appendChild(wrap);
     });
     viewBtn.textContent=showAll?'↑ Show 5 lines':'↓ Show all';
+    sheetCard.classList.toggle('showAllMode',showAll);
   }
 
   function updateTime(){const sec=Math.round(songBeat*60/Number(bpm.value));position.textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}
@@ -374,10 +399,19 @@
   }
   function tick(){if(!playing||paused)return;const q=60/Math.max(50,Math.min(90,Number(bpm.value)||62));while(nextTime<ctx.currentTime+.12){scheduleBeat(nextTime);nextTime+=q}}
 
+  function pausePlayback(){
+    if(!playing || paused)return;
+    paused=true;
+    toggleBtn.textContent='▶ Play';
+    status.textContent='Đã pause ở Line '+(currentRow+1)+'.';
+    visualTimers.forEach(clearTimeout);
+    visualTimers=[];
+  }
+
   async function toggle(){
     await setup();
     if(!playing){playing=true;paused=false;countIn=4;quarter=songBeat%4;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';stopBtn.disabled=false;status.textContent='Chuẩn bị…';tick();timer=setInterval(tick,25);return}
-    if(!paused){paused=true;toggleBtn.textContent='▶ Play';status.textContent='Đã pause ở Line '+(currentRow+1)+'.';visualTimers.forEach(clearTimeout);visualTimers=[];return}
+    if(!paused){pausePlayback();return}
     paused=false;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';status.textContent='Tiếp tục Line '+(currentRow+1)+'…';
   }
 
