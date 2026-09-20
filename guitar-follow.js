@@ -60,6 +60,11 @@
   const TELEMETRY_MAX_SAMPLES = 7200;
   const TELEMETRY_MAX_EVENTS = 1200;
   const CALIBRATION_PROFILE_VERSION = 1;
+  const HEALTH_WINDOW_MS = 10000;
+  const HEALTH_GREEN_MIN = 0.72;
+  const HEALTH_RED_MAX = 0.47;
+  const HEALTH_STABLE_MS = 1200;
+  const HEALTH_RED_STABLE_MS = 650;
   const CALIBRATION_STEPS = [
     {id:'quiet',label:'1/5 · Quiet',ms:5000,instruction:'Để phòng yên · không drum · không đàn · không hát.'},
     {id:'drum',label:'2/5 · Drum only',ms:5000,instruction:'Bật Play drum · không đàn · không hát.'},
@@ -153,6 +158,11 @@
   let calibrationCaptureStartedAt = 0;
   let calibrationSamples = {};
   let calibrationCurrentSamples = [];
+  let followHealth = {score:.60,raw:.60,level:'yellow',mode:'safe-follow',reason:'acquiring',components:{}};
+  let healthCandidateLevel = 'yellow';
+  let healthCandidateSince = performance.now();
+  let healthOnsetHistory = [];
+  let lastHealthLevel = 'yellow';
 
   injectStyles();
   const ui = buildUi();
@@ -166,6 +176,7 @@
   renderPlan();
   renderInput();
   renderCalibration();
+  renderHealth();
   attachListeners();
 
   function injectStyles() {
@@ -240,6 +251,7 @@
         <div class="gd-follow-stat"><span>Follow</span><strong id="gdFollowFusion">ACQUIRE</strong><span id="gdFollowFusionDetail">đang gom tín hiệu</span></div>
         <div class="gd-follow-stat"><span>Plan</span><strong id="gdFollowPlan">STAY</strong><span id="gdFollowPlanDetail">chưa có transition</span></div>
         <div class="gd-follow-stat"><span>Input</span><strong id="gdFollowInput">RAW</strong><span id="gdFollowInputDetail">chưa phân loại</span></div>
+        <div class="gd-follow-stat"><span>Health</span><strong id="gdFollowHealth">YELLOW</strong><span id="gdFollowHealthDetail">safe follow</span></div>
       </div>
       <div class="gd-follow-controls">
         <button type="button" id="gdFollowToggle">🎙 Bật Auto Follow</button>
@@ -310,6 +322,8 @@
       planDetail: host.querySelector('#gdFollowPlanDetail'),
       input: host.querySelector('#gdFollowInput'),
       inputDetail: host.querySelector('#gdFollowInputDetail'),
+      health: host.querySelector('#gdFollowHealth'),
+      healthDetail: host.querySelector('#gdFollowHealthDetail'),
       toggle: host.querySelector('#gdFollowToggle'),
       sensitivity: host.querySelector('#gdFollowSensitivity'),
       tempoToggle: host.querySelector('#gdTempoFollow'),
@@ -599,6 +613,7 @@
     updateBarFollow(ts);
     updateSectionFollow(ts);
     updateHarmonicFollow(ts);
+    updateFollowHealth(ts);
     if(calibrationActive){
       const step=CALIBRATION_STEPS[calibrationStepIndex];
       performanceState={mode:'listening',confidence:0,reason:'calibrating '+(step?.id||'profile')};
@@ -616,6 +631,7 @@
     renderFusion();
     renderPlan();
     renderInput();
+    renderHealth();
     renderCalibration(ts);
     recordTelemetryFrame(ts, db);
     renderTelemetryStatus(ts);
@@ -1356,6 +1372,7 @@
     if (accept) {
       onsetCount++;
       acceptedOnsets++;
+      recordHealthOnset(now,true);
       lastOnsetAt = now;
       recordOnset(now, energy);
     } else if (
@@ -1366,6 +1383,7 @@
       (evidence.drumPenalty>Math.max(.36,thresholds.drumReject-.13) || evidence.voiceLike>Math.max(.52,thresholds.voiceReject-.10))
     ) {
       rejectedOnsets++;
+      recordHealthOnset(now,false);
     }
     const elapsed = now - onsetWindowStartedAt;
     if (elapsed >= 2400) {
@@ -1478,6 +1496,7 @@
     if (now - tempoCandidateSince < TEMPO_STABLE_MS) return;
     if (now - lastTempoApplyAt < TEMPO_APPLY_MS) return;
 
+    if(!healthPermissions().tempo)return;
     const current = Number(bpmInput.value) || 62;
     const diff = tempoCandidate - current;
     if (Math.abs(diff) < 2) return;
@@ -1610,6 +1629,7 @@
     if (Math.abs(delta) > 85) return;
     if (transport.nextBeatIndex === 0 && Math.abs(delta) < 24) return;
 
+    if(!healthPermissions().barSync)return;
     const synced = api.syncNextBeat(guitarDownbeat, 0);
     if (!synced) return;
     lastBarSyncAt = now;
@@ -2093,6 +2113,177 @@
     };
   }
 
+  function resetHealthTracking() {
+    followHealth={score:.60,raw:.60,level:'yellow',mode:'safe-follow',reason:'acquiring',components:{}};
+    healthCandidateLevel='yellow';
+    healthCandidateSince=performance.now();
+    healthOnsetHistory=[];
+    lastHealthLevel='yellow';
+  }
+
+  function recordHealthOnset(now,accepted) {
+    healthOnsetHistory.push({time:now,accepted:Boolean(accepted)});
+    const cutoff=now-HEALTH_WINDOW_MS;
+    while(healthOnsetHistory.length&&healthOnsetHistory[0].time<cutoff)healthOnsetHistory.shift();
+  }
+
+  function recentOnsetHealth(now) {
+    const cutoff=now-HEALTH_WINDOW_MS;
+    while(healthOnsetHistory.length&&healthOnsetHistory[0].time<cutoff)healthOnsetHistory.shift();
+    if(healthOnsetHistory.length<4)return {score:.62,accepted:0,rejected:0,total:healthOnsetHistory.length};
+    const accepted=healthOnsetHistory.filter(x=>x.accepted).length;
+    const rejected=healthOnsetHistory.length-accepted;
+    const ratio=accepted/Math.max(1,accepted+rejected);
+    const sampleScore=clamp(healthOnsetHistory.length/14,0,1);
+    return {
+      score:clamp(.78*ratio+.22*sampleScore,0,1),
+      accepted,
+      rejected,
+      total:healthOnsetHistory.length
+    };
+  }
+
+  function healthPermissions() {
+    if(followHealth.level==='green'){
+      return {intensity:true,tempo:true,barSync:true,reposition:true,transition:true,bigFill:true,hold:true,rejoin:true};
+    }
+    if(followHealth.level==='yellow'){
+      return {intensity:true,tempo:true,barSync:true,reposition:false,transition:true,bigFill:false,hold:true,rejoin:true};
+    }
+    return {intensity:false,tempo:false,barSync:false,reposition:false,transition:false,bigFill:false,hold:true,rejoin:false};
+  }
+
+  function healthLevelForScore(score) {
+    if(score>=HEALTH_GREEN_MIN)return 'green';
+    if(score<HEALTH_RED_MAX)return 'red';
+    return 'yellow';
+  }
+
+  function updateFollowHealth(now) {
+    if(!running){
+      followHealth={score:.60,raw:.60,level:'yellow',mode:'safe-follow',reason:'mic off',components:{}};
+      return;
+    }
+
+    const onset=recentOnsetHealth(now);
+    const thresholds=calibrationThresholds();
+    const guitarSupport=clamp(
+      (spectralFrame.guitarEvidence-thresholds.guitarEvidenceMin+.18)/.48,
+      0,1
+    );
+    const drumContam=clamp(
+      spectralFrame.drumPenalty*(1-clamp(guitarSupport*.70,0,.70)),
+      0,1
+    );
+    const voiceContam=clamp(
+      spectralFrame.voiceLike*(1-clamp(spectralFrame.transient/.55,0,.75))*(1-clamp(guitarSupport*.45,0,.45)),
+      0,1
+    );
+    const inputScore=clamp(
+      .52*guitarSupport+
+      .28*(1-drumContam)+
+      .20*(1-voiceContam),
+      0,1
+    );
+    const tempoScore=tempoEstimate==null?.58:clamp(tempoConfidence,0,1);
+    const barScore=barEstimate==null?.56:clamp(barConfidence,0,1);
+    let harmonicScore=.62;
+    if(harmonicMatch){
+      const ambiguous=harmonicMatch.margin<HARMONIC_MARGIN_MIN;
+      harmonicScore=ambiguous
+        ? clamp(.28+.30*harmonicMatch.confidence,0,1)
+        : clamp(.68*harmonicMatch.confidence+.32*clamp(harmonicMatch.margin/.20,0,1),0,1);
+    }
+    const calibrationScore=calibrationProfile
+      ? clamp(.55+.45*(calibrationProfile.quality||0),0,1)
+      : .64;
+    const signalScore=clamp(
+      .58*(1-Math.max(drumContam,voiceContam))+
+      .42*clamp((spectralFrame.guitarEvidence||0)+.25,0,1),
+      0,1
+    );
+
+    let raw=clamp(
+      .22*inputScore+
+      .17*onset.score+
+      .18*tempoScore+
+      .16*barScore+
+      .13*harmonicScore+
+      .08*calibrationScore+
+      .06*signalScore,
+      0,1
+    );
+
+    const quietOrRest=currentState==='silent'&&now-lastOnsetAt>800;
+    if(quietOrRest&&raw<.50)raw=.52;
+    if(drumContam>.72&&guitarSupport<.30&&onset.rejected>=onset.accepted+2)raw=Math.min(raw,.40);
+    if(voiceContam>.76&&guitarSupport<.28&&onset.rejected>=3)raw=Math.min(raw,.44);
+
+    const smoothed=clamp(.82*(followHealth.score||.60)+.18*raw,0,1);
+    const wanted=healthLevelForScore(smoothed);
+    if(wanted!==healthCandidateLevel){
+      healthCandidateLevel=wanted;
+      healthCandidateSince=now;
+    }
+    const stableMs=wanted==='red'?HEALTH_RED_STABLE_MS:HEALTH_STABLE_MS;
+    let level=followHealth.level||'yellow';
+    if(wanted===level||now-healthCandidateSince>=stableMs)level=wanted;
+
+    const reasons=[];
+    if(drumContam>.55)reasons.push('drum bleed');
+    if(voiceContam>.60)reasons.push('voice');
+    if(onset.score<.52&&onset.total>=4)reasons.push('onset noisy');
+    if(tempoEstimate!=null&&tempoConfidence<.52)reasons.push('tempo weak');
+    if(barEstimate!=null&&barConfidence<.52)reasons.push('bar weak');
+    if(harmonicMatch&&harmonicMatch.margin<HARMONIC_MARGIN_MIN)reasons.push('chord ambiguous');
+    if(calibrationProfile&&(calibrationProfile.quality||0)<.45)reasons.push('calibration weak');
+    if(!reasons.length)reasons.push(level==='green'?'signals stable':level==='yellow'?'limited confidence':'unsafe confidence');
+
+    const mode=level==='green'?'full-auto':level==='yellow'?'safe-follow':'manual-safe';
+    const previousLevel=followHealth.level;
+    followHealth={
+      score:smoothed,
+      raw,
+      level,
+      mode,
+      reason:reasons.slice(0,2).join(' + '),
+      components:{
+        input:inputScore,
+        onset:onset.score,
+        tempo:tempoScore,
+        bar:barScore,
+        harmonic:harmonicScore,
+        calibration:calibrationScore,
+        signal:signalScore,
+        drumContam,
+        voiceContam,
+        recentAccepted:onset.accepted,
+        recentRejected:onset.rejected
+      }
+    };
+
+    if(level!==previousLevel){
+      recordTelemetryEvent('health-change',{from:previousLevel,to:level,score:round(smoothed),reason:followHealth.reason});
+      if(level==='red'&&typeof api.cancelFollowAutomation==='function'){
+        api.cancelFollowAutomation('Follow Health RED · Manual Safe');
+      }
+      lastHealthLevel=level;
+    }
+  }
+
+  function renderHealth() {
+    if(!ui.health)return;
+    if(!running){
+      ui.health.textContent='OFF';
+      ui.healthDetail.textContent='bật Auto Follow để đánh giá';
+      return;
+    }
+    const score=Math.round(clamp(followHealth.score||0,0,1)*100);
+    ui.health.textContent=String(followHealth.level||'yellow').toUpperCase()+' '+score+'%';
+    const label=followHealth.mode==='full-auto'?'full auto':followHealth.mode==='manual-safe'?'manual safe':'safe follow';
+    ui.healthDetail.textContent=label+' · '+(followHealth.reason||'');
+  }
+
   function resetPlannerTracking() {
     transitionPlan={mode:'stay',confidence:0,reason:'waiting'};
     planCandidateKey=null;
@@ -2176,6 +2367,7 @@
     let fillStyle='small';
     if (confidence>=0.88 && trendScore>=0.62 && intensityScore>=0.68) fillStyle='big';
     else if (confidence>=0.81 || trendScore>=0.48 || gainScore>=0.58) fillStyle='medium';
+    if(!healthPermissions().bigFill&&fillStyle==='big')fillStyle='medium';
 
     const mode=beatsAway>8?'build':'fill-'+fillStyle;
     const key='plan:'+next.index+':'+fillStyle;
@@ -2334,6 +2526,7 @@
 
       if (
         resumeReady &&
+        healthPermissions().rejoin &&
         !transport.pendingFollowResume &&
         now-intentActionAt>900 &&
         typeof api.requestFollowResume==='function'
@@ -2400,7 +2593,8 @@
     if (
       (transport.followSilenceMode==='thin'||transport.pendingFollowHold) &&
       intent.recent &&
-      typeof api.requestFollowResume==='function'
+      typeof api.requestFollowResume==='function' &&
+      healthPermissions().rejoin
     ) {
       const accepted=api.requestFollowResume();
       if (accepted) {
@@ -2485,7 +2679,7 @@
           now-lastFusionActionAt>=FUSION_ACTION_COOLDOWN_MS &&
           now-lastHarmonicAnchorAt>=HARMONIC_ANCHOR_COOLDOWN_MS;
 
-        if (actionable && typeof api.requestHarmonicAnchor==='function') {
+        if (actionable && healthPermissions().reposition && typeof api.requestHarmonicAnchor==='function') {
           const accepted=api.requestHarmonicAnchor(target.beat,target.rowIndex,position.fusionScore);
           if (accepted) {
             lastFusionActionAt=now;
@@ -2516,7 +2710,11 @@
 
       const key='planner:'+target.index+':'+transitionPlan.fillStyle;
       const stable=updateFusionCandidate(key,now);
+      const permissions=healthPermissions();
+      const healthPlanMin=followHealth.level==='yellow'?Math.max(PLAN_ARM_MIN,.82):PLAN_ARM_MIN;
       const actionable=
+        permissions.transition &&
+        transitionPlan.confidence>=healthPlanMin &&
         stable &&
         now-lastFusionActionAt>=FUSION_ACTION_COOLDOWN_MS &&
         now-lastSectionActionAt>=SECTION_ACTION_COOLDOWN_MS;
@@ -2618,6 +2816,7 @@
 
     currentState = next;
     lastAppliedAt = now;
+    if(!healthPermissions().intensity)return;
     const level = {silent:1, soft:2, medium:3, big:5}[next] || 3;
     applyIntensity(level, next);
   }
@@ -2671,6 +2870,7 @@
       chordEvents:chordEvents.slice(),
       performanceState:{...performanceState},
       transitionPlan:{...transitionPlan},
+      followHealth:{...followHealth,components:{...(followHealth.components||{})}},
       cleanInput:Boolean(ui.cleanInputToggle.checked),
       inputClass,
       spectralFrame:{...spectralFrame},
