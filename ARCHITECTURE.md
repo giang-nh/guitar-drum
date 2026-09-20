@@ -56,9 +56,11 @@ Runtime flow hiện tại:
 6. các state ổn định được map sang Intensity `1 / 2 / 3 / 5` và phát event input để dùng lại drum engine hiện có;
 7. onset timestamps gần đây được gom trong cửa sổ ~8 giây; các inter-onset interval được normalize theo octave tempo vào range BPM hiện tại để tạo tempo estimate;
 8. Tempo Follow chỉ kích hoạt khi có đủ onset, confidence vượt ngưỡng và candidate BPM giữ ổn định khoảng 2.4 giây; sau đó BPM chỉ dịch 1 BPM mỗi ~850 ms về target;
-9. UI hiển thị energy meter, mic dB, strum-rate, tempo estimate và confidence để debug.
+9. Bar-sync estimator fold onset theo beat period, so accent strength ở 4 vị trí của ô nhịp để tìm beat 1; candidate downbeat phải đủ confidence và giữ cùng phase khoảng 2.6 giây;
+10. khi beat 1 đáng tin, module so predicted guitar downbeat với next unscheduled drummer beat; chỉ khi lệch không quá ~85 ms mới nudge timing và re-index quarter counter về beat 1, không thay đổi song position;
+11. UI hiển thị energy meter, mic dB, strum-rate, tempo estimate/confidence và trạng thái Bar `learning / stable / synced`.
 
-POC hiện follow **dynamics + tempo**, nhưng **chưa xác định downbeat/beat 1 hoặc tự suy ra section**. Song position/section vẫn do song map/manual timing kiểm soát. Tempo estimator cố ý bảo thủ để tránh mic bleed hoặc pattern syncopated kéo drummer sai nhịp.
+POC hiện follow **dynamics + tempo + beat-1/bar phase**, nhưng **chưa tự suy ra section/chord position**. Song position/section vẫn do song map/manual timing kiểm soát. Các estimator cố ý bảo thủ để tránh mic bleed hoặc pattern syncopated kéo drummer sai nhịp.
 
 ### Tone detection + Capo
 
@@ -164,7 +166,7 @@ Scheduler:
 
 - Timing của từng dòng là dữ liệu thủ công, không được suy ra từ audio thật.
 - Nhịp hiện tại được thiết kế chủ yếu cho 4/4.
-- Drum đã có arrangement riêng cho 3 bài và POC nghe **guitar intensity + tempo** qua mic, nhưng arrangement vẫn thủ công/rule-based; chưa xác định downbeat, chord change hoặc section trực tiếp từ guitar.
+- Drum đã có arrangement riêng cho 3 bài và POC nghe **guitar intensity + tempo + beat-1/bar phase** qua mic, nhưng arrangement vẫn thủ công/rule-based; chưa nhận chord change hoặc section trực tiếp từ guitar.
 
 ## 5. State persistence
 
