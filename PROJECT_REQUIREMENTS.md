@@ -334,3 +334,16 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - GitHub Pages deployment must depend on a successful automated test job. A test failure must prevent deployment of that commit.
 - Tests should remain dependency-free unless a browser-level capability genuinely requires an external test framework.
 - Browser/WebAudio/microphone tests are a separate device-validation layer; CI must not imply that synthetic unit tests validate acoustic behavior.
+
+
+## Guided iPad Validation Session
+
+- Developer Mode must provide a guided 10-step iPad validation flow covering quiet room, drum-only, guitar-only, voice-only, guitar+voice, full mix, stop/resume, Verse→Chorus transition, soft→big dynamics and free play.
+- Starting Validation must ensure Auto Follow and telemetry are available; the flow must not record raw audio.
+- Every step must create explicit telemetry boundaries/labels so metrics can be computed for that scenario without manual Mark timing.
+- Validation scoring must use shared pure core logic and return `pass`, `review` or `fail`; UI code must not maintain a separate duplicate scoring implementation.
+- The final report must summarize at least mic separation, tempo lock, beat/bar lock, false drum onset count, voice false-trigger count, HOLD→REJOIN, transition result and Health RED fraction.
+- Completed validation telemetry must be reusable as an Auto-Tune analysis source and addable directly to the Regression suite.
+- Validation must own/protect its telemetry session while active so manual Debug start/stop cannot accidentally destroy the guided run.
+- Changing song or disabling Auto Follow during an active validation session must end/cancel the run safely rather than leaving stale step state.
+- Validation JSON/export must remain audio-free and backward-compatible with older debug imports.
