@@ -75,7 +75,10 @@ Các bài mới sẽ tiếp tục được thêm vào cùng cấu trúc này.
 - Tempo Follow phải cho phép tắt riêng để user vẫn dùng dynamics follow mà giữ BPM thủ công.
 - Auto Follow có **Beat-1 / Bar Sync (POC)**: từ accent/onset pattern 4/4, app có thể suy ra downbeat khi confidence cao và phase ổn định nhiều giây; chỉ nudge timing nhẹ và re-index beat counter, không được nhảy song position.
 - Beat-1 sync phải fail-safe: nếu pattern không đủ rõ, hiển thị learning/low confidence và không tự can thiệp.
-- POC hiện follow **dynamics + tempo + bar phase**; section/song position vẫn theo song map hiện tại. Section following là bước nâng cấp kế tiếp.
+- Auto Follow có **Section Follow (POC)**: app đọc section timeline đã build sẵn cho bài, kết hợp proximity tới section kế tiếp, arrangement gain/`autoFillIn`, bar/tempo confidence và xu hướng energy guitar để dự đoán chuyển vào section cao trào.
+- Khi section candidate đủ tin cậy và ổn định, app được phép queue một transition giới hạn: fill 1 bar ở đầu ô nhịp kế tiếp → anchor tới đúng đầu section kế tiếp → crash. Chỉ được xét section kế tiếp; không được nhảy tùy ý sang section xa.
+- Manual jump hoặc Fill của user luôn override/hủy pending AI section transition.
+- Section Follow v1 chưa nhận chord/harmonic position trực tiếp từ microphone; đây là cue bổ sung cho bước sau.
 
 ## 7. Điều khiển khi tập
 
