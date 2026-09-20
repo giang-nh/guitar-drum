@@ -114,7 +114,7 @@
     }else{
       if([0,2,4,7,9].includes(root))score+=.15;else if(root===5)score+=1.4;else if(root===11)score+=2;else score+=2.5;
     }
-    if(/[ #b]/.test(rootName.replace(' ',''))&&/[#b]/.test(rootName))score+=.8;
+    if(/[#b]/.test(rootName))score+=.8;
     if(/maj7|add|sus|11|13|b5|#5|b9|#9/.test(rest))score+=.45;else if(/7/.test(rest))score+=.2;
     if(slash)score+=.45;return score;
   }
