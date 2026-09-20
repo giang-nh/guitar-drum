@@ -289,3 +289,12 @@ Every analysis frame now computes spectral flux, spectral flatness and low/mid/h
 A lightweight `voiceLike` score downweights sustained mid-band, low-transient input that is more consistent with singing than a guitar strum. Clean mic also reduces contaminated energy before dynamics classification, avoids teaching self-drum peaks into the adaptive mic range, and rejects chord frames that look strongly like self-drum/voice contamination. Chord recognition additionally requires minimum chroma diversity so a single sung pitch is less likely to look like a full chord.
 
 UI exposes `Clean mic` as an A/B toggle plus an `Input` diagnostic state (`GUITAR / VOICE / DRUM / MIX / QUIET`) with spectral-flux, self-drum-mask and accepted/rejected onset counts. These labels are heuristics for debugging, not ground-truth source classification.
+
+
+### Debug Session / Telemetry Recorder
+
+The Follow panel includes a local-only debug recorder intended for real-device tuning on iPad. It samples a compact state snapshot roughly every 250 ms (about 4 Hz) and records important state-signature changes plus user `Mark` events. The recorder does **not** capture microphone audio or waveform samples.
+
+Each snapshot can include transport/song position, mic energy/classification, Clean Mic spectral metrics, accepted/rejected onset counters, tempo/bar confidence, chord/harmonic match, section prediction, Sensor Fusion state, transition plan, intensity/human-feel controls, and stop/resume state. Session size is bounded by ring limits (7,200 samples and 1,200 events; roughly 30 minutes at the current sample rate).
+
+Export uses a versioned JSON schema (`guitar-drum-debug-v1`). On supported iOS/iPadOS browsers it first tries the native Share sheet with a JSON file; otherwise it falls back to a local download. No telemetry is uploaded automatically. The exported file is intended to be attached back to an agent for threshold/timing analysis.
