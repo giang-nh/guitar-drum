@@ -175,7 +175,7 @@
         <label class="gd-follow-tempo-option" for="gdSectionFollow"><input id="gdSectionFollow" type="checkbox" checked /> Follow section</label>
         <label class="gd-follow-tempo-option" for="gdHarmonicFollow"><input id="gdHarmonicFollow" type="checkbox" checked /> Follow chords</label>
       </div>
-      <div id="gdFollowHint" class="gd-follow-hint">POC: dynamics + BPM + beat 1 + section + harmonic position. Chord detector ưu tiên vài trăm ms sau cú quạt để giảm nhiễu giọng hát; auto re-anchor chỉ chạy khi chuỗi nhiều chord khớp rõ với một vị trí trong song map.</div>
+      <div id="gdFollowHint" class="gd-follow-hint">POC: Sensor Fusion gom dynamics + BPM + beat 1 + section + chord position thành một Follow state duy nhất. Chỉ bộ fusion được quyền fill/re-position; detector riêng chỉ cung cấp evidence.</div>
     `;
     const hint = drummer.querySelector('.drumHint');
     if (hint) hint.insertAdjacentElement('afterend', host);
@@ -1215,8 +1215,13 @@
     const tempoLocked=tempoConfidence>=TEMPO_CONFIDENCE_MIN;
     const barLocked=isBarLocked(now);
     const position=fusedPositionCandidate(now);
-    const harmonicAmbiguous=Boolean(
+    const harmonicStrong=Boolean(
       harmonicMatch &&
+      harmonicMatch.score>=0.72 &&
+      harmonicMatch.confidence>=0.68
+    );
+    const harmonicAmbiguous=Boolean(
+      harmonicStrong &&
       (
         harmonicMatch.margin < HARMONIC_MARGIN_MIN ||
         (position && position.fusionMargin < 0.055)
@@ -1264,6 +1269,8 @@
         position.fusionMargin>=0.07 &&
         harmonicMatch.score>=HARMONIC_MATCH_MIN &&
         harmonicMatch.margin>=HARMONIC_MARGIN_MIN &&
+        position.target?.beat===harmonicMatch.target?.beat &&
+        position.target?.rowIndex===harmonicMatch.target?.rowIndex &&
         stable &&
         now-lastFusionActionAt>=FUSION_ACTION_COOLDOWN_MS &&
         now-lastHarmonicAnchorAt>=HARMONIC_ANCHOR_COOLDOWN_MS;
@@ -1288,8 +1295,7 @@
     );
     if (sectionReady) {
       const harmonicSupportsNext=
-        !harmonicMatch ||
-        harmonicMatch.margin<HARMONIC_MARGIN_MIN ||
+        !harmonicStrong ||
         harmonicMatch.target?.section===sectionPrediction.next?.name;
       const confidence=clamp(
         0.52*sectionPrediction.confidence+
