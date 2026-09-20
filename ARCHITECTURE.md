@@ -42,18 +42,26 @@ Hiện chứa cả:
 
 Đây là kiến trúc intentionally simple cho prototype. Agent không nên tự tách framework/build system nếu chưa có yêu cầu rõ.
 
-### Experimental `tone-poc.html`
+### Tone detection + Capo
 
-PoC riêng cho song-aware vocal key detection, hiện thử với Nàng Thơ:
+Tone/capo đã được tích hợp vào UI chính qua `tone.js`.
 
-- xin quyền microphone bằng `getUserMedia`;
-- Web Audio lấy waveform và autocorrelation để ước lượng pitch;
-- gom pitch class trong cửa sổ khoảng 8 giây;
-- so với major-key profile để chọn transpose candidate;
-- preview chord sau transpose;
-- ghi key được chọn vào cùng `localStorage` mà `index.html` đang dùng rồi quay về app chính.
+Runtime flow:
 
-PoC intentionally tách khỏi player chính. Chưa xem đây là architecture production cho đến khi test thực tế xác nhận hướng nhận tone đủ tốt. Bước nâng cấp dự kiến là thêm melody reference theo bài/phrase và match semitone offset thay vì chỉ dựa trên key profile.
+1. user mở một trong 3 bài hiện tại;
+2. `tone.js` đọc reference của bài từ `tone-references.json`;
+3. microphone được lấy bằng `getUserMedia`;
+4. autocorrelation trên Web Audio waveform ước lượng pitch theo frame;
+5. pitch được gom thành pitch-class distribution trong khoảng 8 giây;
+6. distribution được so với reference profile của đúng bài để xếp hạng transpose offset;
+7. detected sounding key được dùng để sinh các phương án:
+   - bấm trực tiếp, hoặc
+   - chuyển chord shapes về các guitar key phổ biến (G/C/D/A/E) và dùng capo;
+8. khi user chọn phương án, `index.html` hiển thị chord shapes tương ứng và lưu `capo`, `soundingKey`, `shapeKey` trong state của bài.
+
+`tone-references.json` hiện là **harmonic-profile-v1**, được build trước cho 3 bài từ harmonic/chord data hiện có. Đây chưa phải melody phrase reference lấy từ audio. Nếu test thực tế cho thấy key gần nhau dễ nhầm, hướng nâng cấp đã chốt là precompute melody reference theo phrase từ nguồn audio/MIDI đáng tin cậy.
+
+`tone-poc.html` vẫn được giữ lại như prototype cũ, nhưng feature người dùng sử dụng nằm trong app chính.
 
 ### Song data
 
