@@ -142,3 +142,6 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 
 - test **Playing Mode** on iPad with Auto Follow both ON and OFF. The compact summary must keep section/phrase position in sync during playback, while Developer toggle should reveal/hide diagnostics without resetting Follow state or transport.
 - verify a fresh install defaults to Playing Mode; after explicitly enabling Developer Mode, reload should preserve that preference.
+
+- CI test gate is now mandatory before Pages deploy. When extending phrase, Health, transition guards, Tone/Capo or regression safety, add/adjust a core unit test in the same change rather than relying only on source-contract checks.
+- browser/WebAudio behavior is intentionally not claimed as fully automated yet; real iPad/Safari sessions remain required for microphone latency, speaker bleed, audible groove feel and permission UX.
