@@ -325,8 +325,10 @@
       resetFusionTracking();
       resetIntentTracking();
       resetPlannerTracking();
+      resetInputTracking();
       renderFusion();
       renderPlan();
+      renderInput();
     });
 
     document.querySelector('#gdToneMic')?.addEventListener('click', () => {
@@ -2026,6 +2028,11 @@
       chordEvents:chordEvents.slice(),
       performanceState:{...performanceState},
       transitionPlan:{...transitionPlan},
+      cleanInput:Boolean(ui.cleanInputToggle.checked),
+      inputClass,
+      spectralFrame:{...spectralFrame},
+      acceptedOnsets,
+      rejectedOnsets,
       intentStage,
       lastMusicalActivityAt
     })
