@@ -206,6 +206,8 @@
       renderState('silent', 0, -80, 0);
       renderTempo();
       renderBar();
+      resetSectionTracking();
+      renderSection();
     });
 
     document.querySelector('#gdToneMic')?.addEventListener('click', () => {
@@ -303,7 +305,6 @@
     renderTempo();
     renderBar();
     renderSection();
-    renderSection();
     if (message) setHint(message + ' Intensity, BPM, bar sync và section follow trở lại điều khiển tay.');
   }
 
@@ -349,6 +350,7 @@
     renderState(currentState, smoothedEnergy, db, strumRate);
     renderTempo();
     renderBar();
+    renderSection();
   }
 
   function rmsOf(data) {
