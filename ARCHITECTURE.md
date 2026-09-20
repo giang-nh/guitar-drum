@@ -309,3 +309,14 @@ During calibration, normal Follow actions are suspended: tempo/bar may still be 
 The resulting versioned `calibrationProfile` is stored locally in the existing Follow settings. It derives a quality score and a bounded sensitivity recommendation (±6 dB), then learns/blends thresholds including base onset-rise, minimum guitar energy/evidence, self-drum rejection, vocal rejection, voice transient ceiling, input-class gates and stricter chord contamination gates. If source separation in the samples is weak, the profile quality falls and learned values are blended back toward the v22/v23 defaults rather than trusted fully.
 
 `Clean mic` and chord/onset logic read `calibrationThresholds()` at runtime. With no profile, the original default thresholds remain effectively unchanged. Debug JSON includes the active calibration profile so future analysis can reproduce which thresholds were in effect.
+
+
+### Follow Health / Fail-safe Mode
+
+A dedicated Health layer now sits above detector confidence and below transport actions. It computes a smoothed score from live guitar evidence, self-drum/vocal contamination, a rolling 10-second accepted-vs-rejected onset ratio, tempo confidence, bar/downbeat confidence, harmonic certainty and calibration quality. Critical drum/voice contamination may cap the raw score even when tempo/bar appear confident from false onsets.
+
+Health has hysteretic modes: `GREEN / Full Auto`, `YELLOW / Safe Follow`, and `RED / Manual Safe`. GREEN permits all current automation. YELLOW continues dynamics, BPM/bar following and conservative next-section transitions, but blocks harmonic song-position re-anchor and caps planned fills at medium. RED blocks automated intensity changes, BPM steering, beat-1 correction, harmonic re-position and predictive section transitions. Silence-driven THIN/HOLD remains available so genuine stopping does not run the song forward; automatic rejoin waits until Health recovers from RED.
+
+If Health drops to RED, the Follow layer calls the main transport's fail-safe cancellation hook to discard pending AI section/harmonic anchors. A GREEN→YELLOW downgrade also cancels pending Full-Auto actions so an older high-risk decision is not executed after confidence falls. If a fill is already sounding, it may finish acoustically, but its pending section anchor is removed. When Health recovers from RED, the current detected dynamics level is re-applied so intensity automation does not remain stuck at a stale value.
+
+Health score, component scores, mode and permissions are exposed through `GuitarFollowAPI` and included in debug telemetry.
