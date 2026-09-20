@@ -60,7 +60,12 @@ Các bài mới sẽ tiếp tục được thêm vào cùng cấu trúc này.
 - Có visual beat **1 – 2 – 3 – 4**.
 - Beat hiện tại phải sáng rõ để người chơi nhìn được nhịp.
 - Khi bấm Play từ đầu hoặc từ một dòng, có **count-in 4 beat** trước khi vào bài.
-- Drum cơ bản gồm kick, snare và hi-hat, đủ rõ để tập guitar.
+- Drum dùng Web Audio với kick, snare, hi-hat và các accent bổ sung như open hi-hat, tom, crash.
+- Drummer tự chọn groove theo section hiện tại: Intro nhẹ, Verse giữ pocket, Pre-chorus build, Chorus mạnh hơn, Bridge half-time, Interlude mở hơn, Outro hạ động lực.
+- Có **Intensity 1–5** để người dùng chỉnh lực chơi mà không đổi BPM.
+- Có nút **Fill**; khi đang Play, fill được queue và bắt đầu ở đầu ô nhịp 4/4 kế tiếp.
+- Khi chuyển loại section, engine có accent/fill ngắn để chuyển đoạn tự nhiên hơn.
+- Mỗi bài hiện có một style mặc định: Acoustic Pop / Soft Ballad / Acoustic Ballad.
 - Drum phải chạy đồng bộ với BPM và dòng lời hiện tại.
 
 ## 7. Điều khiển khi tập
@@ -84,6 +89,7 @@ App cần lưu local trên thiết bị:
 - Dòng đang tập.
 - Tone đang chọn của từng bài.
 - BPM của từng bài.
+- Intensity của drummer theo từng bài.
 - Chế độ xem 5 dòng hay Show all.
 
 Mục tiêu là đóng app rồi mở lại vẫn tiếp tục gần đúng chỗ đang tập.
@@ -136,7 +142,8 @@ Repo hiện đã có prototype chạy client-side với:
 - 3 bài hát.
 - Transpose hợp âm.
 - Tempo control.
-- Drum 4/4 bằng Web Audio.
+- Drummer 4/4 bằng Web Audio, tự đổi groove theo section.
+- Intensity 1–5 và queued Fill.
 - Count-in.
 - Visual 4 beat.
 - Play/Pause/Stop.
