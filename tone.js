@@ -1,6 +1,7 @@
 (function ToneModule() {
   const api = window.GuitarDrumAPI;
-  if (!api) return;
+  const core = window.GuitarDrumCore;
+  if (!api || !core) return;
 
   const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const NOTES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
@@ -300,54 +301,9 @@
     }));
     return [...set];
   }
-  function transposeChord(chord, shift, preferFlats) {
-    const m = chord.match(/^([A-G])([#b]?)(.*)$/); if (!m) return chord;
-    const root = NOTE_MAP[m[1] + m[2]]; if (root == null) return chord;
-    const names = preferFlats ? NOTES_FLAT : NOTES_SHARP;
-    let rest = m[3] || '';
-    rest = rest.replace(/\/([A-G])([#b]?)/, (_, a, b) => {
-      const bass = NOTE_MAP[a + b]; return '/' + names[(bass + shift + 12) % 12];
-    });
-    return names[(root + shift + 12) % 12] + rest;
-  }
-  function chordDifficulty(chord) {
-    const m = chord.match(/^([A-G])([#b]?)(.*)$/); if (!m) return 1;
-    const rootName = m[1] + m[2], root = NOTE_MAP[rootName], rest = m[3] || '';
-    const minor = /^m(?!aj)/.test(rest), dim = /dim|m7b5/.test(rest), slash = rest.includes('/');
-    let score = 0;
-    if (dim) score += 2.8;
-    else if (minor) {
-      if ([9,4,2].includes(root)) score += 0.2;
-      else if ([11,6].includes(root)) score += 1.5;
-      else score += 2.3;
-    } else {
-      if ([0,2,4,7,9].includes(root)) score += 0.15;
-      else if (root === 5) score += 1.4;
-      else if (root === 11) score += 2.0;
-      else score += 2.5;
-    }
-    if (/[#b]/.test(rootName)) score += 0.8;
-    if (/maj7|add|sus|11|13|b5|#5|b9|#9/.test(rest)) score += 0.45;
-    else if (/7/.test(rest)) score += 0.2;
-    if (slash) score += 0.45;
-    return score;
-  }
-  function capoOptions(targetKey) {
-    const song = api.getCurrentSong(), chords = collectChords(song), options = [];
-    for (let capo = 0; capo <= 7; capo++) {
-      const shapeKey = (targetKey - capo + 12) % 12, shapeShift = (shapeKey - song.baseKey + 12) % 12;
-      const shapes = chords.map(ch => transposeChord(ch, shapeShift, song.preferFlats));
-      const avgDifficulty = shapes.reduce((sum, ch) => sum + chordDifficulty(ch), 0) / Math.max(1, shapes.length);
-      const commonBonus = COMMON_KEYS.includes(shapeKey) ? -0.55 : 0;
-      const capoPenalty = capo === 0 ? 0 : capo * 0.08 + (capo > 5 ? 0.25 : 0);
-      options.push({targetKey, shapeKey, capo, score:avgDifficulty + capoPenalty + commonBonus});
-    }
-    options.sort((a,b) => a.score - b.score);
-    const noCapo = options.find(x => x.capo === 0), result = [options[0]];
-    if (noCapo && noCapo !== options[0]) result.push(noCapo);
-    for (const opt of options) { if (result.length >= 3) break; if (!result.some(x => x.capo === opt.capo && x.shapeKey === opt.shapeKey)) result.push(opt); }
-    return result;
-  }
+  function transposeChord(chord, shift, preferFlats) { return core.transposeChord(chord,shift,preferFlats); }
+  function chordDifficulty(chord) { return core.chordDifficulty(chord); }
+  function capoOptions(targetKey) { return core.capoOptions(api.getCurrentSong(),targetKey); }
   function renderCapoOptions(container, targetKey) {
     const song = api.getCurrentSong(), opts = capoOptions(targetKey); container.innerHTML = '';
     opts.forEach((opt, index) => {
