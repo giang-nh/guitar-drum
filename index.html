@@ -234,8 +234,11 @@
   </div>
 </main>
 
+<script src="./core-logic.js"></script>
 <script>
 (() => {
+  const core=window.GuitarDrumCore;
+  if(!core)throw new Error('GuitarDrumCore missing');
   const $ = s => document.querySelector(s);
   const songSel=$('#songSelect'), keySel=$('#keySelect'), bpm=$('#bpm'), bpmLabel=$('#bpmLabel');
   const intensity=$('#intensity'), intensityLabel=$('#intensityLabel'), humanize=$('#humanize'), humanizeLabel=$('#humanizeLabel'), fillBtn=$('#fill'), drumStyle=$('#drumStyle'), drumPattern=$('#drumPattern');
@@ -403,8 +406,9 @@
   }
 
   function buildRows(){
-    rows=[]; total=0;
-    song.rows.forEach((d,i)=>{const r={s:d[0],b:d[1],parts:d[2],start:total,i};total+=r.b;r.end=total;rows.push(r)});
+    const built=core.buildRows(song.rows);
+    rows=built.rows;
+    total=built.total;
   }
 
   const toneHints={
@@ -435,13 +439,8 @@
     });
   }
 
-  function transposeChord(ch){
-    const m=ch.match(/^([A-G])([#b]?)(.*)$/); if(!m) return ch;
-    const n=noteMap[m[1]+m[2]]; if(n===undefined) return ch;
-    const outNotes=song.preferFlats?notesFlat:notes;
-    return outNotes[(n+shift+12)%12]+m[3];
-  }
-  function isChord(v){return /^[A-G](?:#|b)?(?:m|maj|dim|aug|sus|add)?\d*(?:b5|#5|b9|#9|11|13)?(?:\/[A-G](?:#|b)?)?$/.test(v)}
+  function transposeChord(ch){return core.transposeChord(ch,shift,Boolean(song.preferFlats))}
+  function isChord(v){return core.isChord(v)}
   function renderParts(parts){return parts.map(v=>isChord(v)?'<span class="chord">'+transposeChord(v)+'</span>':v).join('')}
   function harmonicTimeline(){
     const out=[];
@@ -685,16 +684,7 @@
     ));
   }
   function rowForBeat(b){for(let i=0;i<rows.length;i++)if(b>=rows[i].start&&b<rows[i].end)return i;return rows.length-1}
-  function sectionKind(name){
-    const v=String(name||'').toLowerCase();
-    if(v.includes('intro'))return 'intro';
-    if(v.includes('tiền'))return 'pre';
-    if(v.includes('chorus')||v.includes('điệp khúc')||v.includes('final'))return 'chorus';
-    if(v.includes('bridge'))return 'bridge';
-    if(v.includes('interlude'))return 'interlude';
-    if(v.includes('outro'))return 'outro';
-    return 'verse';
-  }
+  function sectionKind(name){return core.sectionKind(name)}
   function arrangementForRow(rowIndex){
     const r=rows[Math.max(0,Math.min(rows.length-1,rowIndex))];
     const exact=song.drumArrangement&&song.drumArrangement[r.s];
@@ -732,83 +722,19 @@
     }
     return -1;
   }
-  function sectionTimeline(){
-    const out=[];
-    let startRow=0;
-    for(let i=1;i<=rows.length;i++){
-      if(i===rows.length||rows[i].s!==rows[startRow].s){
-        const arr=arrangementForRow(startRow);
-        const startBeat=rows[startRow].start;
-        const endBeat=rows[i-1].end;
-        const bars=Math.max(1,Math.ceil((endBeat-startBeat)/4));
-        const kind=sectionKind(rows[startRow].s);
-        const occurrence=out.filter(x=>x.kind===kind).length+1;
-        out.push({
-          index:out.length,
-          name:rows[startRow].s,
-          kind,
-          occurrence,
-          startBeat,
-          endBeat,
-          bars,
-          phraseBars:bars>=8?8:4,
-          startRow,
-          endRow:i-1,
-          gain:Number(arr.gain||1),
-          pattern:arr.pattern||kind,
-          autoFillIn:Boolean(arr.autoFillIn)
-        });
-        startRow=i;
-      }
-    }
-    return out;
-  }
-  function phraseContextAtBeat(beat=songBeat){
-    const timeline=sectionTimeline();
-    const section=timeline.find(s=>beat>=s.startBeat&&beat<s.endBeat) || timeline[timeline.length-1];
-    if(!section)return null;
-    const localBeat=Math.max(0,Math.min(Math.max(0,section.endBeat-section.startBeat-1),Number(beat)-section.startBeat));
-    const sectionBar=Math.floor(localBeat/4);
-    const beatInBar=((Math.floor(localBeat)%4)+4)%4;
-    const nominalPhraseBars=section.phraseBars||4;
-    const phraseIndex=Math.floor(sectionBar/nominalPhraseBars);
-    const phraseStartBar=phraseIndex*nominalPhraseBars;
-    const phraseBars=Math.max(1,Math.min(nominalPhraseBars,section.bars-phraseStartBar));
-    const phraseBar=Math.min(phraseBars,sectionBar-phraseStartBar+1);
-    const phraseStartBeat=section.startBeat+phraseStartBar*4;
-    const phraseEndBeat=Math.min(section.endBeat,phraseStartBeat+phraseBars*4);
-    const phraseSpan=Math.max(1,phraseEndBeat-phraseStartBeat);
-    const progress=Math.max(0,Math.min(1,(Number(beat)-phraseStartBeat)/phraseSpan));
-    const sectionSpan=Math.max(1,section.endBeat-section.startBeat);
-    const sectionProgress=Math.max(0,Math.min(1,(Number(beat)-section.startBeat)/sectionSpan));
-    return {
-      sectionIndex:section.index,
-      sectionName:section.name,
-      kind:section.kind,
-      occurrence:section.occurrence,
-      sectionBars:section.bars,
-      sectionBar:sectionBar+1,
-      sectionProgress,
-      phraseIndex:phraseIndex+1,
-      phraseBars,
-      phraseBar,
-      beatInBar,
-      progress,
-      phraseStartBeat,
-      phraseEndBeat,
-      beatsToPhraseEnd:Math.max(0,phraseEndBeat-Number(beat)),
-      lastBar:phraseBar===phraseBars,
-      lastBeat:phraseBar===phraseBars&&beatInBar===3
-    };
-  }
+  function sectionTimeline(){return core.buildSectionTimeline(rows,arrangementForRow)}
+  function phraseContextAtBeat(beat=songBeat){return core.phraseContextAtBeat(sectionTimeline(),beat)}
   function requestSectionTransition(targetSectionIndex,plan={}){
-    if(!playing||paused||countIn>0||followHeld||pendingFollowHold||pendingSectionTransition||pendingHarmonicAnchor)return false;
     const timeline=sectionTimeline();
     const currentIndex=timeline.findIndex(s=>songBeat>=s.startBeat&&songBeat<s.endBeat);
     const target=timeline[targetSectionIndex];
-    if(currentIndex<0||!target||targetSectionIndex!==currentIndex+1)return false;
-    const beatsAway=target.startBeat-songBeat;
-    if(beatsAway<5||beatsAway>16)return false;
+    const beatsAway=target?target.startBeat-songBeat:NaN;
+    if(!target||!core.canRequestSectionTransition({
+      playing,paused,countIn,followHeld,pendingFollowHold,
+      pendingSectionTransition:Boolean(pendingSectionTransition),
+      pendingHarmonicAnchor:Boolean(pendingHarmonicAnchor),
+      currentIndex,targetIndex:targetSectionIndex,beatsAway
+    }))return false;
     const fillStyle=['small','medium','big'].includes(plan.fillStyle)?plan.fillStyle:'medium';
     const variant=Number.isFinite(Number(plan.variant))
       ? Math.max(0,Math.min(2,Math.round(Number(plan.variant))))
@@ -1358,7 +1284,7 @@
       if(!ctx||!playing||paused||!followHeld||!Number.isFinite(targetPerformanceMs))return false;
       const nowPerf=performance.now();
       const delayMs=targetPerformanceMs-nowPerf;
-      if(delayMs<25||delayMs>5200)return false;
+      if(!core.rejoinDelayAllowed(delayMs))return false;
       nextTime=ctx.currentTime+delayMs/1000;
       const current=((quarter%4)+4)%4;
       quarter+=((0-current+4)%4);
