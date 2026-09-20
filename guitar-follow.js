@@ -265,7 +265,7 @@
         <label class="gd-follow-tempo-option" for="gdHarmonicFollow"><input id="gdHarmonicFollow" type="checkbox" checked /> Follow chords</label>
         <label class="gd-follow-tempo-option" for="gdCleanInput"><input id="gdCleanInput" type="checkbox" checked /> Clean mic</label>
       </div>
-      <div id="gdFollowHint" class="gd-follow-hint">POC: Clean mic dùng self-drum timing + spectral transient gate để giảm tiếng drum từ loa và giọng hát kích nhầm onset/chord. Nếu guitar bị bỏ sót, có thể tắt Clean mic để A/B.</div>
+      <div id="gdFollowHint" class="gd-follow-hint">POC: Follow Health tổng hợp chất lượng mic/onset/tempo/bar/chord/calibration. GREEN = Full Auto; YELLOW = Safe Follow; RED = Manual Safe, tự chặn các action rủi ro. Clean mic vẫn có thể tắt để A/B.</div>
       <div class="gd-debug">
         <div class="gd-debug-row">
           <button type="button" id="gdDebugRecord">● Record debug</button>
@@ -863,7 +863,7 @@
     const song=api.getCurrentSong?.()||{};
     const payload={
       schema:'guitar-drum-debug-v1',
-      appCache:'v24',
+      appCache:'v25',
       startedAt:telemetryStartedIso,
       durationMs:Math.round(telemetryDurationMs()),
       note:'Local telemetry only; no audio samples are recorded.',
