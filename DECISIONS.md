@@ -154,3 +154,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** no high-impact Follow action is authorized solely by its local detector confidence. A separate global Health layer controls automation permissions with three hysteretic modes: GREEN Full Auto, YELLOW Safe Follow and RED Manual Safe. Health downgrades cancel pending AI section/harmonic anchors; RED blocks risky automation but preserves silence→THIN/HOLD safety, and rejoin waits for recovery.
 
 **Reason:** multiple detectors can become simultaneously confident for the wrong reason (for example speaker bleed producing regular onsets). Global health combines independent evidence and contamination signals, making the system degrade gracefully instead of turning uncertainty into transport changes.
+
+
+## D024 — Auto-Tune chỉ đề xuất, không tự apply
+
+**Decision:** telemetry-based tuning may infer bounded threshold changes and estimate their effect, but it never silently changes the Mic Profile. Apply is explicit, confidence is limited by the amount of marked evidence, unsafe before/after estimates block Apply, and every applied tune has a persistent one-step Undo.
+
+**Reason:** a debug `Mark` indicates that something sounded or behaved wrong, but it does not provide a perfect ground-truth label. Conservative, inspectable suggestions preserve user control and prevent a single ambiguous session from degrading the detector stack.
