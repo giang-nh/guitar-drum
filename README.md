@@ -95,3 +95,5 @@ Current baseline: **105 cases / 105 PASS / 0 FAIL**. The suite exercises determi
 This suite does not replace real-device validation for microphone input, speaker bleed, Web Audio timing, or iPad/Safari interaction.
 
 - **Playing Mode + Developer Mode**: the Follow panel now defaults to a compact performance surface with Auto Follow, Health, section/phrase and Plan summary. Detailed meter/stats, sensitivity, detector toggles, Calibration, Debug, Auto-Tune and Regression remain available behind a persistent `Developer` toggle. The compact summary stays synced even when Auto Follow is off.
+
+- **Automated Test Harness**: dependency-free Node tests exercise shared runtime core logic (phrase mapping, Health permissions, section-transition/rejoin guards, Tone/Capo transpose/scoring, replay threshold decisions and regression blockers) plus integration/source contracts for song data, PWA assets, Playing/Developer wiring and debug/cache versions. GitHub Pages deploy now requires the test job to pass first.
