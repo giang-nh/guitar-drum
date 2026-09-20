@@ -938,7 +938,7 @@
     const song=api.getCurrentSong?.()||{};
     const payload={
       schema:'guitar-drum-debug-v1',
-      appCache:'v26',
+      appCache:'v27',
       startedAt:telemetryStartedIso,
       durationMs:Math.round(telemetryDurationMs()),
       note:'Local telemetry only; no audio samples are recorded.',
