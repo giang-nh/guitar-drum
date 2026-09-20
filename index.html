@@ -646,6 +646,18 @@
     status.textContent='🎸 Harmonic match '+Math.round((Number(confidence)||0)*100)+'% · sẽ re-anchor ở beat 1 kế tiếp.';
     return true;
   }
+  function cancelFollowAutomation(reason='safe mode'){
+    const hadSection=Boolean(pendingSectionTransition);
+    const hadAnchor=Boolean(pendingHarmonicAnchor);
+    pendingHarmonicAnchor=null;
+    if(pendingSectionTransition){
+      pendingSectionTransition=null;
+      fillBtn.textContent=fillRemaining>0?'AI FILL · SAFE':'🥁 Fill';
+    }
+    fillRequested=false;
+    status.textContent='🛡 '+reason+' · giữ vị trí hiện tại.';
+    return hadSection||hadAnchor;
+  }
   function requestFollowThin(){
     if(!playing||paused||countIn>0||followHeld||pendingFollowHold)return false;
     if(followSilenceMode==='thin')return true;
@@ -950,6 +962,7 @@
     requestFollowThin,
     requestFollowHold,
     requestFollowResume,
+    cancelFollowAutomation,
     alignHeldBeatOne:targetPerformanceMs=>{
       if(!ctx||!playing||paused||!followHeld||!Number.isFinite(targetPerformanceMs))return false;
       const nowPerf=performance.now();
