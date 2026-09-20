@@ -398,8 +398,9 @@
 
   function updateTime(){const sec=Math.round(songBeat*60/Number(bpm.value));position.textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}
   function updateRow(i){currentRow=Math.max(0,Math.min(rows.length-1,i));sectionLabel.textContent=rows[currentRow].s;renderSheet();saveState()}
-  function jumpToRow(i){songBeat=rows[i].start;updateRow(i);updateTime();status.textContent=playing&&!paused?'Đã nhảy tới Line '+(i+1)+'.':'Sẵn sàng từ Line '+(i+1)+'.';if(playing&&!paused){nextTime=ctx.currentTime+.08;quarter=songBeat%4}}
+  function jumpToRow(i){fillRequested=false;fillRemaining=0;pendingSectionTransition=null;fillBtn.textContent='🥁 Fill';songBeat=rows[i].start;updateRow(i);updateTime();status.textContent=playing&&!paused?'Đã nhảy tới Line '+(i+1)+'.':'Sẵn sàng từ Line '+(i+1)+'.';if(playing&&!paused){nextTime=ctx.currentTime+.08;quarter=songBeat%4}}
   async function playFromRow(i){
+    fillRequested=false;fillRemaining=0;pendingSectionTransition=null;fillBtn.textContent='🥁 Fill';
     songBeat=rows[i].start;
     updateRow(i);
     updateTime();
@@ -572,6 +573,7 @@
   }
   function queueFill(){
     if(!playing||paused){status.textContent='Bấm Play rồi dùng Fill để vào ô nhịp kế tiếp.';return}
+    pendingSectionTransition=null;
     fillRequested=true;
     fillBtn.textContent='✓ Fill queued';
     status.textContent='Fill đã xếp hàng · vào đầu ô nhịp kế tiếp.';
