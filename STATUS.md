@@ -40,6 +40,7 @@ Prototype hiện đã có:
 - standalone `tone-poc.html` remains as an earlier experiment.
 - **Auto Follow guitar POC** in `guitar-follow.js`: microphone RMS/energy tracking, adaptive calibration, smoothing/hysteresis, `silent / soft / medium / big` states, live debug meter and automatic drummer Intensity mapping;
 - **Tempo Follow POC**: recent strum onsets → robust tempo estimate + confidence → stable-candidate gate → gradual 1-BPM steering of the existing tempo control; can be disabled independently while keeping dynamics follow;
+- **Beat-1 / Bar Sync POC**: folds recent onset accents onto a 4/4 grid, requires a high-confidence downbeat phase that remains stable for several seconds, then only performs a small timing nudge/re-index of the next unscheduled beat; exposes `learning / stable / synced` debug state;
 
 ## Current data model
 
@@ -87,7 +88,7 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 - chưa có automated tests;
 - song data và app logic cùng nằm trong `index.html`;
 - beat timing là thủ công;
-- drummer hiện có arrangement thủ công riêng cho 3 bài; mic follow đã tự đổi **Intensity** và có Tempo Follow bảo thủ, nhưng chưa xác định downbeat/beat 1, chord hoặc section trực tiếp từ guitar;
+- drummer hiện có arrangement thủ công riêng cho 3 bài; mic follow đã tự đổi **Intensity**, Tempo Follow và Beat-1/Bar Sync bảo thủ, nhưng chưa nhận chord hoặc section trực tiếp từ guitar;
 - không có cloud sync;
 - không có in-app editor;
 - không có in-app OneNote integration;
