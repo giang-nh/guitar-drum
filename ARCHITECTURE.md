@@ -331,3 +331,16 @@ The engine only produces threshold deltas when a marked window has directional e
 Before Apply, Auto-Tune compares current vs proposed thresholds on the recorded samples. The comparison estimates guitar-sample retention and contaminated-sample pass rate. If estimated guitar retention falls by more than 8 percentage points, or contamination pass rises by more than 3.5 points, Apply is safety-blocked. Confidence is also capped by mark count so a single mark cannot look like a highly validated model update.
 
 Apply is always explicit. It writes the proposed thresholds into the local Mic Profile and records Auto-Tune metadata (source, confidence, mark count, changes). The previous profile is persisted as an Undo backup; Undo survives reload and restores either the prior calibrated/tuned profile or default thresholds. A new calibration/reset clears stale Auto-Tune rollback state. Debug export v26 includes the active profile and any current Auto-Tune suggestion/compare metadata.
+
+
+### Replay / Regression Test Harness
+
+The static PWA now includes a multi-session telemetry replay harness inside Auto-Tune. Users can load up to 12 previously exported debug JSON files into an in-memory regression suite. The suite is intentionally not persisted to `localStorage` because debug sessions can be large.
+
+Replay v1 works on **derived telemetry**, not raw microphone audio. It re-evaluates threshold-dependent pass/reject decisions from stored energy, guitar evidence, drum/voice contamination, spectral flux and (for v27+) recorded onset-rise/required-threshold fields. Older debug files remain supported through a conservative fallback when fields are missing.
+
+For each historical session, replay compares the active profile (`before`) against the current Auto-Tune proposal (`after`) and reports estimated guitar retention, contamination pass rate, directional marked-case score, and a conservative action-risk proxy for contaminated frames that coincided with timing/action-ready Follow states. It also surfaces observed tempo/bar lock times from the recorded session as context; those are observational because v1 cannot recompute the full tempo/bar detector without raw onset/audio history.
+
+Regression blockers are per-session: >8 percentage points estimated guitar-retention loss, >3.5 points contamination leakage increase, >10 points worse directional marked-case score, or >6 points increase in action-risk proxy. If any loaded session blocks, Auto-Tune Apply is disabled. If a regression suite is loaded but the current suggestion has not been replayed, Apply is also disabled. New suggestions automatically rerun the suite.
+
+Debug schema v27 records `onsetRise`, `requiredRise`, `spectralOk`, and per-frame onset accepted/rejected flags to improve replay fidelity going forward. Replay remains explicitly a threshold/derived-feature regression tool, not a substitute for end-to-end audio replay.
