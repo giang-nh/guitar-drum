@@ -49,7 +49,7 @@
     .drumPattern{margin-top:5px;color:var(--muted);font-size:13px}
     .drumLevel{min-width:64px;text-align:center;background:var(--panel);border-radius:12px;padding:7px 9px}
     .drumLevel strong{display:block;font-size:20px}.drumLevel span{font-size:10px;color:var(--muted)}
-    .drumControls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:end;margin-top:12px}
+    .drumControls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:14px;align-items:end;margin-top:12px}
     .drumControls label{margin-bottom:3px}
     .fillBtn{min-width:104px;background:var(--accent-bg);border-color:transparent}
     .drumHint{margin-top:8px;color:var(--muted);font-size:12px}
@@ -82,6 +82,8 @@
       .row{font-size:14px;padding:5px 6px}.sectionLabel{margin-left:40px}.lineWrap{grid-template-columns:36px minmax(0,1fr)}
       .sheet.showAllMode .row{font-size:13px;padding-top:3px;padding-bottom:3px;line-height:1.24}
       .buttons button{padding:0 14px}.actions{align-items:flex-end}
+      .drumControls{grid-template-columns:1fr 1fr}
+      .drumControls .fillBtn{grid-column:1 / -1;width:100%}
     }
     @media(display-mode:standalone){body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}}
   </style>
