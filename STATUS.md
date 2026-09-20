@@ -28,7 +28,8 @@ Prototype hiện đã có:
 - per-song local state persistence;
 - PWA manifest/service worker;
 - GitHub Pages deployment setup;
-- experimental vocal tone detection PoC for Nàng Thơ (`tone-poc.html`): microphone pitch tracking, 8-second pitch-class aggregation, key-profile scoring, chord preview, and apply-to-app through existing localStorage.
+- integrated **Tone & Capo** tools in the main UI for all 3 current songs: microphone pitch tracking, per-song prebuilt reference profiles, detected singing key, and easy guitar-shape + capo recommendations;
+- standalone `tone-poc.html` remains as an earlier experiment.
 
 ## Current data model
 
@@ -59,7 +60,7 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 
 Ưu tiên tiếp theo:
 
-- test vocal tone detection PoC on real iPad/Safari voices; if useful, replace the key-profile-only heuristic with per-song/per-phrase melody references;
+- test integrated vocal tone detection on real iPad/Safari voices; current references are `harmonic-profile-v1`, so the next accuracy upgrade is true per-song/per-phrase melody references from trusted audio/MIDI;
 
 - nhập thêm bài hát từ nguồn của người dùng;
 - kiểm tra độ chính xác lời/hợp âm;
@@ -76,4 +77,4 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 - không có cloud sync;
 - không có in-app editor;
 - không có in-app OneNote integration;
-- vocal tone PoC hiện chỉ dùng pitch-class/key profile, chưa match melody-reference của câu hát nên confidence có thể thấp hoặc nhầm với key gần.
+- vocal tone detection currently uses prebuilt harmonic pitch-class profiles (`tone-references.json`), not true melody phrase matching, so nearby-key ambiguity can still occur.
