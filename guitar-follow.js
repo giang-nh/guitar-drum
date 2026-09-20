@@ -43,7 +43,7 @@
   const FUSION_STABLE_MS = 1400;
   const FUSION_ACTION_COOLDOWN_MS = 9000;
   const SILENCE_THIN_MS = 1700;
-  const SILENCE_HOLD_MS = 3800;
+  const STOP_HOLD_MS = 3800;
   const RESUME_ACTIVITY_MS = 900;
   const RESUME_MIN_RECENT_ONSETS = 6;
   const RESUME_BAR_STABLE_MS = 1500;
@@ -1321,7 +1321,7 @@
       return;
     }
 
-    if (intent.silenceMs>=SILENCE_HOLD_MS) {
+    if (intent.silenceMs>=STOP_HOLD_MS) {
       intentStage='hold';
       performanceState={mode:'hold',confidence:1,reason:'long silence · hold next beat 1'};
       updateFusionCandidate(null,now);
@@ -1346,7 +1346,7 @@
 
     if (intent.silenceMs>=SILENCE_THIN_MS) {
       intentStage='thin';
-      performanceState={mode:'thin',confidence:clamp(intent.silenceMs/SILENCE_HOLD_MS,0,1),reason:'short silence · thin out'};
+      performanceState={mode:'thin',confidence:clamp(intent.silenceMs/STOP_HOLD_MS,0,1),reason:'short silence · thin out'};
       updateFusionCandidate(null,now);
       if (
         transport.followSilenceMode!=='thin' &&
