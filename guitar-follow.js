@@ -1221,7 +1221,6 @@
 
   function spectralChroma() {
     if (!analyser || !frequencyBuffer || !audioCtx) return null;
-    analyser.getFloatFrequencyData(frequencyBuffer);
     const chroma = new Array(12).fill(0);
     const binHz = audioCtx.sampleRate / analyser.fftSize;
     for (let i=1; i<frequencyBuffer.length; i++) {
@@ -1257,6 +1256,13 @@
   function detectChordFromChroma() {
     const descs = expectedChordDescriptors();
     if (!descs.length) return null;
+    if (ui.cleanInputToggle.checked) {
+      const concentration=chromaEma.reduce((sum,v)=>sum+v*v,0);
+      const effectivePitchClasses=concentration>0?1/concentration:0;
+      if (effectivePitchClasses<2.05) return null;
+      if (spectralFrame.drumPenalty>.68 && spectralFrame.guitarEvidence<.48) return null;
+      if (spectralFrame.voiceLike>.72 && spectralFrame.transient<.18) return null;
+    }
     const chromaNorm = normalizeVector(chromaEma);
     const ranked = descs.map(desc => {
       const tpl = normalizeVector(templateForChord(desc));
@@ -1351,6 +1357,13 @@
 
   function updateHarmonicFollow(now) {
     if (!running || !frequencyBuffer) return;
+    if (
+      ui.cleanInputToggle.checked &&
+      (
+        (spectralFrame.drumPenalty>.72 && spectralFrame.guitarEvidence<.52) ||
+        (spectralFrame.voiceLike>.78 && spectralFrame.transient<.16)
+      )
+    ) return;
     const shift=soundingShift();
     if (lastHarmonicShift == null) lastHarmonicShift=shift;
     if (shift !== lastHarmonicShift) {
@@ -1369,7 +1382,9 @@
 
     const chroma=spectralChroma();
     if (!chroma) return;
-    const alpha=chromaEma.some(v=>v>0) ? 0.28 : 1;
+    const alpha=chromaEma.some(v=>v>0)
+      ? (ui.cleanInputToggle.checked ? 0.22 : 0.28)
+      : 1;
     for (let i=0;i<12;i++) chromaEma[i]=(1-alpha)*chromaEma[i]+alpha*chroma[i];
     const sum=chromaEma.reduce((a,b)=>a+b,0)||1;
     chromaEma=chromaEma.map(v=>v/sum);
