@@ -7,7 +7,7 @@ _Updated 2026-09-20._
 Prototype hiện đã có:
 
 - iPad-friendly responsive UI;
-- in-app **Hướng dẫn** modal ở đầu màn hình với flow 5 bước: chọn bài → Tone/Capo → chỉnh drummer → Play → xử lý khi nhịp chưa khớp;
+- in-app **Hướng dẫn** đã cập nhật theo runtime mới: quick-play 6 bước, Tone/Capo, Playing/Developer Mode, Auto Follow (BPM/beat-1/section/chords), Phrase-aware/Stop-Resume/Predictive Plan, Follow Health, Clean Mic, Mic Calibration, Debug/Auto-Tune/Regression và troubleshooting;
 - song picker;
 - 3 bài:
   - Nàng Thơ — Hoàng Dũng;
