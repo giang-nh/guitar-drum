@@ -224,3 +224,14 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - Chord tracking should reject strong self-drum/voice-like frames and require enough pitch-class diversity to reduce false chord detection from one sung note.
 - `Clean mic` must be user-toggleable for A/B testing and persist with the Follow settings.
 - Debug UI/API must expose heuristic input class, self-drum penalty and accepted/rejected onset counts. These values must be described as heuristics, not source-separation truth.
+
+
+## Debug Session / Telemetry
+
+- The app must support local-only debug session recording for real-device tuning; no server/backend is required.
+- The recorder must not capture audio. It should sample compact numerical/state telemetry around 4 Hz and record explicit state-change/user-mark events.
+- Telemetry should include enough context to reconstruct detector/fusion decisions: song/transport position, mic energy/input class, Clean Mic spectral metrics, onset accept/reject counters, tempo/bar confidence, harmonic/section candidates, PerformanceState, transition plan, and relevant user controls.
+- Session memory must be bounded to avoid runaway PWA memory usage during long practice sessions.
+- User must be able to `Mark` a bad moment while playing and export the session as versioned JSON.
+- On iPad/iOS, export should prefer the native Share sheet when file sharing is available, with download fallback.
+- Telemetry stays local until the user explicitly exports/shares it.
