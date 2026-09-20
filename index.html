@@ -421,7 +421,8 @@
   function updateRow(i){currentRow=Math.max(0,Math.min(rows.length-1,i));sectionLabel.textContent=rows[currentRow].s;renderSheet();saveState()}
   function jumpToRow(i){fillRequested=false;fillRemaining=0;pendingSectionTransition=null;pendingHarmonicAnchor=null;fillBtn.textContent='🥁 Fill';songBeat=rows[i].start;updateRow(i);updateTime();status.textContent=playing&&!paused?'Đã nhảy tới Line '+(i+1)+'.':'Sẵn sàng từ Line '+(i+1)+'.';if(playing&&!paused){nextTime=ctx.currentTime+.08;quarter=songBeat%4}}
   async function playFromRow(i){
-    fillRequested=false;fillRemaining=0;pendingSectionTransition=null;pendingHarmonicAnchor=null;fillBtn.textContent='🥁 Fill';
+    fillRequested=false;fillRemaining=0;pendingSectionTransition=null;pendingHarmonicAnchor=null;
+    followSilenceMode='normal';followHeld=false;pendingFollowHold=false;pendingFollowResume=false;fillBtn.textContent='🥁 Fill';
     songBeat=rows[i].start;
     updateRow(i);
     updateTime();
@@ -473,6 +474,7 @@
 
   let ctx=null,master=null,noise=null,timer=null,playing=false,paused=false,nextTime=0,quarter=0,countIn=4,songBeat=0,visualTimers=[];
   let fillRequested=false,fillRemaining=0,pendingSectionTransition=null,pendingHarmonicAnchor=null;
+  let followSilenceMode='normal',followHeld=false,pendingFollowHold=false,pendingFollowResume=false;
 
   function setup(){
     if(!ctx){
@@ -558,7 +560,7 @@
     return out;
   }
   function requestSectionTransition(targetSectionIndex){
-    if(!playing||paused||countIn>0||pendingSectionTransition||pendingHarmonicAnchor)return false;
+    if(!playing||paused||countIn>0||followHeld||pendingFollowHold||pendingSectionTransition||pendingHarmonicAnchor)return false;
     const timeline=sectionTimeline();
     const currentIndex=timeline.findIndex(s=>songBeat>=s.startBeat&&songBeat<s.endBeat);
     const target=timeline[targetSectionIndex];
@@ -577,7 +579,7 @@
     return true;
   }
   function requestHarmonicAnchor(targetBeat,targetRowIndex,confidence=0){
-    if(!playing||paused||countIn>0||pendingSectionTransition||pendingHarmonicAnchor)return false;
+    if(!playing||paused||countIn>0||followHeld||pendingFollowHold||pendingSectionTransition||pendingHarmonicAnchor)return false;
     const beat=Math.max(0,Math.min(total-1,Math.round(Number(targetBeat))));
     const rowIndex=Math.max(0,Math.min(rows.length-1,Math.round(Number(targetRowIndex))));
     if(!Number.isFinite(beat)||!Number.isFinite(rowIndex))return false;
@@ -585,6 +587,39 @@
     pendingHarmonicAnchor={targetBeat:beat,targetRowIndex:rowIndex,confidence:Number(confidence)||0};
     status.textContent='🎸 Harmonic match '+Math.round((Number(confidence)||0)*100)+'% · sẽ re-anchor ở beat 1 kế tiếp.';
     return true;
+  }
+  function requestFollowThin(){
+    if(!playing||paused||countIn>0||followHeld||pendingFollowHold)return false;
+    if(followSilenceMode==='thin')return true;
+    followSilenceMode='thin';
+    status.textContent='🎸 Guitar im · drummer đang thin out.';
+    return true;
+  }
+  function requestFollowHold(){
+    if(!playing||paused||countIn>0||followHeld||pendingFollowHold)return false;
+    pendingFollowHold=true;
+    pendingSectionTransition=null;
+    pendingHarmonicAnchor=null;
+    fillRequested=false;
+    fillRemaining=0;
+    fillBtn.textContent='🥁 Fill';
+    status.textContent='🎸 Guitar dừng lâu · drummer sẽ hold ở beat 1 kế tiếp.';
+    return true;
+  }
+  function requestFollowResume(){
+    if(!playing||paused||countIn>0)return false;
+    if(followHeld){
+      pendingFollowResume=true;
+      status.textContent='🎸 Bắt lại nhịp · drummer sẽ re-entry ở beat 1.';
+      return true;
+    }
+    if(followSilenceMode==='thin'||pendingFollowHold){
+      pendingFollowHold=false;
+      followSilenceMode='normal';
+      status.textContent='🎸 Guitar trở lại · drummer về groove.';
+      return true;
+    }
+    return false;
   }
   function maybeStartAutoFill(){
     const targetIndex=sectionStartIndexAtBeat(songBeat+4);
@@ -630,6 +665,33 @@
     if(countIn>0){click(t,beat===0);visualBeat(beat,t,true);countIn--;quarter++;return}
     const q=60/Number(bpm.value);
 
+    if(pendingFollowHold&&beat===0&&!followHeld){
+      pendingFollowHold=false;
+      followHeld=true;
+      followSilenceMode='hold';
+      pendingSectionTransition=null;
+      pendingHarmonicAnchor=null;
+      fillRequested=false;
+      fillRemaining=0;
+      fillBtn.textContent='🥁 Fill';
+      status.textContent='🎸 HOLD · chờ guitar vào lại.';
+    }
+
+    if(followHeld){
+      if(pendingFollowResume&&beat===0){
+        pendingFollowResume=false;
+        followHeld=false;
+        followSilenceMode='normal';
+        const resumeRow=rowForBeat(songBeat);
+        kick(t,.72*drumPower(resumeRow));
+        crash(t,.46*drumPower(resumeRow));
+        status.textContent='🎸 RE-ENTRY · drummer bắt lại cùng bạn.';
+      }else{
+        quarter++;
+        return;
+      }
+    }
+
     if(pendingHarmonicAnchor&&beat===0){
       const anchor=pendingHarmonicAnchor;
       songBeat=anchor.targetBeat;
@@ -650,14 +712,24 @@
     const arr=arrangementForRow(rowIndex), pattern=arr.pattern||kind, p=drumPower(rowIndex);
     const nextIndex=rowForBeat(Math.min(total-1,songBeat+1));
     const autoTurn=nextIndex!==rowIndex && rows[nextIndex].s!==current.s;
-    if(pendingSectionTransition&&pendingSectionTransition.stage==='queued'&&beat===0){
+    if(followSilenceMode==='thin'){
+      fillRequested=false;
+      fillRemaining=0;
+      pendingSectionTransition=null;
+      fillBtn.textContent='🥁 Fill';
+    }else if(pendingSectionTransition&&pendingSectionTransition.stage==='queued'&&beat===0){
       fillRemaining=4;
       pendingSectionTransition.stage='filling';
       fillBtn.textContent='AI FILL → '+pendingSectionTransition.targetName;
     }else if(fillRequested && beat===0){fillRequested=false;fillRemaining=4;fillBtn.textContent='🥁 Fill'}
     else maybeStartAutoFill();
     let didFill=false;
-    if(fillRemaining>0){
+    if(followSilenceMode==='thin'){
+      didFill=true;
+      hat(t,.24*p);
+      if(beat===0)kick(t,.42*p);
+      if(beat===2)snare(t,.20*p);
+    }else if(fillRemaining>0){
       didFill=true;
       scheduleFillBeat(t,q,4-fillRemaining,p);
       fillRemaining--;
@@ -715,7 +787,7 @@
 
   async function toggle(){
     await setup();
-    if(!playing){playing=true;paused=false;countIn=4;quarter=songBeat%4;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';stopBtn.disabled=false;fillBtn.disabled=false;status.textContent='Chuẩn bị…';tick();timer=setInterval(tick,25);return}
+    if(!playing){followSilenceMode='normal';followHeld=false;pendingFollowHold=false;pendingFollowResume=false;playing=true;paused=false;countIn=4;quarter=songBeat%4;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';stopBtn.disabled=false;fillBtn.disabled=false;status.textContent='Chuẩn bị…';tick();timer=setInterval(tick,25);return}
     if(!paused){pausePlayback();return}
     paused=false;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';fillBtn.disabled=false;status.textContent='Tiếp tục Line '+(currentRow+1)+'…';
   }
@@ -748,12 +820,19 @@
         ? performance.now()+(nextTime-ctx.currentTime)*1000
         : null,
       currentRow:Number(currentRow),
-      currentSection:rows[currentRow]?.s||''
+      currentSection:rows[currentRow]?.s||'',
+      followSilenceMode,
+      followHeld:Boolean(followHeld),
+      pendingFollowHold:Boolean(pendingFollowHold),
+      pendingFollowResume:Boolean(pendingFollowResume)
     }),
     getSectionTimeline:()=>sectionTimeline(),
     getHarmonicTimeline:()=>harmonicTimeline(),
     requestSectionTransition:index=>requestSectionTransition(Number(index)),
     requestHarmonicAnchor:(beat,rowIndex,confidence)=>requestHarmonicAnchor(beat,rowIndex,confidence),
+    requestFollowThin,
+    requestFollowHold,
+    requestFollowResume,
     syncNextBeat:(targetPerformanceMs,beatIndex=0)=>{
       if(!ctx||!playing||paused||countIn>0||!Number.isFinite(targetPerformanceMs))return false;
       const nowPerf=performance.now();
