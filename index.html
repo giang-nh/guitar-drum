@@ -49,7 +49,9 @@
     .sheetToolbar{display:flex;justify-content:flex-end;margin-bottom:5px}
     .sectionLabel{margin:7px 0 2px 44px;color:var(--muted);font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
     .lineWrap{display:grid;grid-template-columns:40px minmax(0,1fr);align-items:center;gap:4px}
-    .num{text-align:right;padding-right:5px;color:var(--muted);font-size:10.5px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .num{display:flex;align-items:center;justify-content:flex-end;gap:3px;padding-right:5px;color:var(--muted);font-size:10.5px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .linePlay{display:none;align-items:center;justify-content:center;min-height:0!important;width:18px;height:18px;padding:0!important;border:0!important;border-radius:50%;background:var(--accent-bg)!important;color:var(--accent);font-size:9px;line-height:1;cursor:pointer}
+    .lineWrap.active .linePlay{display:inline-flex}
     .row{width:100%;display:block;text-align:left;background:transparent;border-radius:8px;padding:5px 8px;font-size:15px;line-height:1.38;color:var(--text);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
     .row:hover{background:var(--panel)}
     .row.active{background:var(--accent-bg);box-shadow:inset 4px 0 0 var(--accent)}
@@ -60,6 +62,7 @@
     .sheet.showAllMode .sectionLabel{margin-top:5px;margin-bottom:1px;font-size:10px}
     .sheet.showAllMode .row{padding-top:3px;padding-bottom:3px;font-size:13.5px;line-height:1.26}
     .sheet.showAllMode .num{font-size:10px}
+    .sheet.showAllMode .linePlay{width:16px;height:16px;font-size:8px}
     .sheet.showAllMode .chord{font-size:.86em;line-height:1.14}
     @media(max-width:800px){.controls{grid-template-columns:1fr 1fr}}
     @media(max-width:700px){
@@ -307,7 +310,11 @@
       const r=rows[i];
       if(r.s!==prev){const h=document.createElement('div');h.className='sectionLabel';h.textContent=r.s;sheet.appendChild(h);prev=r.s}
       const wrap=document.createElement('div');wrap.className='lineWrap'+(i===currentRow?' active':'');
-      const num=document.createElement('div');num.className='num';num.textContent=(i+1)+'.';
+      const num=document.createElement('div');num.className='num';
+      const play=document.createElement('button');play.type='button';play.className='linePlay';play.textContent='▶';play.setAttribute('aria-label','Play từ dòng '+(i+1));
+      play.addEventListener('click',e=>{e.stopPropagation();playFromRow(i)});
+      const numText=document.createElement('span');numText.textContent=(i+1)+'.';
+      num.append(play,numText);
       const row=document.createElement('div');row.className='row'+(i===currentRow?' active':'');row.innerHTML=renderParts(r.parts);
       row.setAttribute('role','button');row.setAttribute('tabindex','0');row.setAttribute('aria-label','Nhảy tới dòng '+(i+1));
       row.addEventListener('click',()=>jumpToRow(i));
@@ -338,6 +345,25 @@
   function updateTime(){const sec=Math.round(songBeat*60/Number(bpm.value));position.textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}
   function updateRow(i){currentRow=Math.max(0,Math.min(rows.length-1,i));sectionLabel.textContent=rows[currentRow].s;renderSheet();saveState()}
   function jumpToRow(i){songBeat=rows[i].start;updateRow(i);updateTime();status.textContent=playing&&!paused?'Đã nhảy tới Line '+(i+1)+'.':'Sẵn sàng từ Line '+(i+1)+'.';if(playing&&!paused){nextTime=ctx.currentTime+.08;quarter=songBeat%4}}
+  async function playFromRow(i){
+    songBeat=rows[i].start;
+    updateRow(i);
+    updateTime();
+    await setup();
+    visualTimers.forEach(clearTimeout);
+    visualTimers=[];
+    if(timer)clearInterval(timer);
+    playing=true;
+    paused=false;
+    countIn=4;
+    quarter=songBeat%4;
+    nextTime=ctx.currentTime+.08;
+    toggleBtn.textContent='Ⅱ Pause';
+    stopBtn.disabled=false;
+    status.textContent='Chuẩn bị từ Line '+(i+1)+'…';
+    tick();
+    timer=setInterval(tick,25);
+  }
   function changeKey(){shift=(Number(keySel.value)-song.baseKey+12)%12;renderSheet();saveState()}
 
   function loadSong(id,resetAudio=true){
