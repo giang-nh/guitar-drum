@@ -162,6 +162,8 @@
   let spectralFrame = {flux:0,flatness:0,lowRatio:0,midRatio:0,highRatio:0,drumPenalty:0,voiceLike:0,guitarEvidence:0};
   let inputClass = 'unknown';
   let inputClassSince = 0;
+  let inputCandidate = 'unknown';
+  let inputCandidateSince = 0;
   let acceptedOnsets = 0;
   let rejectedOnsets = 0;
   let lastOnsetDecision = {rise:0,requiredRise:.105,spectralOk:false,accepted:false,rejected:false};
@@ -1252,6 +1254,10 @@
   }
 
   function toggleTelemetryRecording() {
+    if(validationActive){
+      api.setStatus?.('🎯 Validation đang sở hữu Debug Session · hoàn tất hoặc Cancel trước.');
+      return;
+    }
     if(telemetryRecording)stopTelemetryRecording();
     else startTelemetryRecording();
   }
@@ -2094,6 +2100,10 @@
   }
 
   async function startCalibrationWizard() {
+    if(validationActive){
+      api.setStatus?.('🎯 Validation đang chạy · hoàn tất hoặc Cancel trước khi Calibration.');
+      return;
+    }
     if(calibrationActive){
       ui.calPanel.classList.add('on');
       renderCalibration();
@@ -2266,6 +2276,8 @@
     spectralFrame={flux:0,flatness:0,lowRatio:0,midRatio:0,highRatio:0,drumPenalty:0,voiceLike:0,guitarEvidence:0};
     inputClass='unknown';
     inputClassSince=0;
+    inputCandidate='unknown';
+    inputCandidateSince=0;
     acceptedOnsets=0;
     rejectedOnsets=0;
     lastOnsetDecision={rise:0,requiredRise:calibrationThresholds().onsetRiseBase,spectralOk:false,accepted:false,rejected:false};
@@ -2384,12 +2396,14 @@
     else if(voiceLike>thresholds.classVoice&&transient<Math.max(.26,thresholds.voiceTransientMax+.08)) nextClass='voice';
     else if(total<1e-5) nextClass='quiet';
 
-    if(nextClass!==inputClass){
-      if(!inputClassSince||now-inputClassSince>INPUT_CLASS_HOLD_MS){
-        inputClass=nextClass;
-        inputClassSince=now;
-      }
-    }else{
+    if(nextClass!==inputCandidate){
+      inputCandidate=nextClass;
+      inputCandidateSince=now;
+    }
+    if(nextClass!==inputClass&&now-inputCandidateSince>=INPUT_CLASS_HOLD_MS){
+      inputClass=nextClass;
+      inputClassSince=now;
+    }else if(nextClass===inputClass){
       inputClassSince=now;
     }
 
