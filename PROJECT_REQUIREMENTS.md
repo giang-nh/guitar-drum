@@ -273,3 +273,16 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - The previous Mic Profile must be persisted for one-step Undo across page reloads.
 - Recalibration or explicit profile reset invalidates stale Auto-Tune rollback state.
 - Debug exports must include active profile and current Auto-Tune suggestion metadata when present.
+
+
+## Replay / Regression Test Harness
+
+- The app must be able to load multiple exported debug JSON sessions as a temporary regression suite without requiring a backend.
+- Regression sessions should remain in memory rather than being persisted wholesale in localStorage.
+- Replay must compare the active profile against the current proposed profile on every loaded session using stored derived telemetry.
+- v1 may replay threshold-dependent decisions only; it must clearly avoid claiming full raw-audio/detector reprocessing when raw audio is not available.
+- The report should include estimated guitar retention, contamination leakage, directional marked-case behavior, action-risk proxy, and recorded tempo/bar lock context.
+- Auto-Tune Apply must be disabled when any historical session crosses a material regression guard, or when a loaded suite has not yet been replayed for the current suggestion.
+- New Auto-Tune suggestions must automatically invalidate/rerun the regression report.
+- New debug schema should capture enough onset-decision state (`rise`, required threshold, spectral gate, accept/reject flag) to improve future offline replay fidelity while remaining audio-free.
+- Older debug schemas must remain importable with conservative fallback behavior.
