@@ -68,3 +68,5 @@ Deployment workflow is configured in `.github/workflows/pages.yml`.
 The main app now includes **Tìm tone giọng** and **Tone + Capo** controls. Per-song prebuilt reference data lives in `tone-references.json`.
 
 - **Debug Session / Telemetry Recorder**: local-only recorder for iPad tuning; samples Follow state roughly 4x/sec, records state changes/marks, and exports a JSON session via iOS Share sheet or download. It does not record audio.
+
+- **Mic Calibration Mode**: guided 5-step local wizard (`Quiet → Drum only → Guitar only → Voice only → Full mix`) that learns device-specific Clean Mic/onset/chord thresholds and a bounded sensitivity recommendation; low-quality calibration blends back toward safe defaults instead of replacing them aggressively.
