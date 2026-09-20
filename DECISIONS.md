@@ -98,3 +98,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** harmonic-position matching dùng chord/chroma sequence của đúng bài và sounding key hiện tại, nhưng chỉ được auto re-anchor khi có ít nhất 3 stable chord events, best sequence match đủ cao và margin đủ xa ứng viên thứ hai. Nếu progression lặp ở nhiều vị trí, trạng thái phải là ambiguous và không được nhảy. Re-anchor chỉ áp dụng ở beat 1 kế tiếp; manual jump/Fill luôn override.
 
 **Reason:** nhiều bài pop/ballad lặp cùng progression ở nhiều verse/chorus. Chord recognition có ích để xác nhận vị trí nhưng không đủ để phân biệt mọi đoạn; margin gate + bar sync giữ quyền kiểm soát cho người chơi và tránh nhảy sai.
+
+
+## D016 — Một PerformanceState duy nhất được quyền điều khiển transport
+
+**Decision:** từ Follow v2, dynamics/tempo/bar/section/harmonic detectors là các evidence providers. Chỉ `PerformanceState`/Sensor Fusion được quyền request section transition hoặc harmonic re-anchor. Harmonic reposition yêu cầu raw-best và fused-best trùng cùng row/beat; strong harmonic disagreement chặn section transition; mọi transport action dùng shared cooldown.
+
+**Reason:** khi nhiều detector cùng tự hành động, chúng có thể đúng riêng lẻ nhưng xung đột trong cùng một musical moment. Một authority duy nhất giúp hệ thống fail-safe, giải thích được (`LOCKED/FOLLOW/AMBIG/RE-POS`) và dễ tune trên iPad thật.
