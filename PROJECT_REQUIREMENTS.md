@@ -202,3 +202,14 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - Fill intensity must be selected contextually as small/medium/big, with multiple variants and basic repetition avoidance.
 - Existing automatic fill logic must not compete with a pending predictive transition.
 - Planned transitions must fail safe if the target boundary is reached late or evidence becomes invalid; they must never leave transport in a permanently pending state.
+
+
+## Humanization / Performance Layer
+
+- Humanization must be downstream of transport/follow decisions: it may alter individual hit timing/velocity/timbre slightly but must not move bar boundaries, song position, BPM, section transitions or beat-1 anchors.
+- User must have a `Human feel` amount from 0–100%, persisted per song; 0% should behave close to the original rigid synth groove.
+- Beat-1 kick/crash must use the smallest timing deviation. Backbeat snare and hi-hat may use wider but still musical timing ranges.
+- Fill humanization must be weaker than groove humanization to protect the target section landing.
+- Hi-hat/open-hat articulation should vary filter brightness/decay; drum voices may have subtle deterministic timbre variation.
+- Ghost notes should be contextual, low-volume, deterministic and gated by Human feel/pattern; they must not appear on every bar or overwhelm ballad arrangements.
+- Humanization should be deterministic for the same song position/voice context so POC behavior is reproducible during tuning.
