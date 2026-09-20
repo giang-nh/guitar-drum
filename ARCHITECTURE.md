@@ -278,3 +278,14 @@ Key rules:
 - Drum timbre also varies subtly: kick start frequency, snare/hat filter cutoff, hat/open-hat decay, tom pitch and crash brightness.
 
 This layer is independent of microphone Auto Follow, so the drummer can sound less mechanical even when follow features are disabled.
+
+
+### Clean Mic / Bleed + Vocal Rejection
+
+The POC does **not** perform full source separation. Instead it uses a low-latency rejection layer designed for the actual iPad use case: the app knows exactly when its own synthesized drum hits are scheduled, so the drum engine emits `guitar-drum-self-hit` metadata containing voice, predicted performance time and hit power. `guitar-follow.js` keeps a short history of those events and compares them with the live microphone spectrum.
+
+Every analysis frame now computes spectral flux, spectral flatness and low/mid/high-band energy ratios. Near a known self-drum hit, the analyzer estimates a `drumPenalty` based on the scheduled voice and whether the observed spectrum resembles that voice (for example low-heavy energy near a kick or noise/high-band energy near snare/crash). This penalty does **not** hard-mask the microphone because real guitar strums often happen on the same beat. Instead it raises the onset threshold unless guitar transient/mid-band evidence is strong enough.
+
+A lightweight `voiceLike` score downweights sustained mid-band, low-transient input that is more consistent with singing than a guitar strum. Clean mic also reduces contaminated energy before dynamics classification, avoids teaching self-drum peaks into the adaptive mic range, and rejects chord frames that look strongly like self-drum/voice contamination. Chord recognition additionally requires minimum chroma diversity so a single sung pitch is less likely to look like a full chord.
+
+UI exposes `Clean mic` as an A/B toggle plus an `Input` diagnostic state (`GUITAR / VOICE / DRUM / MIX / QUIET`) with spectral-flux, self-drum-mask and accepted/rejected onset counts. These labels are heuristics for debugging, not ground-truth source classification.
