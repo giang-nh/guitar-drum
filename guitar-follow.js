@@ -174,6 +174,7 @@
   let autoTuneImportedSession = null;
   let autoTuneSourceLabel = '';
   let autoTuneBackupProfile = null;
+  let developerMode = false;
   let regressionSessions = [];
   let regressionReport = null;
 
@@ -198,6 +199,14 @@
       .gd-follow{margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:14px;background:var(--panel)}
       .gd-follow-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
       .gd-follow-title{font-size:13px;font-weight:800}
+      .gd-follow-head-actions{display:flex;gap:7px;align-items:center}
+      .gd-dev-toggle{min-height:34px;padding:0 10px;font-size:10px}
+      .gd-playing-summary{margin-top:10px;padding:10px 11px;border:1px solid var(--border);border-radius:11px;background:var(--card);display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+      .gd-playing-summary strong{font-size:13px}
+      .gd-playing-summary span{font-size:11px;color:var(--muted)}
+      .gd-follow:not(.gd-dev-on) .gd-dev-only{display:none!important}
+      .gd-follow:not(.gd-dev-on) .gd-follow-controls{grid-template-columns:minmax(0,1fr);gap:0}
+      .gd-follow:not(.gd-dev-on) .gd-follow-controls #gdFollowToggle{width:100%;min-height:46px}
       .gd-follow-pill{padding:4px 8px;border-radius:999px;background:var(--card);border:1px solid var(--border);font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase}
       .gd-follow-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;margin-top:10px}
       .gd-follow-meter{height:10px;border-radius:999px;background:#e5e7ea;overflow:hidden}
@@ -255,14 +264,21 @@
     host.className = 'gd-follow';
     host.innerHTML = `
       <div class="gd-follow-head">
-        <div class="gd-follow-title">🎸 Follow guitar · POC</div>
-        <div id="gdFollowPill" class="gd-follow-pill">OFF</div>
+        <div class="gd-follow-title">🎸 Auto Follow</div>
+        <div class="gd-follow-head-actions">
+          <div id="gdFollowPill" class="gd-follow-pill">OFF</div>
+          <button type="button" id="gdDevToggle" class="gd-dev-toggle">Developer</button>
+        </div>
       </div>
-      <div class="gd-follow-row">
+      <div id="gdPlayingSummary" class="gd-playing-summary">
+        <strong id="gdPlayingHealth">OFF</strong>
+        <span id="gdPlayingContext">Bật Auto Follow để drummer nghe guitar.</span>
+      </div>
+      <div class="gd-follow-row gd-dev-only">
         <div class="gd-follow-meter"><div id="gdFollowBar"></div></div>
         <div id="gdFollowValue" class="gd-follow-value">0%</div>
       </div>
-      <div class="gd-follow-stats">
+      <div class="gd-follow-stats gd-dev-only">
         <div class="gd-follow-stat"><span>Guitar</span><strong id="gdFollowState">Silent</strong></div>
         <div class="gd-follow-stat"><span>Mic</span><strong id="gdFollowDb">— dB</strong></div>
         <div class="gd-follow-stat"><span>Strum</span><strong id="gdFollowStrums">0.0/s</strong></div>
@@ -277,18 +293,18 @@
       </div>
       <div class="gd-follow-controls">
         <button type="button" id="gdFollowToggle">🎙 Bật Auto Follow</button>
-        <div>
+        <div class="gd-dev-only">
           <label for="gdFollowSensitivity">Độ nhạy mic</label>
           <input id="gdFollowSensitivity" type="range" min="-12" max="12" value="0" step="1" />
         </div>
-        <label class="gd-follow-tempo-option" for="gdTempoFollow"><input id="gdTempoFollow" type="checkbox" checked /> Follow BPM</label>
-        <label class="gd-follow-tempo-option" for="gdBarFollow"><input id="gdBarFollow" type="checkbox" checked /> Sync beat 1</label>
-        <label class="gd-follow-tempo-option" for="gdSectionFollow"><input id="gdSectionFollow" type="checkbox" checked /> Follow section</label>
-        <label class="gd-follow-tempo-option" for="gdHarmonicFollow"><input id="gdHarmonicFollow" type="checkbox" checked /> Follow chords</label>
-        <label class="gd-follow-tempo-option" for="gdCleanInput"><input id="gdCleanInput" type="checkbox" checked /> Clean mic</label>
+        <label class="gd-follow-tempo-option gd-dev-only" for="gdTempoFollow"><input id="gdTempoFollow" type="checkbox" checked /> Follow BPM</label>
+        <label class="gd-follow-tempo-option gd-dev-only" for="gdBarFollow"><input id="gdBarFollow" type="checkbox" checked /> Sync beat 1</label>
+        <label class="gd-follow-tempo-option gd-dev-only" for="gdSectionFollow"><input id="gdSectionFollow" type="checkbox" checked /> Follow section</label>
+        <label class="gd-follow-tempo-option gd-dev-only" for="gdHarmonicFollow"><input id="gdHarmonicFollow" type="checkbox" checked /> Follow chords</label>
+        <label class="gd-follow-tempo-option gd-dev-only" for="gdCleanInput"><input id="gdCleanInput" type="checkbox" checked /> Clean mic</label>
       </div>
-      <div id="gdFollowHint" class="gd-follow-hint">POC: Follow Health tổng hợp chất lượng mic/onset/tempo/bar/chord/calibration. GREEN = Full Auto; YELLOW = Safe Follow; RED = Manual Safe, tự chặn các action rủi ro. Clean mic vẫn có thể tắt để A/B.</div>
-      <div class="gd-debug">
+      <div id="gdFollowHint" class="gd-follow-hint gd-dev-only">POC: Follow Health tổng hợp chất lượng mic/onset/tempo/bar/chord/calibration. GREEN = Full Auto; YELLOW = Safe Follow; RED = Manual Safe, tự chặn các action rủi ro. Clean mic vẫn có thể tắt để A/B.</div>
+      <div class="gd-debug gd-dev-only">
         <div class="gd-debug-row">
           <button type="button" id="gdDebugRecord">● Record debug</button>
           <button type="button" id="gdDebugMark" disabled>⚑ Mark</button>
@@ -316,7 +332,7 @@
           </div>
         </div>
       </div>
-      <div class="gd-cal">
+      <div class="gd-cal gd-dev-only">
         <div class="gd-cal-head">
           <div>
             <div class="gd-cal-title">🧪 Mic Calibration</div>
@@ -344,6 +360,10 @@
     return {
       host,
       pill: host.querySelector('#gdFollowPill'),
+      devToggle: host.querySelector('#gdDevToggle'),
+      playingSummary: host.querySelector('#gdPlayingSummary'),
+      playingHealth: host.querySelector('#gdPlayingHealth'),
+      playingContext: host.querySelector('#gdPlayingContext'),
       bar: host.querySelector('#gdFollowBar'),
       value: host.querySelector('#gdFollowValue'),
       state: host.querySelector('#gdFollowState'),
@@ -406,6 +426,7 @@
       if (running) stopListening('Auto Follow đã tắt.');
       else startListening();
     });
+    ui.devToggle.addEventListener('click', toggleDeveloperMode);
     ui.sensitivity.addEventListener('input', saveSettings);
     ui.debugRecord.addEventListener('click', toggleTelemetryRecording);
     ui.debugMark.addEventListener('click', () => recordTelemetryEvent('manual-mark',{label:'user-mark'}));
@@ -503,6 +524,7 @@
       renderFusion();
       renderPlan();
       renderInput();
+      renderPlayingSummary();
     });
 
     document.querySelector('#gdToneMic')?.addEventListener('click', () => {
@@ -522,6 +544,8 @@
       if (saved.sectionFollow != null) ui.sectionToggle.checked = Boolean(saved.sectionFollow);
       if (saved.harmonicFollow != null) ui.harmonicToggle.checked = Boolean(saved.harmonicFollow);
       if (saved.cleanInput != null) ui.cleanInputToggle.checked = Boolean(saved.cleanInput);
+      developerMode = Boolean(saved.developerMode);
+      applyDeveloperMode();
       if (saved.calibrationProfile?.version === CALIBRATION_PROFILE_VERSION) calibrationProfile = saved.calibrationProfile;
       if (saved.autoTuneBackupProfile) autoTuneBackupProfile = saved.autoTuneBackupProfile;
       if (ui?.tuneUndo) ui.tuneUndo.disabled = !autoTuneBackupProfile;
@@ -537,10 +561,54 @@
         sectionFollow:Boolean(ui.sectionToggle.checked),
         harmonicFollow:Boolean(ui.harmonicToggle.checked),
         cleanInput:Boolean(ui.cleanInputToggle.checked),
+        developerMode:Boolean(developerMode),
         calibrationProfile,
         autoTuneBackupProfile
       }));
     } catch {}
+  }
+
+  function applyDeveloperMode() {
+    if(!ui?.host)return;
+    ui.host.classList.toggle('gd-dev-on',Boolean(developerMode));
+    if(ui.devToggle){
+      ui.devToggle.textContent=developerMode?'Playing mode':'Developer';
+      ui.devToggle.setAttribute('aria-pressed',developerMode?'true':'false');
+    }
+  }
+
+  function toggleDeveloperMode() {
+    developerMode=!developerMode;
+    applyDeveloperMode();
+    saveSettings();
+    renderPlayingSummary();
+  }
+
+  function renderPlayingSummary() {
+    if(!ui?.playingHealth||!ui?.playingContext)return;
+    const transport=api.getTransport?.()||{};
+    const phrase=typeof api.getPhraseContext==='function'
+      ? api.getPhraseContext(transport.songBeat)
+      : null;
+    if(!running){
+      ui.playingHealth.textContent='OFF';
+      ui.playingContext.textContent=
+        (transport.currentSection||'Sẵn sàng')+
+        (phrase?' · P'+phrase.phraseBar+'/'+phrase.phraseBars:'')+
+        ' · Auto Follow tắt';
+      return;
+    }
+    const score=Math.round(clamp(followHealth.score||0,0,1)*100);
+    const health=String(followHealth.level||'yellow').toUpperCase()+' '+score+'%';
+    const section=transport.currentSection||phrase?.sectionName||'';
+    const phraseText=phrase?'P'+phrase.phraseBar+'/'+phrase.phraseBars:'';
+    const planLabels={
+      stay:'STAY',build:'BUILD','fill-small':'FILL S','fill-medium':'FILL M','fill-big':'FILL L',
+      armed:'ARMED',drop:'DROP',rejoin:'REJOIN',safe:'SAFE'
+    };
+    const plan=planLabels[transitionPlan?.mode]||String(transitionPlan?.mode||'').toUpperCase();
+    ui.playingHealth.textContent=health;
+    ui.playingContext.textContent=[section,phraseText,plan].filter(Boolean).join(' · ');
   }
 
   async function startListening() {
@@ -637,6 +705,7 @@
     renderPlan();
     renderInput();
     renderHealth();
+    renderPlayingSummary();
     if (message) setHint(message + ' Intensity, BPM, bar sync, section và harmonic follow trở lại điều khiển tay.');
   }
 
@@ -702,6 +771,7 @@
     renderPlan();
     renderInput();
     renderHealth();
+    renderPlayingSummary();
     renderCalibration(ts);
     recordTelemetryFrame(ts, db);
     renderTelemetryStatus(ts);
