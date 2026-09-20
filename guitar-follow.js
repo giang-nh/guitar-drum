@@ -42,6 +42,13 @@
   const FUSION_ACTION_MIN = 0.79;
   const FUSION_STABLE_MS = 1400;
   const FUSION_ACTION_COOLDOWN_MS = 9000;
+  const SILENCE_THIN_MS = 1700;
+  const SILENCE_HOLD_MS = 3800;
+  const RESUME_ACTIVITY_MS = 900;
+  const RESUME_MIN_RECENT_ONSETS = 6;
+  const RESUME_BAR_STABLE_MS = 1500;
+  const RESUME_TEMPO_MIN = 0.58;
+  const RESUME_BAR_MIN = 0.60;
   const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const NOTES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
   const NOTE_MAP = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
@@ -99,6 +106,9 @@
   let fusionCandidateKey = null;
   let fusionCandidateSince = 0;
   let lastFusionActionAt = 0;
+  let lastMusicalActivityAt = performance.now();
+  let intentStage = 'active';
+  let intentActionAt = 0;
 
   injectStyles();
   const ui = buildUi();
@@ -225,6 +235,7 @@
       resetHarmonicTracking();
       renderHarmonic();
       resetFusionTracking();
+      resetIntentTracking();
       renderFusion();
     });
     ui.barToggle.addEventListener('change', () => {
@@ -235,6 +246,7 @@
       renderBar();
       renderSection();
       resetFusionTracking();
+      resetIntentTracking();
       renderFusion();
     });
     ui.sectionToggle.addEventListener('change', () => {
@@ -242,6 +254,7 @@
       resetSectionTracking();
       renderSection();
       resetFusionTracking();
+      resetIntentTracking();
       renderFusion();
     });
     ui.harmonicToggle.addEventListener('change', () => {
@@ -249,6 +262,7 @@
       resetHarmonicTracking();
       renderHarmonic();
       resetFusionTracking();
+      resetIntentTracking();
       renderFusion();
     });
 
@@ -266,6 +280,7 @@
       resetHarmonicTracking();
       renderHarmonic();
       resetFusionTracking();
+      resetIntentTracking();
       renderFusion();
     });
 
@@ -345,6 +360,7 @@
       resetSectionTracking();
       resetHarmonicTracking();
       resetFusionTracking();
+      resetIntentTracking();
       ui.toggle.textContent = '■ Tắt Auto Follow';
       ui.pill.textContent = 'LISTENING';
       setHint(ui.tempoToggle.checked
@@ -369,6 +385,7 @@
     resetSectionTracking();
     resetHarmonicTracking();
     resetFusionTracking();
+    resetIntentTracking();
     renderState('silent', 0, -80, 0);
     renderTempo();
     renderBar();
@@ -413,6 +430,7 @@
     smoothedEnergy = smoothedEnergy * 0.80 + energy * 0.20;
     recordEnergy(ts, smoothedEnergy);
     const strumRate = updateOnsetRate(ts, smoothedEnergy);
+    updateActivityEvidence(ts);
     updateTempoFollow(ts);
     updateBarFollow(ts);
     updateSectionFollow(ts);
@@ -1128,6 +1146,36 @@
       : conf+'%';
   }
 
+  function resetIntentTracking() {
+    lastMusicalActivityAt=performance.now();
+    intentStage='active';
+    intentActionAt=0;
+  }
+
+  function updateActivityEvidence(now) {
+    const recentOnset=lastOnsetAt>0 && now-lastOnsetAt<RESUME_ACTIVITY_MS;
+    const active=recentOnset && smoothedEnergy>=0.15;
+    if (active) lastMusicalActivityAt=now;
+  }
+
+  function recentOnsetCount(now,windowMs=3200) {
+    return onsetTimes.filter(t=>now-t<=windowMs).length;
+  }
+
+  function intentEvidence(now,transport) {
+    if (!transport?.playing || transport.paused || transport.countIn>0) {
+      lastMusicalActivityAt=now;
+      return {silenceMs:0,recent:false,recentOnsets:0};
+    }
+    const recent=lastOnsetAt>0 && now-lastOnsetAt<RESUME_ACTIVITY_MS && smoothedEnergy>=0.15;
+    const recentOnsets=recentOnsetCount(now);
+    return {
+      silenceMs:Math.max(0,now-lastMusicalActivityAt),
+      recent,
+      recentOnsets
+    };
+  }
+
   function resetFusionTracking() {
     performanceState={mode:'acquiring',confidence:0,reason:'waiting'};
     fusionCandidateKey=null;
@@ -1207,9 +1255,112 @@
   function updatePerformanceFusion(now) {
     const transport=api.getTransport?.();
     if (!running || !transport?.playing || transport.paused || transport.countIn>0) {
+      lastMusicalActivityAt=now;
+      intentStage='active';
       performanceState={mode:'acquiring',confidence:0,reason:'waiting'};
       updateFusionCandidate(null,now);
       return;
+    }
+
+    const intent=intentEvidence(now,transport);
+
+    if (transport.followHeld) {
+      if (!intent.recent) {
+        intentStage='hold';
+        performanceState={mode:'hold',confidence:1,reason:'guitar silent · song position frozen'};
+        updateFusionCandidate(null,now);
+        return;
+      }
+
+      intentStage='reacquire';
+      const resumeBarStable=Boolean(
+        barEstimate &&
+        barConfidence>=RESUME_BAR_MIN &&
+        barCandidateSince &&
+        now-barCandidateSince>=RESUME_BAR_STABLE_MS
+      );
+      const resumeReady=
+        tempoConfidence>=RESUME_TEMPO_MIN &&
+        resumeBarStable &&
+        intent.recentOnsets>=RESUME_MIN_RECENT_ONSETS;
+
+      performanceState={
+        mode:resumeReady?'rejoin':'reacquire',
+        confidence:clamp(0.48*tempoConfidence+0.42*barConfidence+0.10*clamp(intent.recentOnsets/RESUME_MIN_RECENT_ONSETS,0,1),0,1),
+        reason:resumeReady?'beat 1 reacquired':'listening for tempo + beat 1'
+      };
+
+      if (
+        resumeReady &&
+        !transport.pendingFollowResume &&
+        now-intentActionAt>900 &&
+        typeof api.requestFollowResume==='function'
+      ) {
+        const accepted=api.requestFollowResume();
+        if (accepted) {
+          intentActionAt=now;
+          intentStage='rejoin';
+          performanceState.mode='rejoin';
+          performanceState.reason='re-entry queued';
+          lastFusionActionAt=now;
+          api.setStatus?.('🎸 Re-entry ready · drummer vào lại ở beat 1.');
+        }
+      }
+      updateFusionCandidate(null,now);
+      return;
+    }
+
+    if (intent.silenceMs>=SILENCE_HOLD_MS) {
+      intentStage='hold';
+      performanceState={mode:'hold',confidence:1,reason:'long silence · hold next beat 1'};
+      updateFusionCandidate(null,now);
+      if (
+        !transport.pendingFollowHold &&
+        now-intentActionAt>900 &&
+        typeof api.requestFollowHold==='function'
+      ) {
+        const accepted=api.requestFollowHold();
+        if (accepted) {
+          intentActionAt=now;
+          resetTempoTracking();
+          resetSectionTracking();
+          resetHarmonicTracking();
+          lastFusionActionAt=now;
+          performanceState.reason='hold queued · old evidence cleared';
+          api.setStatus?.('🎸 Guitar dừng · drummer hold và chờ bắt nhịp mới.');
+        }
+      }
+      return;
+    }
+
+    if (intent.silenceMs>=SILENCE_THIN_MS) {
+      intentStage='thin';
+      performanceState={mode:'thin',confidence:clamp(intent.silenceMs/SILENCE_HOLD_MS,0,1),reason:'short silence · thin out'};
+      updateFusionCandidate(null,now);
+      if (
+        transport.followSilenceMode!=='thin' &&
+        now-intentActionAt>700 &&
+        typeof api.requestFollowThin==='function'
+      ) {
+        const accepted=api.requestFollowThin();
+        if (accepted) intentActionAt=now;
+      }
+      return;
+    }
+
+    if (
+      (transport.followSilenceMode==='thin'||transport.pendingFollowHold) &&
+      intent.recent &&
+      typeof api.requestFollowResume==='function'
+    ) {
+      const accepted=api.requestFollowResume();
+      if (accepted) {
+        intentActionAt=now;
+        intentStage='active';
+        performanceState={mode:'rejoin',confidence:0.72,reason:'guitar returned before hold'};
+      }
+    } else {
+      intentStage='active';
     }
 
     const tempoLocked=tempoConfidence>=TEMPO_CONFIDENCE_MIN;
@@ -1353,7 +1504,11 @@
       following:'FOLLOW',
       ambiguous:'AMBIG',
       transition:'FILL→',
-      reposition:'RE-POS'
+      reposition:'RE-POS',
+      thin:'THIN',
+      hold:'HOLD',
+      reacquire:'RE-LOCK',
+      rejoin:'REJOIN'
     };
     ui.fusion.textContent=labels[performanceState.mode]||String(performanceState.mode||'—').toUpperCase();
     const confidence=Math.round(clamp(performanceState.confidence||0,0,1)*100);
@@ -1459,7 +1614,9 @@
       currentChord,
       harmonicMatch,
       chordEvents:chordEvents.slice(),
-      performanceState:{...performanceState}
+      performanceState:{...performanceState},
+      intentStage,
+      lastMusicalActivityAt
     })
   };
 })();
