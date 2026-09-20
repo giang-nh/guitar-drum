@@ -1,4 +1,4 @@
-const CACHE = "guitar-drum-v7";
+const CACHE = "guitar-drum-v8";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", event => {
