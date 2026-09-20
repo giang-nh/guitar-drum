@@ -27,7 +27,8 @@ Prototype hiện đã có:
 - line numbering;
 - per-song local state persistence;
 - PWA manifest/service worker;
-- GitHub Pages deployment setup.
+- GitHub Pages deployment setup;
+- experimental vocal tone detection PoC for Nàng Thơ (`tone-poc.html`): microphone pitch tracking, 8-second pitch-class aggregation, key-profile scoring, chord preview, and apply-to-app through existing localStorage.
 
 ## Current data model
 
@@ -58,6 +59,8 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 
 Ưu tiên tiếp theo:
 
+- test vocal tone detection PoC on real iPad/Safari voices; if useful, replace the key-profile-only heuristic with per-song/per-phrase melody references;
+
 - nhập thêm bài hát từ nguồn của người dùng;
 - kiểm tra độ chính xác lời/hợp âm;
 - tinh chỉnh beat count cho playback;
@@ -72,4 +75,5 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 - drum pattern là generic 4/4;
 - không có cloud sync;
 - không có in-app editor;
-- không có in-app OneNote integration.
+- không có in-app OneNote integration;
+- vocal tone PoC hiện chỉ dùng pitch-class/key profile, chưa match melody-reference của câu hát nên confidence có thể thấp hoặc nhầm với key gần.
