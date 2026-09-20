@@ -792,7 +792,17 @@
         reason:transitionPlan?.reason||'',
         target:transitionPlan?.target?.name||transitionPlan?.target?.section||null,
         beatsAway:Number.isFinite(transitionPlan?.beatsAway)?round(transitionPlan.beatsAway,1):null,
-        fillStyle:transitionPlan?.fillStyle||null
+        fillStyle:transitionPlan?.fillStyle||null,
+        phrase:transitionPlan?.phrase?{
+          sectionName:transitionPlan.phrase.sectionName,
+          occurrence:transitionPlan.phrase.occurrence,
+          phraseIndex:transitionPlan.phrase.phraseIndex,
+          phraseBar:transitionPlan.phrase.phraseBar,
+          phraseBars:transitionPlan.phrase.phraseBars,
+          progress:round(transitionPlan.phrase.progress),
+          beatsToPhraseEnd:round(transitionPlan.phrase.beatsToPhraseEnd),
+          aligned:Boolean(transitionPlan.phraseAligned)
+        }:null
       },
       controls:{
         intensity:Number(intensity.value)||0,
@@ -3086,6 +3096,16 @@
       };
     }
 
+    const phrase=typeof api.getPhraseContext==='function'
+      ? api.getPhraseContext(transport.songBeat)
+      : null;
+    const phraseAligned=phrase
+      ? Math.abs(Number(phrase.beatsToPhraseEnd)-beatsAway)<=1
+      : false;
+    const phraseProgress=clamp(Number(phrase?.progress)||0,0,1);
+    const phraseScore=phrase
+      ? clamp(.58*phraseProgress+.42*(phraseAligned?1:.22),0,1)
+      : .55;
     const trendScore=clamp((Number(sectionPrediction.trend||0)-0.025)/0.17,0,1);
     const gainDelta=Number(next.gain||1)-Number(current?.gain||1);
     const gainScore=clamp((gainDelta+0.02)/0.28,0,1);
@@ -3095,36 +3115,52 @@
       : 0.72;
     const proximityScore=beatsAway<=8?1:clamp(1-(beatsAway-8)/8,0,1);
     const confidence=clamp(
-      0.34*sectionPrediction.confidence+
-      0.17*trendScore+
-      0.12*gainScore+
+      0.31*sectionPrediction.confidence+
+      0.16*trendScore+
+      0.11*gainScore+
       0.10*intensityScore+
-      0.10*barConfidence+
+      0.09*barConfidence+
       0.07*tempoConfidence+
       0.06*harmonicScore+
-      0.04*proximityScore,
+      0.04*proximityScore+
+      0.06*phraseScore,
       0,1
     );
 
     let fillStyle='small';
-    if (confidence>=0.88 && trendScore>=0.62 && intensityScore>=0.68) fillStyle='big';
-    else if (confidence>=0.81 || trendScore>=0.48 || gainScore>=0.58) fillStyle='medium';
+    if (
+      confidence>=0.88 &&
+      trendScore>=0.62 &&
+      intensityScore>=0.68 &&
+      (!phrase||phraseProgress>=.62)
+    ) fillStyle='big';
+    else if (
+      confidence>=0.81 ||
+      trendScore>=0.48 ||
+      gainScore>=0.58 ||
+      (phraseAligned&&phraseProgress>=.72)
+    ) fillStyle='medium';
     if(!healthPermissions().bigFill&&fillStyle==='big')fillStyle='medium';
 
     const mode=beatsAway>8?'build':'fill-'+fillStyle;
-    const key='plan:'+next.index+':'+fillStyle;
+    const key='plan:'+next.index+':'+fillStyle+':'+(phrase?.phraseBar||0);
     const stable=updatePlanCandidate(key,now);
     return {
       mode,
       confidence,
-      reason:stable?'stable target':'learning target',
+      reason:stable
+        ? (phraseAligned?'stable target · phrase end':'stable target')
+        : 'learning target',
       target:next,
       beatsAway,
       fillStyle,
       stable,
       harmonicSupports,
       trendScore,
-      gainScore
+      gainScore,
+      phraseScore,
+      phraseAligned,
+      phrase
     };
   }
 
@@ -3145,10 +3181,13 @@
     const conf=Math.round(clamp(transitionPlan.confidence||0,0,1)*100);
     const target=transitionPlan.target?.name||transitionPlan.target?.section||'';
     const beats=Number.isFinite(transitionPlan.beatsAway)?Math.max(0,Math.round(transitionPlan.beatsAway))+'b':'';
+    const phrase=transitionPlan.phrase;
+    const phraseText=phrase?'P'+phrase.phraseBar+'/'+phrase.phraseBars:'';
     ui.planDetail.textContent=
       (conf?conf+'% · ':'')+
       (target?target+' · ':'')+
       (beats?beats+' · ':'')+
+      (phraseText?phraseText+' · ':'')+
       (transitionPlan.reason||'waiting');
   }
 
