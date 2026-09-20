@@ -60,7 +60,7 @@ Runtime flow hiện tại:
 10. khi beat 1 đáng tin, module so predicted guitar downbeat với next unscheduled drummer beat; chỉ khi lệch không quá ~85 ms mới nudge timing và re-index quarter counter về beat 1, không thay đổi song position;
 11. UI hiển thị energy meter, mic dB, strum-rate, tempo estimate/confidence và trạng thái Bar `learning / stable / synced`.
 
-POC hiện follow **dynamics + tempo + beat-1/bar phase**, nhưng **chưa tự suy ra section/chord position**. Song position/section vẫn do song map/manual timing kiểm soát. Các estimator cố ý bảo thủ để tránh mic bleed hoặc pattern syncopated kéo drummer sai nhịp.
+POC hiện follow **dynamics + tempo + beat-1/bar phase + next-section prediction**. `guitar-follow.js` đọc section timeline từ main app, theo dõi energy history ~7 giây, so năng lượng gần đây với baseline và chỉ xét section kế tiếp trong cửa sổ 5–14 beat. Hiện predictor ưu tiên section cao trào (`autoFillIn` hoặc gain tăng). Khi confidence ≥ 0.72 và candidate ổn định ~1.4 giây, main app được phép queue một transition bảo thủ: fill 1 bar ở đầu ô nhịp kế tiếp, sau đó anchor `songBeat` tới đúng đầu section kế tiếp và thêm crash. Manual jump/Fill luôn hủy pending AI transition. Chưa có chord-audio recognition; section cue hiện dựa trên known song map + bar confidence + tempo confidence + energy trend.
 
 ### Tone detection + Capo
 
@@ -166,7 +166,7 @@ Scheduler:
 
 - Timing của từng dòng là dữ liệu thủ công, không được suy ra từ audio thật.
 - Nhịp hiện tại được thiết kế chủ yếu cho 4/4.
-- Drum đã có arrangement riêng cho 3 bài và POC nghe **guitar intensity + tempo + beat-1/bar phase** qua mic, nhưng arrangement vẫn thủ công/rule-based; chưa nhận chord change hoặc section trực tiếp từ guitar.
+- Drum đã có arrangement riêng cho 3 bài và POC nghe **guitar intensity + tempo + beat-1/bar phase + next-section intent** qua mic. Section transition vẫn dựa trên known song map và energy trend; chưa nhận chord change trực tiếp từ audio.
 
 ## 5. State persistence
 
