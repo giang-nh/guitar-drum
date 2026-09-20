@@ -63,3 +63,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** mỗi bài có thể khai báo `drumArrangement` theo exact section name, gồm pattern/gain/label và cờ `autoFillIn`. Section được đánh dấu sẽ nhận fill 4 beat ngay trước điểm vào section; các section không khai báo vẫn dùng fallback theo loại Intro/Verse/Chorus/Bridge.
 
 **Reason:** cùng một rule chung chưa đủ tạo cảm giác một tay trống đang đệm theo diễn tiến của từng bài; arrangement nhỏ theo section cho khác biệt rõ mà vẫn giữ kiến trúc static/Web Audio đơn giản.
+
+
+## D011 — Mic follow intensity trước tempo/section follow
+
+**Decision:** vertical slice realtime đầu tiên dùng microphone để đo guitar energy và tự điều khiển drummer Intensity qua các state `silent / soft / medium / big`. Giữ BPM, beat grid và section progression theo song map hiện tại; chưa cho mic trực tiếp kéo tempo hoặc đoán section.
+
+**Reason:** dynamics là tín hiệu dễ kiểm chứng nhất để chứng minh trải nghiệm “drummer nghe người chơi”. Tách intensity follow khỏi tempo/section inference giúp test latency, mic bleed từ loa iPad, smoothing và musical response trước khi thêm beat tracking phức tạp hơn.
