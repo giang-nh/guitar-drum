@@ -42,6 +42,7 @@ Prototype hiện đã có:
 - **Tempo Follow POC**: recent strum onsets → robust tempo estimate + confidence → stable-candidate gate → gradual 1-BPM steering of the existing tempo control; can be disabled independently while keeping dynamics follow;
 - **Beat-1 / Bar Sync POC**: folds recent onset accents onto a 4/4 grid, requires a high-confidence downbeat phase that remains stable for several seconds, then only performs a small timing nudge/re-index of the next unscheduled beat; exposes `learning / stable / synced` debug state;
 - **Section Follow POC**: reads the known section timeline, compares recent guitar energy to a longer baseline, combines proximity + arrangement gain + bar/tempo confidence, and can arm a one-bar fill followed by an early anchor to the next high-energy section; manual jump/Fill cancels the pending AI transition;
+- **Harmonic Position POC**: 4096-point FFT → 12-bin chroma near strum onsets → expected-chord template scoring in the current sounding key/capo → stable chord events → 3–5 chord sequence matching against the known row/chord timeline; repeated/ambiguous progressions are surfaced but do not auto-reposition;
 
 ## Current data model
 
@@ -89,7 +90,7 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 - chưa có automated tests;
 - song data và app logic cùng nằm trong `index.html`;
 - beat timing là thủ công;
-- drummer hiện có arrangement thủ công riêng cho 3 bài; mic follow đã có **Intensity + Tempo + Beat-1 + Section Follow v1**, nhưng section v1 mới dùng known map + energy trend và chưa nhận chord/harmonic position trực tiếp từ guitar;
+- drummer hiện có arrangement thủ công riêng cho 3 bài; mic follow đã có **Intensity + Tempo + Beat-1 + Section Follow v1 + Harmonic Position POC**. Chord recognition vẫn là heuristic chroma/template matching và cần tune trên guitar/iPad thật;
 - không có cloud sync;
 - không có in-app editor;
 - không có in-app OneNote integration;
