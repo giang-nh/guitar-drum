@@ -450,7 +450,7 @@
   }
 
   let ctx=null,master=null,noise=null,timer=null,playing=false,paused=false,nextTime=0,quarter=0,countIn=4,songBeat=0,visualTimers=[];
-  let fillRequested=false,fillRemaining=0;
+  let fillRequested=false,fillRemaining=0,pendingSectionTransition=null;
 
   function setup(){
     if(!ctx){
@@ -513,6 +513,47 @@
     }
     return -1;
   }
+  function sectionTimeline(){
+    const out=[];
+    let startRow=0;
+    for(let i=1;i<=rows.length;i++){
+      if(i===rows.length||rows[i].s!==rows[startRow].s){
+        const arr=arrangementForRow(startRow);
+        out.push({
+          index:out.length,
+          name:rows[startRow].s,
+          startBeat:rows[startRow].start,
+          endBeat:rows[i-1].end,
+          startRow,
+          endRow:i-1,
+          gain:Number(arr.gain||1),
+          pattern:arr.pattern||sectionKind(rows[startRow].s),
+          autoFillIn:Boolean(arr.autoFillIn)
+        });
+        startRow=i;
+      }
+    }
+    return out;
+  }
+  function requestSectionTransition(targetSectionIndex){
+    if(!playing||paused||countIn>0||pendingSectionTransition)return false;
+    const timeline=sectionTimeline();
+    const currentIndex=timeline.findIndex(s=>songBeat>=s.startBeat&&songBeat<s.endBeat);
+    const target=timeline[targetSectionIndex];
+    if(currentIndex<0||!target||targetSectionIndex!==currentIndex+1)return false;
+    const beatsAway=target.startBeat-songBeat;
+    if(beatsAway<5||beatsAway>14)return false;
+    pendingSectionTransition={
+      targetSectionIndex,
+      targetStartBeat:target.startBeat,
+      targetRowIndex:target.startRow,
+      targetName:target.name,
+      stage:'queued'
+    };
+    fillBtn.textContent='AI → '+target.name;
+    status.textContent='AI drummer đoán sắp vào '+target.name+' · chờ đầu ô nhịp để fill.';
+    return true;
+  }
   function maybeStartAutoFill(){
     const targetIndex=sectionStartIndexAtBeat(songBeat+4);
     if(targetIndex<0||fillRequested||fillRemaining>0)return false;
@@ -554,18 +595,37 @@
     const beat=quarter%4;
     if(countIn>0){click(t,beat===0);visualBeat(beat,t,true);countIn--;quarter++;return}
     const q=60/Number(bpm.value);
+
+    if(pendingSectionTransition&&pendingSectionTransition.stage==='anchor'&&beat===0){
+      songBeat=pendingSectionTransition.targetStartBeat;
+      currentRow=pendingSectionTransition.targetRowIndex;
+      crash(t,.72*drumPower(currentRow));
+      status.textContent='AI → '+pendingSectionTransition.targetName;
+      pendingSectionTransition=null;
+      fillBtn.textContent='🥁 Fill';
+    }
+
     const rowIndex=rowForBeat(songBeat), current=rows[rowIndex], kind=sectionKind(current.s);
     const arr=arrangementForRow(rowIndex), pattern=arr.pattern||kind, p=drumPower(rowIndex);
     const nextIndex=rowForBeat(Math.min(total-1,songBeat+1));
     const autoTurn=nextIndex!==rowIndex && rows[nextIndex].s!==current.s;
-    if(fillRequested && beat===0){fillRequested=false;fillRemaining=4;fillBtn.textContent='🥁 Fill'}
+    if(pendingSectionTransition&&pendingSectionTransition.stage==='queued'&&beat===0){
+      fillRemaining=4;
+      pendingSectionTransition.stage='filling';
+      fillBtn.textContent='AI FILL → '+pendingSectionTransition.targetName;
+    }else if(fillRequested && beat===0){fillRequested=false;fillRemaining=4;fillBtn.textContent='🥁 Fill'}
     else maybeStartAutoFill();
     let didFill=false;
     if(fillRemaining>0){
       didFill=true;
       scheduleFillBeat(t,q,4-fillRemaining,p);
       fillRemaining--;
-      if(fillRemaining===0)fillBtn.textContent='🥁 Fill';
+      if(fillRemaining===0){
+        if(pendingSectionTransition&&pendingSectionTransition.stage==='filling'){
+          pendingSectionTransition.stage='anchor';
+          fillBtn.textContent='AI → '+pendingSectionTransition.targetName;
+        }else fillBtn.textContent='🥁 Fill';
+      }
     }else if(pattern==='halftime'){
       hat(t,.72*p);
       if(beat===0)kick(t,.9*p);
@@ -621,7 +681,7 @@
 
   function stopPlaybackOnly(){
     playing=false;paused=false;if(timer)clearInterval(timer);timer=null;visualTimers.forEach(clearTimeout);visualTimers=[];
-    fillRequested=false;fillRemaining=0;fillBtn.textContent='🥁 Fill';
+    fillRequested=false;fillRemaining=0;pendingSectionTransition=null;fillBtn.textContent='🥁 Fill';
     toggleBtn.textContent='▶ Play';stopBtn.disabled=true;fillBtn.disabled=true;beatEls.forEach(el=>el.classList.remove('on'));
   }
 
@@ -645,8 +705,12 @@
       nextBeatIndex:((quarter%4)+4)%4,
       nextBeatPerformanceMs:ctx&&playing&&!paused
         ? performance.now()+(nextTime-ctx.currentTime)*1000
-        : null
+        : null,
+      currentRow:Number(currentRow),
+      currentSection:rows[currentRow]?.s||''
     }),
+    getSectionTimeline:()=>sectionTimeline(),
+    requestSectionTransition:index=>requestSectionTransition(Number(index)),
     syncNextBeat:(targetPerformanceMs,beatIndex=0)=>{
       if(!ctx||!playing||paused||countIn>0||!Number.isFinite(targetPerformanceMs))return false;
       const nowPerf=performance.now();
