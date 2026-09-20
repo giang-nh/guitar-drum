@@ -683,8 +683,7 @@
         followHeld=false;
         followSilenceMode='normal';
         const resumeRow=rowForBeat(songBeat);
-        kick(t,.72*drumPower(resumeRow));
-        crash(t,.46*drumPower(resumeRow));
+        crash(t,.38*drumPower(resumeRow));
         status.textContent='🎸 RE-ENTRY · drummer bắt lại cùng bạn.';
       }else{
         quarter++;
@@ -835,6 +834,16 @@
     requestFollowThin,
     requestFollowHold,
     requestFollowResume,
+    alignHeldBeatOne:targetPerformanceMs=>{
+      if(!ctx||!playing||paused||!followHeld||!Number.isFinite(targetPerformanceMs))return false;
+      const nowPerf=performance.now();
+      const delayMs=targetPerformanceMs-nowPerf;
+      if(delayMs<25||delayMs>2800)return false;
+      nextTime=ctx.currentTime+delayMs/1000;
+      const current=((quarter%4)+4)%4;
+      quarter+=((0-current+4)%4);
+      return true;
+    },
     syncNextBeat:(targetPerformanceMs,beatIndex=0)=>{
       if(!ctx||!playing||paused||countIn>0||!Number.isFinite(targetPerformanceMs))return false;
       const nowPerf=performance.now();
