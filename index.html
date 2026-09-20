@@ -895,7 +895,7 @@
     }
 
     if(beat===1||beat===3){
-      const backbeat=openPattern||ridePattern?.88:.70;
+      const backbeat=(openPattern||ridePattern) ? .88 : .70;
       snare(t,(backbeat+.08*energy)*p);
     }
 
@@ -1122,6 +1122,7 @@
     }),
     getSectionTimeline:()=>sectionTimeline(),
     getHarmonicTimeline:()=>harmonicTimeline(),
+    getPerformanceIntent:()=>performanceIntent(),
     requestSectionTransition:(index,plan)=>requestSectionTransition(Number(index),plan||{}),
     requestHarmonicAnchor:(beat,rowIndex,confidence)=>requestHarmonicAnchor(beat,rowIndex,confidence),
     requestFollowThin,
@@ -1132,7 +1133,7 @@
       if(!ctx||!playing||paused||!followHeld||!Number.isFinite(targetPerformanceMs))return false;
       const nowPerf=performance.now();
       const delayMs=targetPerformanceMs-nowPerf;
-      if(delayMs<25||delayMs>2800)return false;
+      if(delayMs<25||delayMs>5200)return false;
       nextTime=ctx.currentTime+delayMs/1000;
       const current=((quarter%4)+4)%4;
       quarter+=((0-current+4)%4);
