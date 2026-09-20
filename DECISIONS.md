@@ -119,3 +119,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** Predictive Drummer may arm a section transition several beats early, but the drum engine does not start the fill immediately. It stores the plan, continues the current groove, and triggers the selected 1-bar fill only when the target is within the final 4 beats. Fill size is chosen from small/medium/big and variants rotate deterministically.
 
 **Reason:** anticipation is musically useful only if it preserves structure. Early decision-making should create confidence and preparation, not an early section jump. Separating planning from rendering also lets later AI/performance layers change how a fill is played without changing when the section transition happens.
+
+
+## D019 — Humanize hit, không humanize transport
+
+**Decision:** human feel is applied only at the drum-hit rendering layer. The transport clock, tempo tracking, beat-1 alignment, song position and section transitions remain on the predictive scheduler grid. Beat-1 kick/crash get minimal timing variance; snare/hat can move more, fills less. Variation uses deterministic hashes rather than fresh randomness.
+
+**Reason:** the project needs a drummer that feels alive without making the follow system unstable. Keeping musical decisions/grid deterministic while humanizing only articulation and microtiming preserves sync and makes regressions reproducible.
