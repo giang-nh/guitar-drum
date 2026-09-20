@@ -65,6 +65,8 @@
   const HEALTH_RED_MAX = 0.47;
   const HEALTH_STABLE_MS = 1200;
   const HEALTH_RED_STABLE_MS = 650;
+  const AUTOTUNE_PROFILE_VERSION = 1;
+  const AUTOTUNE_MARK_WINDOW_MS = 3500;
   const CALIBRATION_STEPS = [
     {id:'quiet',label:'1/5 · Quiet',ms:5000,instruction:'Để phòng yên · không drum · không đàn · không hát.'},
     {id:'drum',label:'2/5 · Drum only',ms:5000,instruction:'Bật Play drum · không đàn · không hát.'},
@@ -163,6 +165,10 @@
   let healthCandidateSince = performance.now();
   let healthOnsetHistory = [];
   let lastHealthLevel = 'yellow';
+  let autoTuneSuggestion = null;
+  let autoTuneImportedSession = null;
+  let autoTuneSourceLabel = '';
+  let autoTuneBackupProfile = null;
 
   injectStyles();
   const ui = buildUi();
@@ -206,6 +212,11 @@
       .gd-debug-row button{min-height:36px;padding:0 10px;font-size:11px}
       .gd-debug-status{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
       .gd-debug-note{margin-top:6px;font-size:10px;color:var(--muted);line-height:1.35}
+      .gd-autotune{margin-top:9px;padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+      .gd-autotune-head{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+      .gd-autotune-head button{min-height:34px;padding:0 9px;font-size:10px}
+      .gd-autotune-result{margin-top:7px;font-size:10px;color:var(--muted);line-height:1.45;white-space:pre-line}
+      .gd-autotune-result strong{color:var(--text)}
       .gd-cal{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
       .gd-cal-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
       .gd-cal-title{font-size:11px;font-weight:800}
@@ -274,6 +285,16 @@
           <span id="gdDebugStatus" class="gd-debug-status">chưa ghi session</span>
         </div>
         <div class="gd-debug-note">Chỉ ghi telemetry/state; không ghi hoặc lưu audio. Dữ liệu ở local cho tới khi bạn chủ động Export.</div>
+        <div class="gd-autotune">
+          <div class="gd-autotune-head">
+            <button type="button" id="gdTuneAnalyze" disabled>✨ Analyze marks</button>
+            <button type="button" id="gdTuneImport">Import JSON</button>
+            <input id="gdTuneFile" type="file" accept="application/json,.json" hidden />
+            <button type="button" id="gdTuneApply" disabled>Apply suggestion</button>
+            <button type="button" id="gdTuneUndo" disabled>Undo tune</button>
+          </div>
+          <div id="gdTuneResult" class="gd-autotune-result">Auto‑Tune chỉ đề xuất; không tự sửa Mic Profile.</div>
+        </div>
       </div>
       <div class="gd-cal">
         <div class="gd-cal-head">
@@ -335,6 +356,12 @@
       debugMark: host.querySelector('#gdDebugMark'),
       debugExport: host.querySelector('#gdDebugExport'),
       debugStatus: host.querySelector('#gdDebugStatus'),
+      tuneAnalyze: host.querySelector('#gdTuneAnalyze'),
+      tuneImport: host.querySelector('#gdTuneImport'),
+      tuneFile: host.querySelector('#gdTuneFile'),
+      tuneApply: host.querySelector('#gdTuneApply'),
+      tuneUndo: host.querySelector('#gdTuneUndo'),
+      tuneResult: host.querySelector('#gdTuneResult'),
       calOpen: host.querySelector('#gdCalOpen'),
       calPanel: host.querySelector('#gdCalPanel'),
       calProfile: host.querySelector('#gdCalProfile'),
@@ -358,6 +385,11 @@
     ui.debugRecord.addEventListener('click', toggleTelemetryRecording);
     ui.debugMark.addEventListener('click', () => recordTelemetryEvent('manual-mark',{label:'user-mark'}));
     ui.debugExport.addEventListener('click', exportTelemetry);
+    ui.tuneAnalyze.addEventListener('click', analyzeCurrentTelemetryForTune);
+    ui.tuneImport.addEventListener('click', () => ui.tuneFile.click());
+    ui.tuneFile.addEventListener('change', importTelemetryForTune);
+    ui.tuneApply.addEventListener('click', applyAutoTuneSuggestion);
+    ui.tuneUndo.addEventListener('click', undoAutoTune);
     ui.calOpen.addEventListener('click', startCalibrationWizard);
     ui.calCapture.addEventListener('click', startCalibrationCapture);
     ui.calCancel.addEventListener('click', () => cancelCalibration('Calibration đã hủy.'));
@@ -462,6 +494,8 @@
       if (saved.harmonicFollow != null) ui.harmonicToggle.checked = Boolean(saved.harmonicFollow);
       if (saved.cleanInput != null) ui.cleanInputToggle.checked = Boolean(saved.cleanInput);
       if (saved.calibrationProfile?.version === CALIBRATION_PROFILE_VERSION) calibrationProfile = saved.calibrationProfile;
+      if (saved.autoTuneBackupProfile) autoTuneBackupProfile = saved.autoTuneBackupProfile;
+      if (ui?.tuneUndo) ui.tuneUndo.disabled = !autoTuneBackupProfile;
     } catch {}
   }
 
@@ -474,7 +508,8 @@
         sectionFollow:Boolean(ui.sectionToggle.checked),
         harmonicFollow:Boolean(ui.harmonicToggle.checked),
         cleanInput:Boolean(ui.cleanInputToggle.checked),
-        calibrationProfile
+        calibrationProfile,
+        autoTuneBackupProfile
       }));
     } catch {}
   }
@@ -678,6 +713,7 @@
         low:round(spectralFrame.lowRatio),
         mid:round(spectralFrame.midRatio),
         high:round(spectralFrame.highRatio),
+        transient:round(spectralFrame.transient),
         drumPenalty:round(spectralFrame.drumPenalty),
         voiceLike:round(spectralFrame.voiceLike),
         guitarEvidence:round(spectralFrame.guitarEvidence)
@@ -759,6 +795,10 @@
     ui.debugRecord.textContent='■ Stop debug';
     ui.debugMark.disabled=false;
     ui.debugExport.disabled=true;
+    ui.tuneAnalyze.disabled=true;
+    autoTuneSuggestion=null;
+    ui.tuneApply.disabled=true;
+    ui.tuneResult.textContent='Đang ghi session… bấm Mark lúc app làm sai.';
     recordTelemetryEvent('session-start',{
       settings:{
         cleanInput:Boolean(ui.cleanInputToggle.checked),
@@ -778,6 +818,7 @@
     ui.debugRecord.textContent='● Record debug';
     ui.debugMark.disabled=true;
     ui.debugExport.disabled=telemetrySamples.length===0&&telemetryEvents.length===0;
+    ui.tuneAnalyze.disabled=telemetrySamples.length<8;
     renderTelemetryStatus();
   }
 
@@ -916,6 +957,374 @@
     a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1500);
     api.setStatus?.('Debug session đã export JSON.');
+  }
+
+  function deepClone(value) {
+    return value==null?value:JSON.parse(JSON.stringify(value));
+  }
+
+  function sessionFromCurrentTelemetry() {
+    return {
+      schema:'guitar-drum-debug-v1',
+      appCache:'v26',
+      samples:telemetrySamples.slice(),
+      events:telemetryEvents.slice(),
+      settings:{calibrationProfile:deepClone(calibrationProfile)}
+    };
+  }
+
+  function manualMarks(session) {
+    return (session?.events||[]).filter(e=>e?.type==='manual-mark'&&Number.isFinite(Number(e.t)));
+  }
+
+  function sessionSamplesNear(session,time,windowMs=AUTOTUNE_MARK_WINDOW_MS) {
+    return (session?.samples||[]).filter(s=>Math.abs(Number(s?.t)-Number(time))<=windowMs);
+  }
+
+  function mean(values,fallback=0) {
+    const nums=values.filter(v=>Number.isFinite(Number(v))).map(Number);
+    return nums.length?nums.reduce((a,b)=>a+b,0)/nums.length:fallback;
+  }
+
+  function cumulativeDelta(samples,path) {
+    const vals=samples.map(s=>{
+      const parts=path.split('.');
+      let v=s;
+      for(const p of parts)v=v?.[p];
+      return Number(v);
+    }).filter(Number.isFinite);
+    return vals.length?Math.max(...vals)-Math.min(...vals):0;
+  }
+
+  function markWindowAnalysis(session,mark,thresholds) {
+    const samples=sessionSamplesNear(session,mark.t);
+    if(!samples.length)return null;
+    const classes={guitar:0,voice:0,drum:0,mix:0,quiet:0,unknown:0};
+    samples.forEach(s=>{const k=s?.mic?.inputClass||'unknown';classes[k]=(classes[k]||0)+1;});
+    const n=samples.length;
+    const frac=k=>(classes[k]||0)/n;
+    const avgDrum=mean(samples.map(s=>s?.mic?.drumPenalty));
+    const avgVoice=mean(samples.map(s=>s?.mic?.voiceLike));
+    const avgGuitar=mean(samples.map(s=>s?.mic?.guitarEvidence));
+    const avgEnergy=mean(samples.map(s=>s?.mic?.energy));
+    const avgTempo=mean(samples.map(s=>s?.tempo?.confidence),.5);
+    const avgBar=mean(samples.map(s=>s?.tempo?.barConfidence),.5);
+    const avgHealth=mean(samples.map(s=>s?.health?.score),.55);
+    const margins=samples.map(s=>Number(s?.chord?.matchMargin)).filter(Number.isFinite);
+    const avgMargin=mean(margins,.12);
+    const accepted=cumulativeDelta(samples,'mic.acceptedOnsets');
+    const rejected=cumulativeDelta(samples,'mic.rejectedOnsets');
+    const dominant=Object.keys(classes).sort((a,b)=>classes[b]-classes[a])[0]||'unknown';
+
+    const flags=[];
+    if((frac('drum')>=.30||avgDrum>Math.max(.55,thresholds.drumReject))&&accepted>=2&&avgGuitar<thresholds.guitarEvidenceMin+.22){
+      flags.push('drum-false-positive');
+    }
+    if((frac('voice')>=.25||avgVoice>Math.max(.64,thresholds.voiceReject-.02))&&accepted>=2&&avgGuitar<thresholds.guitarEvidenceMin+.20){
+      flags.push('voice-false-positive');
+    }
+    if((frac('guitar')>=.28||avgGuitar>Math.max(.42,thresholds.guitarEvidenceMin+.10))&&(rejected>accepted||avgTempo<.48||avgHealth<.48)){
+      flags.push('guitar-over-reject');
+    }
+    if(avgMargin<HARMONIC_MARGIN_MIN&&avgDrum<.48&&avgVoice<.60&&avgGuitar>.34){
+      flags.push('harmonic-ambiguity');
+    }
+    if(avgGuitar>.40&&avgTempo<.46&&accepted<3&&rejected<=accepted+1){
+      flags.push('guitar-under-detect');
+    }
+
+    return {mark,samples:n,classes,dominant,avgDrum,avgVoice,avgGuitar,avgEnergy,avgTempo,avgBar,avgHealth,avgMargin,accepted,rejected,flags};
+  }
+
+  function boundedThreshold(key,value) {
+    const ranges={
+      onsetRiseBase:[.088,.132],
+      minEnergy:[.14,.26],
+      guitarEvidenceMin:[.22,.52],
+      drumReject:[.42,.78],
+      voiceReject:[.54,.84],
+      voiceTransientMax:[.16,.34],
+      classDrum:[.40,.76],
+      classGuitar:[.36,.64],
+      classVoice:[.50,.80],
+      chordDrumReject:[.56,.86],
+      chordVoiceReject:[.62,.90]
+    };
+    const [lo,hi]=ranges[key]||[0,1];
+    return round(clamp(value,lo,hi),3);
+  }
+
+  function tuneDeltasForAnalysis(analysis) {
+    const d={};
+    const add=(k,v)=>{d[k]=(d[k]||0)+v;};
+    if(analysis.flags.includes('drum-false-positive')){
+      add('drumReject',-.035);
+      add('classDrum',-.025);
+      add('chordDrumReject',-.03);
+      add('guitarEvidenceMin',.018);
+      add('onsetRiseBase',.003);
+    }
+    if(analysis.flags.includes('voice-false-positive')){
+      add('voiceReject',-.035);
+      add('classVoice',-.025);
+      add('chordVoiceReject',-.03);
+      add('guitarEvidenceMin',.012);
+      add('onsetRiseBase',.0025);
+    }
+    if(analysis.flags.includes('guitar-over-reject')){
+      add('guitarEvidenceMin',-.022);
+      add('onsetRiseBase',-.0035);
+      add('minEnergy',-.014);
+      if(analysis.avgDrum>.38)add('drumReject',.015);
+      if(analysis.avgVoice>.50)add('voiceReject',.012);
+    }
+    if(analysis.flags.includes('guitar-under-detect')){
+      add('guitarEvidenceMin',-.014);
+      add('onsetRiseBase',-.003);
+      add('minEnergy',-.010);
+    }
+    return d;
+  }
+
+  function capTuneDelta(key,value) {
+    const caps={
+      onsetRiseBase:.012,minEnergy:.04,guitarEvidenceMin:.06,
+      drumReject:.10,voiceReject:.10,voiceTransientMax:.05,
+      classDrum:.08,classGuitar:.08,classVoice:.08,
+      chordDrumReject:.10,chordVoiceReject:.10
+    };
+    const cap=caps[key]??.08;
+    return clamp(value,-cap,cap);
+  }
+
+  function samplePassEstimate(sample,t) {
+    const m=sample?.mic||{};
+    const guitar=Number(m.guitarEvidence)||0;
+    const energy=Number(m.energy)||0;
+    const drum=Number(m.drumPenalty)||0;
+    const voice=Number(m.voiceLike)||0;
+    const transient=Number.isFinite(Number(m.transient))?Number(m.transient):.20;
+    const rejectedByDrum=drum>t.drumReject&&guitar<Math.max(t.guitarEvidenceMin+.20,.48);
+    const rejectedByVoice=voice>t.voiceReject&&transient<t.voiceTransientMax;
+    const spectralOk=guitar>=t.guitarEvidenceMin||(drum<Math.max(.26,t.drumReject-.23)&&(Number(m.flux)||0)>=.08);
+    return energy>t.minEnergy&&spectralOk&&!rejectedByDrum&&!rejectedByVoice;
+  }
+
+  function compareThresholds(session,before,after,marks) {
+    const samples=session?.samples||[];
+    const guitarSamples=samples.filter(s=>(s?.mic?.inputClass==='guitar'||Number(s?.mic?.guitarEvidence)>.48));
+    const contaminated=samples.filter(s=>
+      s?.mic?.inputClass==='drum'||s?.mic?.inputClass==='voice'||
+      Number(s?.mic?.drumPenalty)>.62||Number(s?.mic?.voiceLike)>.72
+    );
+    const markSamples=marks.flatMap(m=>sessionSamplesNear(session,m.t,2200));
+    const ratio=(arr,t)=>arr.length?arr.filter(s=>samplePassEstimate(s,t)).length/arr.length:null;
+    return {
+      guitarRetentionBefore:ratio(guitarSamples,before),
+      guitarRetentionAfter:ratio(guitarSamples,after),
+      contaminationPassBefore:ratio(contaminated,before),
+      contaminationPassAfter:ratio(contaminated,after),
+      markedPassBefore:ratio(markSamples,before),
+      markedPassAfter:ratio(markSamples,after),
+      guitarSamples:guitarSamples.length,
+      contaminatedSamples:contaminated.length
+    };
+  }
+
+  function buildAutoTuneSuggestion(session,sourceLabel='current session') {
+    const samples=Array.isArray(session?.samples)?session.samples:[];
+    const marks=manualMarks(session);
+    const before={...calibrationThresholds()};
+    const analyses=marks.map(m=>markWindowAnalysis(session,m,before)).filter(Boolean);
+    const directional=analyses.filter(a=>a.flags.some(f=>f!=='harmonic-ambiguity'));
+    const ambiguityOnly=analyses.filter(a=>a.flags.length&&a.flags.every(f=>f==='harmonic-ambiguity')).length;
+    const totals={};
+    directional.forEach(a=>{
+      const d=tuneDeltasForAnalysis(a);
+      Object.entries(d).forEach(([k,v])=>{totals[k]=(totals[k]||0)+v;});
+    });
+
+    const proposed={...before};
+    const changes=[];
+    Object.entries(totals).forEach(([key,total])=>{
+      const scaled=capTuneDelta(key,total/Math.max(1,Math.sqrt(directional.length)));
+      const next=boundedThreshold(key,Number(before[key])+scaled);
+      if(Math.abs(next-Number(before[key]))>=.001){
+        proposed[key]=next;
+        changes.push({key,before:Number(before[key]),after:next,delta:round(next-Number(before[key]),3)});
+      }
+    });
+
+    const confidence=clamp(
+      .18+
+      .10*Math.min(4,marks.length)+
+      .28*clamp(directional.length/Math.max(1,marks.length),0,1)+
+      .18*clamp(samples.length/500,0,1)+
+      .12*(calibrationProfile?.quality||.5),
+      0,1
+    );
+    const compare=compareThresholds(session,before,proposed,marks);
+    const reasons=[];
+    const counts={};
+    analyses.flatMap(a=>a.flags).forEach(f=>counts[f]=(counts[f]||0)+1);
+    if(counts['drum-false-positive'])reasons.push(counts['drum-false-positive']+' mark: drum false-positive');
+    if(counts['voice-false-positive'])reasons.push(counts['voice-false-positive']+' mark: voice false-positive');
+    if(counts['guitar-over-reject'])reasons.push(counts['guitar-over-reject']+' mark: guitar over-reject');
+    if(counts['guitar-under-detect'])reasons.push(counts['guitar-under-detect']+' mark: guitar under-detect');
+    if(ambiguityOnly)reasons.push(ambiguityOnly+' mark: harmonic ambiguity → không sửa mic');
+
+    return {
+      version:AUTOTUNE_PROFILE_VERSION,
+      sourceLabel,
+      createdAt:new Date().toISOString(),
+      samples:samples.length,
+      marks:marks.length,
+      analyzedMarks:analyses.length,
+      directionalMarks:directional.length,
+      confidence,
+      before,
+      proposed,
+      changes,
+      compare,
+      reasons,
+      analyses
+    };
+  }
+
+  function fmtPct(value) {
+    return value==null?'n/a':Math.round(value*100)+'%';
+  }
+
+  function renderAutoTuneSuggestion() {
+    if(!ui.tuneResult)return;
+    if(!autoTuneSuggestion){
+      ui.tuneResult.textContent='Auto‑Tune chỉ đề xuất; không tự sửa Mic Profile.';
+      ui.tuneApply.disabled=true;
+      return;
+    }
+    const s=autoTuneSuggestion;
+    if(!s.marks){
+      ui.tuneResult.textContent='Không có Mark trong '+s.sourceLabel+'. Hãy bấm Mark lúc app làm sai rồi phân tích lại.';
+      ui.tuneApply.disabled=true;
+      return;
+    }
+    if(!s.changes.length){
+      ui.tuneResult.textContent=
+        'Không có threshold change đủ chắc từ '+s.marks+' Mark. '+
+        (s.reasons.length?s.reasons.join(' · '):'Evidence chưa chỉ ra lỗi mic theo một hướng rõ ràng.')+
+        '\nGiữ profile hiện tại.';
+      ui.tuneApply.disabled=true;
+      return;
+    }
+    const changeText=s.changes.map(x=>x.key+' '+x.before+' → '+x.after).join(' · ');
+    const cmp=s.compare;
+    ui.tuneResult.textContent=
+      'Suggestion '+Math.round(s.confidence*100)+'% · '+s.directionalMarks+'/'+s.marks+' Mark có hướng tune\n'+
+      (s.reasons.length?s.reasons.join(' · ')+'\n':'')+
+      changeText+'\n'+
+      'Estimate: guitar retention '+fmtPct(cmp.guitarRetentionBefore)+' → '+fmtPct(cmp.guitarRetentionAfter)+
+      ' · contamination pass '+fmtPct(cmp.contaminationPassBefore)+' → '+fmtPct(cmp.contaminationPassAfter);
+    ui.tuneApply.disabled=s.confidence<.45;
+  }
+
+  function analyzeSessionForTune(session,label) {
+    autoTuneSuggestion=buildAutoTuneSuggestion(session,label);
+    autoTuneSourceLabel=label;
+    renderAutoTuneSuggestion();
+    recordTelemetryEvent('autotune-analysis',{
+      source:label,
+      confidence:round(autoTuneSuggestion.confidence),
+      marks:autoTuneSuggestion.marks,
+      changes:autoTuneSuggestion.changes
+    });
+  }
+
+  function analyzeCurrentTelemetryForTune() {
+    if(telemetryRecording)stopTelemetryRecording();
+    if(telemetrySamples.length<8){
+      ui.tuneResult.textContent='Session quá ngắn để Auto‑Tune.';
+      return;
+    }
+    autoTuneImportedSession=null;
+    analyzeSessionForTune(sessionFromCurrentTelemetry(),'current session');
+  }
+
+  async function importTelemetryForTune(event) {
+    const file=event?.target?.files?.[0];
+    if(!file)return;
+    try{
+      const payload=JSON.parse(await file.text());
+      if(!Array.isArray(payload?.samples)||!Array.isArray(payload?.events)){
+        throw new Error('invalid debug JSON');
+      }
+      autoTuneImportedSession=payload;
+      analyzeSessionForTune(payload,'import: '+file.name);
+      ui.tuneAnalyze.disabled=false;
+    }catch(error){
+      autoTuneImportedSession=null;
+      autoTuneSuggestion=null;
+      ui.tuneApply.disabled=true;
+      ui.tuneResult.textContent='Không đọc được debug JSON hợp lệ.';
+    }finally{
+      event.target.value='';
+    }
+  }
+
+  function applyAutoTuneSuggestion() {
+    const s=autoTuneSuggestion;
+    if(!s?.changes?.length||s.confidence<.45)return;
+    autoTuneBackupProfile=calibrationProfile
+      ? deepClone(calibrationProfile)
+      : {__defaultProfile:true};
+    const base=calibrationProfile?deepClone(calibrationProfile):{
+      version:CALIBRATION_PROFILE_VERSION,
+      createdAt:new Date().toISOString(),
+      quality:round(Math.max(.45,s.confidence*.72)),
+      recommendedSensitivity:Number(ui.sensitivity.value)||0,
+      metrics:{source:'autotune-without-calibration'}
+    };
+    calibrationProfile={
+      ...base,
+      version:CALIBRATION_PROFILE_VERSION,
+      thresholds:{...s.proposed},
+      autoTune:{
+        version:AUTOTUNE_PROFILE_VERSION,
+        appliedAt:new Date().toISOString(),
+        source:s.sourceLabel,
+        confidence:round(s.confidence),
+        marks:s.marks,
+        changes:s.changes
+      }
+    };
+    saveSettings();
+    resetInputTracking();
+    resetTempoTracking();
+    resetHarmonicTracking();
+    resetHealthTracking();
+    ui.tuneApply.disabled=true;
+    ui.tuneUndo.disabled=false;
+    ui.tuneResult.textContent='Applied · '+s.changes.map(x=>x.key+' '+x.before+'→'+x.after).join(' · ')+'\nCó thể Undo tune để quay lại profile trước.';
+    renderCalibration();
+    recordTelemetryEvent('autotune-applied',{confidence:round(s.confidence),changes:s.changes});
+    api.setStatus?.('✨ Auto‑Tune suggestion đã áp dụng vào Mic Profile.');
+  }
+
+  function undoAutoTune() {
+    if(!autoTuneBackupProfile)return;
+    calibrationProfile=autoTuneBackupProfile.__defaultProfile
+      ? null
+      : deepClone(autoTuneBackupProfile);
+    autoTuneBackupProfile=null;
+    saveSettings();
+    resetInputTracking();
+    resetTempoTracking();
+    resetHarmonicTracking();
+    resetHealthTracking();
+    ui.tuneUndo.disabled=true;
+    ui.tuneResult.textContent='Đã Undo Auto‑Tune · quay lại profile trước.';
+    renderCalibration();
+    recordTelemetryEvent('autotune-undo');
+    api.setStatus?.('↩ Auto‑Tune đã được hoàn tác.');
   }
 
   function percentile(values,p=0.5) {
@@ -2919,6 +3328,16 @@
         durationMs:Math.round(telemetryDurationMs())
       },
       healthPermissions:healthPermissions(),
+      autoTune:{
+        suggestion:autoTuneSuggestion?{
+          sourceLabel:autoTuneSuggestion.sourceLabel,
+          confidence:autoTuneSuggestion.confidence,
+          marks:autoTuneSuggestion.marks,
+          changes:autoTuneSuggestion.changes,
+          compare:autoTuneSuggestion.compare
+        }:null,
+        canUndo:Boolean(autoTuneBackupProfile)
+      },
       calibration:{
         active:calibrationActive,
         step:CALIBRATION_STEPS[calibrationStepIndex]?.id||null,
