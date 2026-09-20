@@ -181,3 +181,14 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - Strong harmonic evidence mâu thuẫn với predicted next section phải chặn section transition thay vì để hai subsystem cạnh tranh.
 - Repeated progression phải chuyển sang trạng thái ambiguous và giữ vị trí hiện tại.
 - Shared action cooldown phải ngăn hai transport action xảy ra sát nhau.
+
+
+## Stop / Resume Intent
+
+- Silence intent must be driven primarily by absence of reliable guitar strum onsets, not raw microphone level alone.
+- Short silence should thin the drummer without changing song position semantics or firing fills.
+- Longer silence should hold only at a beat-1 boundary and freeze `songBeat` so the backing does not run ahead while the guitarist stops.
+- Entering hold must invalidate stale tempo/bar/chord evidence. Resume must use fresh evidence.
+- While held, the transport may hard-align its silent clock to a newly detected guitar downbeat before re-entry.
+- Re-entry must occur on beat 1 and should sound intentional (light crash/pickup), never resume abruptly in the middle of a bar.
+- Manual transport actions and disabling Auto Follow must override/release automated thin/hold behavior.
