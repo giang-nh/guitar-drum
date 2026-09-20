@@ -145,3 +145,7 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 
 - CI test gate is now mandatory before Pages deploy. When extending phrase, Health, transition guards, Tone/Capo or regression safety, add/adjust a core unit test in the same change rather than relying only on source-contract checks.
 - browser/WebAudio behavior is intentionally not claimed as fully automated yet; real iPad/Safari sessions remain required for microphone latency, speaker bleed, audible groove feel and permission UX.
+
+- **Guided iPad Validation Session** implemented in Developer Mode with shared-core scoring and Regression/Auto-Tune handoff.
+
+- run one full **Guided Validation Session** on the actual iPad with normal speaker volume and playing position. Do not tune thresholds from a partial synthetic result; export the completed session and add it to Regression before accepting new Auto-Tune changes.
