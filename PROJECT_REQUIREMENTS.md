@@ -213,3 +213,14 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - Hi-hat/open-hat articulation should vary filter brightness/decay; drum voices may have subtle deterministic timbre variation.
 - Ghost notes should be contextual, low-volume, deterministic and gated by Human feel/pattern; they must not appear on every bar or overwhelm ballad arrangements.
 - Humanization should be deterministic for the same song position/voice context so POC behavior is reproducible during tuning.
+
+
+## Clean Mic / Bleed + Vocal Rejection
+
+- Because the app produces the drum audio itself, the drum scheduler should expose predicted self-hit timing/voice/power to the microphone analyzer rather than treating playback bleed as unknown noise.
+- Self-drum knowledge must **not** hard-mute microphone windows: guitar strums commonly coincide with kick/snare. It should raise rejection thresholds only when the observed spectrum is also consistent with the predicted drum hit.
+- Onset acceptance should combine energy rise with transient/spectral evidence and use stronger thresholds under likely self-drum or vocal contamination.
+- Dynamics energy should be attenuated for strong self-drum/voice-like frames so speaker bleed or singing does not drive drummer Intensity by itself.
+- Chord tracking should reject strong self-drum/voice-like frames and require enough pitch-class diversity to reduce false chord detection from one sung note.
+- `Clean mic` must be user-toggleable for A/B testing and persist with the Follow settings.
+- Debug UI/API must expose heuristic input class, self-drum penalty and accepted/rejected onset counts. These values must be described as heuristics, not source-separation truth.
