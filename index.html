@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f7f8" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Guitar Drum" />
+  <link rel="manifest" href="./manifest.json" />
+  <title>Nàng Thơ · Guitar Drum</title>
+  <style>
+    :root{
+      color-scheme:light;
+      --bg:#f5f6f7; --card:#fff; --panel:#f8f9fa; --text:#151719; --muted:#6e7379;
+      --border:#dfe2e5; --accent:#0a84ff; --accent-bg:#eaf4ff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+    button,select,input{font:inherit}
+    .app{width:min(980px,100%);margin:0 auto;padding:18px 14px 36px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:14px}
+    .top{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}
+    h1{font-size:28px;line-height:1.1;margin:0 0 8px}
+    .sub{color:var(--muted);font-size:16px}
+    .bpmBox{min-width:74px;text-align:center;background:var(--panel);border-radius:14px;padding:10px}
+    .bpmBox strong{display:block;font-size:28px}.bpmBox span{font-size:12px;color:var(--muted)}
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+    label{display:block;font-weight:650;font-size:14px;margin-bottom:7px}
+    select{width:100%;height:46px;border:1px solid var(--border);border-radius:10px;background:var(--panel);padding:0 12px}
+    input[type=range]{width:100%;margin-top:10px}
+    .playerTop{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .section{font-weight:700}.time{color:var(--muted);font-size:14px;margin-left:6px}
+    .lineBadge{font-size:13px;font-weight:700;border:1px solid var(--border);border-radius:8px;padding:5px 9px;background:var(--card)}
+    .beats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+    .beat{height:46px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:10px;background:var(--card);font-weight:750}
+    .beat.on{border-color:var(--accent);background:var(--accent-bg)}
+    .actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px}
+    .status{color:var(--muted);font-size:14px}
+    .buttons{display:flex;gap:10px}
+    button{min-height:46px;border-radius:10px;border:1px solid var(--border);background:var(--card);padding:0 18px;font-weight:750;cursor:pointer}
+    button.primary{background:var(--accent-bg);border-color:transparent}
+    button:disabled{opacity:.45;cursor:default}
+    .sheet{padding:12px 10px}
+    .topCollapse{display:none;justify-content:flex-end;margin-bottom:8px}
+    .topCollapse.show{display:flex}
+    .sectionLabel{margin:13px 0 5px 40px;color:var(--muted);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+    .lineWrap{display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:5px}
+    .num{text-align:right;padding-right:4px;color:var(--muted);font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+    .row{width:100%;display:block;text-align:left;border:1px solid transparent;background:transparent;border-radius:9px;padding:9px 10px;font-size:17px;line-height:1.65}
+    .row:hover{background:var(--panel)}
+    .row.active{background:var(--accent-bg);border-color:var(--accent)}
+    .lineWrap.active .num{color:var(--text)}
+    .chord{display:inline-block;padding:0 .26em;margin:0 .05em;border:1px solid var(--border);border-radius:5px;background:var(--card);font-size:.9em;line-height:1.35;font-weight:800;white-space:nowrap}
+    .viewBottom{display:flex;justify-content:flex-end;margin-top:14px}
+    .hint{color:var(--muted);font-size:12px;margin:0 0 8px 40px}
+    @media(max-width:700px){
+      .app{padding:10px 8px 28px}.card{border-radius:14px;padding:14px}
+      h1{font-size:23px}.sub{font-size:14px}.controls{grid-template-columns:1fr;gap:12px}
+      .row{font-size:15px;padding:8px 7px}.sectionLabel{margin-left:35px}.lineWrap{grid-template-columns:30px minmax(0,1fr)}
+      .buttons button{padding:0 14px}.actions{align-items:flex-end}
+    }
+    @media(display-mode:standalone){body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}}
+  </style>
+</head>
+<body>
+<main class="app">
+  <section class="card">
+    <div class="top">
+      <div>
+        <h1>Nàng Thơ · Hoàng Dũng</h1>
+        <div class="sub">Ballad · 4/4</div>
+      </div>
+      <div class="bpmBox"><strong id="bpmLabel">62</strong><span>BPM</span></div>
+    </div>
+    <div class="controls">
+      <div>
+        <label for="keySelect">Tone</label>
+        <select id="keySelect">
+          <option value="10">A# · nam trầm / nữ cao</option>
+          <option value="11">B · nam trầm–trung / nữ cao</option>
+          <option value="0" selected>C · tone gốc / nam trung</option>
+          <option value="1">C# · nam trung–cao</option>
+          <option value="2">D · nam cao</option>
+          <option value="3">D#</option>
+          <option value="4">E</option>
+          <option value="5">F · nữ trầm</option>
+          <option value="6">F# · nữ trầm–trung</option>
+          <option value="7">G · nữ trung</option>
+          <option value="8">G# · nữ trung</option>
+          <option value="9">A · nữ trung–cao</option>
+        </select>
+      </div>
+      <div>
+        <label for="bpm">Tempo</label>
+        <input id="bpm" type="range" min="50" max="80" value="62" step="1" />
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="playerTop">
+      <div><span id="section" class="section">Intro</span><span id="position" class="time">0:00</span></div>
+      <div id="lineLabel" class="lineBadge">Line 1</div>
+    </div>
+    <div class="beats">
+      <div class="beat">1</div><div class="beat">2</div><div class="beat">3</div><div class="beat">4</div>
+    </div>
+    <div class="actions">
+      <div id="status" class="status">Sẵn sàng.</div>
+      <div class="buttons">
+        <button id="toggle" class="primary">▶ Play</button>
+        <button id="stop" disabled>■ Stop</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card sheet">
+    <div id="topCollapseWrap" class="topCollapse"><button id="topCollapse">↑ Show 5 lines</button></div>
+    <div id="sheet"></div>
+    <div class="viewBottom"><button id="viewToggle">↓ Show all</button></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const keySel=$('#keySelect'), bpm=$('#bpm'), bpmLabel=$('#bpmLabel'), toggleBtn=$('#toggle'), stopBtn=$('#stop');
+  const status=$('#status'), sectionLabel=$('#section'), lineLabel=$('#lineLabel'), position=$('#position'), sheet=$('#sheet');
+  const viewBtn=$('#viewToggle'), topCollapse=$('#topCollapse'), topCollapseWrap=$('#topCollapseWrap');
+  const beatEls=[...document.querySelectorAll('.beat')];
+  const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const noteMap={C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
+  let shift=0,currentRow=0,showAll=false;
+
+  const raw=[
+    ['Intro',24,['C',' · ','F',' · ','G',' · ','C',' · ','F',' · ','Cm',' · ','Dm',' · ','G']],
+    ['Verse 1',6,['C','Em, ngày em đánh ','Em7','rơi nụ cười vào ','Am7','anh']],
+    ['Verse 1',6,['Gm7','Có nghĩ sau ','C7','này em sẽ ','F','chờ']],
+    ['Verse 1',6,['Dm','Và vô tư cho đi hết ','G','những ngây thơ ','A#',' ','G','']],
+    ['Verse 1',6,['C','Anh, một người hát ','Em7','mãi những điều mong ','Am7','manh']],
+    ['Verse 1',6,['Gm7','Lang thang tìm ','C7','niềm vui đã ','F','lỡ']],
+    ['Verse 1',6,['Dm7','Chẳng buồn dặn lòng quên hết ','G','những chơ vơ']],
+    ['Tiền ĐK',6,['','Ta ','Am','yêu nhau bằng nỗi ','G','nhớ chưa khô trên ','F','những bức thư']],
+    ['Tiền ĐK',6,['','Ta ','Am','đâu bao giờ có ','G','lỗi khi không nghe ','F','tim chối từ']],
+    ['Tiền ĐK',4,['','Chỉ ','G','tiếc rằng']],
+    ['Chorus 1',5,['','Em không là nàng ','C','thơ']],
+    ['Chorus 1',6,['','Anh ','G','cũng không ','E7','còn là nhạc ','Am7','sĩ mộng mơ']],
+    ['Chorus 1',5,['','Tình này nhẹ như ','Dm','gió']],
+    ['Chorus 1',6,['','Lại trĩu lên tim ta ','G','những vết hằn']],
+    ['Chorus 1',5,['','Tiếng yêu này mỏng ','C','manh']],
+    ['Chorus 1',6,['','Giờ tan ','Em7','vỡ, thôi ','Am7','cũng đành']],
+    ['Chorus 1',6,['Gm7','Xếp riêng ','C','những ngày ','F','tháng hồn nhiên ','Dm7','']],
+    ['Chorus 1',5,['','Trả ','G','lại…']],
+    ['Interlude',8,['C',' · ','F',' · ','G',' · ','C','']],
+    ['Interlude',8,['F',' · ','C',' · ','A#',' · ','G','']],
+    ['Verse 2',6,['C','Mai, rồi em sẽ ','Em7','quên ngày mình khờ ','Am7','dại']],
+    ['Verse 2',6,['Gm7','Mong em kỷ ','C7','niềm vui đã ','F','lại']],
+    ['Verse 2',6,['Dm7','Mong em ngày buồn thôi ướt ','G','đẫm trên vai ','A#',' ','G','']],
+    ['Verse 2',6,['C','Mai, ngày em sải ','Em7','bước bên đời thênh ','Am7','thang']],
+    ['Verse 2',6,['Gm7','Chỉ cần một ','C7','điều em hãy ','F','nhớ']],
+    ['Verse 2',6,['','Có một ','Dm','người từng yêu em tha thiết vô bờ ','G','']],
+    ['Chorus 2',5,['','Em không là nàng ','C','thơ']],
+    ['Chorus 2',6,['','Anh ','G','cũng không ','E7','còn là nhạc ','Am7','sĩ mộng mơ']],
+    ['Chorus 2',5,['','Tình này nhẹ như ','Dm','gió']],
+    ['Chorus 2',6,['','Lại trĩu lên tim ta ','G','những vết hằn']],
+    ['Chorus 2',5,['','Tiếng yêu này mỏng ','C','manh']],
+    ['Chorus 2',6,['','Giờ tan ','Em7','vỡ, thôi ','Am7','cũng đành']],
+    ['Chorus 2',6,['Gm7','Xếp riêng ','C','những ngày ','F','tháng hồn nhiên ','Dm7','']],
+    ['Chorus 2',5,['','Trả ','G','hết cho ','C','em ','Em',' ','Am7',' ','Gm7',' ','C7',' ','F',' ','Dm7',' ','G',' ','A','']],
+    ['Final +1 Tone',5,['','Em không là nàng ','D','thơ']],
+    ['Final +1 Tone',6,['','Anh cũng ','F#m7','không còn là nhạc ','Bm7','sĩ mộng mơ']],
+    ['Final +1 Tone',5,['','Tình này nhẹ như ','Em','gió']],
+    ['Final +1 Tone',6,['','Lại trĩu lên tim ta ','A','những vết hằn']],
+    ['Final +1 Tone',5,['','Tiếng yêu này mỏng ','D','manh']],
+    ['Final +1 Tone',6,['','Giờ tan ','F#m7','vỡ, thôi ','Bm7','cũng đành']],
+    ['Final +1 Tone',6,['Am7','Xếp riêng ','D','những ngày ','G','tháng hồn nhiên ','Em7','']],
+    ['Final +1 Tone',8,['','Trả ','A','hết cho ','G','em ','A',' ','G',' ','A',' ','G',' ','C',' ','D','']]
+  ];
+
+  function transposeChord(ch){
+    const m=ch.match(/^([A-G])([#b]?)(.*)$/); if(!m) return ch;
+    const n=noteMap[m[1]+m[2]]; if(n===undefined) return ch;
+    return notes[(n+shift+12)%12]+m[3];
+  }
+  function isChord(v){return /^[A-G](?:#|b)?(?:m|maj|dim|aug|sus|add)?\d*(?:\/\w+)?$/.test(v)}
+  function renderParts(parts){return parts.map(v=>isChord(v)?'<span class="chord">'+transposeChord(v)+'</span>':v).join('')}
+
+  const rows=[]; let total=0;
+  raw.forEach((d,i)=>{const r={s:d[0],b:d[1],parts:d[2],start:total,i}; total+=r.b; r.end=total; rows.push(r)});
+
+  function renderSheet(){
+    sheet.innerHTML='';
+    let indices=[];
+    if(showAll) indices=rows.map((_,i)=>i);
+    else{
+      let start=Math.max(0,currentRow-2), end=Math.min(rows.length,start+5);
+      start=Math.max(0,end-5); for(let i=start;i<end;i++) indices.push(i);
+    }
+    let prev=null;
+    indices.forEach(i=>{
+      const r=rows[i];
+      if(r.s!==prev){const h=document.createElement('div');h.className='sectionLabel';h.textContent=r.s;sheet.appendChild(h);prev=r.s}
+      const wrap=document.createElement('div');wrap.className='lineWrap'+(i===currentRow?' active':'');
+      const num=document.createElement('div');num.className='num';num.textContent=(i+1)+'.';
+      const b=document.createElement('button');b.type='button';b.className='row'+(i===currentRow?' active':'');b.innerHTML=renderParts(r.parts);
+      b.addEventListener('click',()=>jumpToRow(i)); wrap.append(num,b); sheet.appendChild(wrap);
+    });
+    viewBtn.textContent=showAll?'↑ Show 5 lines':'↓ Show all';
+    topCollapseWrap.classList.toggle('show',showAll);
+  }
+
+  function updateRow(i){currentRow=Math.max(0,Math.min(rows.length-1,i));sectionLabel.textContent=rows[currentRow].s;lineLabel.textContent='Line '+(currentRow+1);renderSheet()}
+  function updateTime(){const sec=Math.round(songBeat*60/Number(bpm.value));position.textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}
+  function jumpToRow(i){songBeat=rows[i].start;updateRow(i);updateTime();status.textContent=playing&&!paused?'Đã nhảy tới Line '+(i+1)+'.':'Sẵn sàng từ Line '+(i+1)+'.';if(playing&&!paused){nextTime=ctx.currentTime+.08;quarter=songBeat%4}}
+  function changeKey(){shift=(Number(keySel.value)+12)%12;renderSheet()}
+
+  let ctx=null,master=null,noise=null,timer=null,playing=false,paused=false,nextTime=0,quarter=0,countIn=4,songBeat=0,visualTimers=[];
+  function setup(){
+    if(!ctx){
+      const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();master=ctx.createGain();master.gain.value=.7;master.connect(ctx.destination);
+      noise=ctx.createBuffer(1,Math.floor(ctx.sampleRate*.25),ctx.sampleRate);const d=noise.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+    }
+    return ctx.state==='suspended'?ctx.resume():Promise.resolve();
+  }
+  function kick(t,p=1){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.setValueAtTime(118,t);o.frequency.exponentialRampToValueAtTime(45,t+.12);g.gain.setValueAtTime(.65*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.2);o.connect(g);g.connect(master);o.start(t);o.stop(t+.21)}
+  function snare(t,p=1){const s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=1100;g.gain.setValueAtTime(.24*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.13);s.connect(hp);hp.connect(g);g.connect(master);s.start(t);s.stop(t+.14)}
+  function hat(t,p=1){const s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=6500;g.gain.setValueAtTime(.05*p,t);g.gain.exponentialRampToValueAtTime(.001,t+.04);s.connect(hp);hp.connect(g);g.connect(master);s.start(t);s.stop(t+.05)}
+  function click(t,strong){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=strong?1050:820;g.gain.setValueAtTime(strong?.15:.09,t);g.gain.exponentialRampToValueAtTime(.001,t+.04);o.connect(g);g.connect(master);o.start(t);o.stop(t+.05)}
+  function rowForBeat(b){for(let i=0;i<rows.length;i++)if(b>=rows[i].start&&b<rows[i].end)return i;return rows.length-1}
+  function visualBeat(beat,t,isCount){
+    const delay=Math.max(0,(t-ctx.currentTime)*1000);
+    visualTimers.push(setTimeout(()=>{
+      if(!playing||paused)return;
+      beatEls.forEach((el,i)=>el.classList.toggle('on',i===beat));
+      if(isCount) status.textContent='Count-in: '+(beat+1);
+      else{
+        const next=rowForBeat(songBeat); if(next!==currentRow) updateRow(next);
+        updateTime(); status.textContent='Line '+(currentRow+1)+' · Beat '+(beat+1); songBeat++;
+        if(songBeat>=total) stopToBeginning();
+      }
+    },delay));
+  }
+  function scheduleBeat(t){
+    const beat=quarter%4;
+    if(countIn>0){click(t,beat===0);visualBeat(beat,t,true);countIn--;quarter++;return}
+    const q=60/Number(bpm.value);hat(t,1);hat(t+q/2,.55);if(beat===0)kick(t,.95);if(beat===1||beat===3)snare(t,.85);if(beat===2)kick(t,.65);visualBeat(beat,t,false);quarter++;
+  }
+  function tick(){if(!playing||paused)return;const q=60/Math.max(50,Math.min(80,Number(bpm.value)||62));while(nextTime<ctx.currentTime+.12){scheduleBeat(nextTime);nextTime+=q}}
+
+  async function toggle(){
+    await setup();
+    if(!playing){playing=true;paused=false;countIn=4;quarter=songBeat%4;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';stopBtn.disabled=false;status.textContent='Chuẩn bị…';tick();timer=setInterval(tick,25);return}
+    if(!paused){paused=true;toggleBtn.textContent='▶ Play';status.textContent='Đã pause ở Line '+(currentRow+1)+'.';visualTimers.forEach(clearTimeout);visualTimers=[];return}
+    paused=false;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';status.textContent='Tiếp tục Line '+(currentRow+1)+'…';
+  }
+  function stopToBeginning(){
+    playing=false;paused=false;if(timer)clearInterval(timer);timer=null;visualTimers.forEach(clearTimeout);visualTimers=[];
+    songBeat=0;quarter=0;countIn=4;currentRow=0;position.textContent='0:00';sectionLabel.textContent='Intro';lineLabel.textContent='Line 1';
+    toggleBtn.textContent='▶ Play';stopBtn.disabled=true;beatEls.forEach(el=>el.classList.remove('on'));status.textContent='Đã dừng · trở về đầu bài.';renderSheet();
+  }
+
+  viewBtn.addEventListener('click',()=>{showAll=!showAll;renderSheet()});
+  topCollapse.addEventListener('click',()=>{showAll=false;renderSheet()});
+  keySel.addEventListener('change',changeKey);
+  bpm.addEventListener('input',()=>bpmLabel.textContent=bpm.value);
+  toggleBtn.addEventListener('click',toggle);
+  stopBtn.addEventListener('click',stopToBeginning);
+  changeKey();updateRow(0);
+
+  if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+})();
+</script>
+</body>
+</html>
