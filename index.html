@@ -504,6 +504,11 @@
   function voiceCode(voice){
     return {kick:11,snare:23,ghost:29,hat:37,openHat:41,tom:53,crash:67}[voice]||79;
   }
+  function notifyFollowDrumHit(voice,t,p){
+    if(typeof window.CustomEvent!=='function'||!ctx)return;
+    const perfMs=performance.now()+(t-ctx.currentTime)*1000;
+    window.dispatchEvent(new CustomEvent('guitar-drum-self-hit',{detail:{voice,time:perfMs,power:Number(p)||0}}));
+  }
   function humanHit(voice,t,p=1){
     const amount=humanAmount();
     const serial=humanHitSerial++;
@@ -524,7 +529,9 @@
       const accent=humanContext.beat%2===0?1.035:.965;
       velocity*=1+(accent-1)*amount;
     }
-    return {t:Math.max(ctx.currentTime+.002,t+timing/1000),p:Math.max(.05,p*velocity),r:r2};
+    const hit={t:Math.max(ctx.currentTime+.002,t+timing/1000),p:Math.max(.05,p*velocity),r:r2};
+    notifyFollowDrumHit(voice,hit.t,hit.p);
+    return hit;
   }
   function kick(t,p=1){const h=humanHit('kick',t,p),o=ctx.createOscillator(),g=ctx.createGain();const f=116+h.r*4;o.frequency.setValueAtTime(f,h.t);o.frequency.exponentialRampToValueAtTime(45,h.t+.12);g.gain.setValueAtTime(.65*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.2);o.connect(g);g.connect(master);o.start(h.t);o.stop(h.t+.21)}
   function snare(t,p=1){const h=humanHit('snare',t,p),s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=1020+h.r*180;g.gain.setValueAtTime(.24*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.13);s.connect(hp);hp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+.14)}
@@ -533,7 +540,7 @@
   function openHat(t,p=1){const h=humanHit('openHat',t,p),s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=4900+h.r*800;const decay=.19+h.r*.07;g.gain.setValueAtTime(.07*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+decay);s.connect(hp);hp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+decay+.02)}
   function tom(t,p=1,f=150){const h=humanHit('tom',t,p),o=ctx.createOscillator(),g=ctx.createGain();const hf=f*(.985+h.r*.03);o.frequency.setValueAtTime(hf,h.t);o.frequency.exponentialRampToValueAtTime(Math.max(70,hf*.62),h.t+.16);g.gain.setValueAtTime(.28*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.2);o.connect(g);g.connect(master);o.start(h.t);o.stop(h.t+.21)}
   function crash(t,p=1){const h=humanHit('crash',t,p),s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=3400+h.r*500;g.gain.setValueAtTime(.12*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.55);s.connect(hp);hp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+.58)}
-  function click(t,strong){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=strong?1050:820;g.gain.setValueAtTime(strong?.15:.09,t);g.gain.exponentialRampToValueAtTime(.001,t+.04);o.connect(g);g.connect(master);o.start(t);o.stop(t+.05)}
+  function click(t,strong){notifyFollowDrumHit('click',t,strong?.25:.16);const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=strong?1050:820;g.gain.setValueAtTime(strong?.15:.09,t);g.gain.exponentialRampToValueAtTime(.001,t+.04);o.connect(g);g.connect(master);o.start(t);o.stop(t+.05)}
   function rowForBeat(b){for(let i=0;i<rows.length;i++)if(b>=rows[i].start&&b<rows[i].end)return i;return rows.length-1}
   function sectionKind(name){
     const v=String(name||'').toLowerCase();
