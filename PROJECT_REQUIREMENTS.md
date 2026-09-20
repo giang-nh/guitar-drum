@@ -286,3 +286,16 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - New Auto-Tune suggestions must automatically invalidate/rerun the regression report.
 - New debug schema should capture enough onset-decision state (`rise`, required threshold, spectral gate, accept/reject flag) to improve future offline replay fidelity while remaining audio-free.
 - Older debug schemas must remain importable with conservative fallback behavior.
+
+
+## Performance Polish v2
+
+- Performance variation must remain downstream of the transport clock; it may not change BPM, bar boundaries, song position or planned section anchors.
+- Groove character should respond to arrangement section, Intensity, Human feel and, when available, live guitar energy/Follow Health.
+- Deterministic song-position seeding is preferred over runtime randomness so performance choices remain reproducible.
+- Health should modulate expressive density: GREEN may use full contextual variation, YELLOW should be more conservative, RED should avoid unnecessary ghost/extra-kick complexity while the core groove remains playable.
+- Ride/bell and rim/side-stick articulations may be used where musically appropriate, especially Interlude/airy/Outro contexts.
+- Ghost notes must stay low-volume and contextual; their density should rise with energy/Human feel but never become constant decoration.
+- Fill motifs must consider destination section in addition to size/variant. Chorus, Bridge and Outro should not all receive the same fill contour.
+- Any new synthesized drum voice must be added to Clean Mic self-hit modeling.
+- HOLD re-entry alignment must support a full 4/4 bar at the minimum supported tempo (50 BPM).
