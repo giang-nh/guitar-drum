@@ -133,3 +133,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** mic cleanup v1 uses the drum engine's own scheduled-hit metadata plus spectral/transient heuristics to estimate contamination. It never blindly masks the whole microphone window around a drum hit. Instead, likely self-drum/voice frames raise onset/chord thresholds while strong guitar evidence may still pass. Chord frames also require pitch-class diversity.
 
 **Reason:** guitar strums and drum hits intentionally coincide. A hard echo mask would remove exactly the guitar beats needed for tempo/downbeat tracking. Self-hit-aware soft rejection preserves those co-occurring strums while reducing the most obvious speaker-bleed and singing false positives without introducing a heavy source-separation model into the current static PWA.
+
+
+## D021 — Tune bằng telemetry, không ghi audio
+
+**Decision:** real-device tuning uses a bounded local telemetry recorder rather than recording microphone audio. The session samples detector/fusion metrics at ~4 Hz, logs state changes and explicit user marks, and exports a versioned JSON file only when the user asks.
+
+**Reason:** most POC failures are threshold/timing/state-machine problems that can be diagnosed from confidence, spectral, transport and decision traces. Numeric telemetry is smaller, easier to inspect across agents, and avoids collecting unnecessary audio while still preserving enough evidence to tune the system on the actual iPad hardware.
