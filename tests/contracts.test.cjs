@@ -108,3 +108,26 @@ test('debug export cache version matches service-worker cache version',()=>{
   assert.ok(cache&&debug);
   assert.equal(debug,cache);
 });
+
+
+test('guided Validation Session is wired into Developer telemetry',()=>{
+  for(const token of [
+    'VALIDATION_STEPS',
+    'gdValidationOpen',
+    'validation-step-start',
+    'validation-step-end',
+    'core.validationWindowMetrics',
+    'core.validationStepStatus',
+    'core.buildValidationReport',
+    'addValidationToRegression'
+  ]) assert.ok(follow.includes(token),token);
+  assert.ok(follow.includes("label:'validation:'"));
+  assert.ok(follow.includes('validation:validationReport?'));
+});
+
+test('validation core is shared with runtime rather than duplicated report scoring',()=>{
+  for(const token of ['validationWindowMetrics','validationStepStatus','buildValidationReport']){
+    assert.ok(core.includes('function '+token),token);
+    assert.ok(follow.includes('core.'+token),token);
+  }
+});
