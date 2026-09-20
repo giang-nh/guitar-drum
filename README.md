@@ -28,3 +28,6 @@ On iPad: open the site in Safari → Share → Add to Home Screen.
 
 ## Notes
 This prototype is entirely client-side. No backend or database is required.
+
+
+Deployment workflow is configured in `.github/workflows/pages.yml`.
