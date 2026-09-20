@@ -93,9 +93,19 @@
     .helpStep strong{display:block;margin-bottom:3px}
     .helpStep p{margin:0;color:var(--muted);font-size:14px;line-height:1.45}
     .helpQuick{margin-top:12px;padding:12px 14px;border-radius:14px;background:var(--accent-bg);font-weight:750;line-height:1.45}
-    .helpTrouble{margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+    .helpSection{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+    .helpSection h3{font-size:16px;margin:0 0 8px}
+    .helpSection p{margin:0 0 8px;color:var(--muted);font-size:13px;line-height:1.5}
+    .helpBullets{margin:7px 0 0;padding-left:20px;color:var(--muted);font-size:13px;line-height:1.5}
+    .helpBullets li{margin:5px 0}
+    .helpModes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+    .helpMode{padding:10px 11px;border-radius:12px;background:var(--panel);font-size:12px;line-height:1.45}
+    .helpMode strong{display:block;margin-bottom:3px;color:var(--text)}
+    .helpHealth{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+    .helpBadge{display:inline-block;padding:4px 7px;border-radius:999px;background:var(--panel);border:1px solid var(--border);font-size:11px;font-weight:800}
+    .helpTrouble{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
     .helpTrouble strong{display:block;margin-bottom:5px}
-    .helpTrouble p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
+    .helpTrouble p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
     body.helpOpen{overflow:hidden}
     @media(max-width:520px){
       .utilityBar{grid-template-columns:minmax(0,1fr) auto;gap:8px}
@@ -103,6 +113,7 @@
       .helpModal{padding:8px}
       .helpPanel{padding:14px;border-radius:18px 18px 12px 12px}
       .helpHeader{top:-14px;padding-top:14px}
+      .helpModes{grid-template-columns:1fr}
     }
     @media(max-width:800px){.controls{grid-template-columns:1fr 1fr}}
     @media(max-width:700px){
@@ -197,38 +208,96 @@
     <section class="helpPanel" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
       <div class="helpHeader">
         <div>
-          <div class="helpEyebrow">HƯỚNG DẪN NHANH</div>
-          <h2 id="helpTitle">Chơi ngay trong 5 bước</h2>
+          <div class="helpEyebrow">HƯỚNG DẪN MỚI NHẤT</div>
+          <h2 id="helpTitle">Chơi guitar cùng drummer</h2>
         </div>
         <button id="helpClose" class="helpCloseBtn" type="button" aria-label="Đóng hướng dẫn">×</button>
       </div>
-      <p class="helpIntro">Mục tiêu: chọn bài, chọn tone dễ hát/dễ bấm, rồi để drummer đệm trong lúc bạn đàn guitar và hát.</p>
+
+      <p class="helpIntro">Cách đơn giản nhất là chọn bài → chọn Tone/Capo → chọn dòng bắt đầu → bấm Play. Nếu muốn drummer thật sự nghe cách bạn đang đàn, bật <b>🎙 Auto Follow</b>.</p>
+
       <ol class="helpSteps">
         <li class="helpStep">
           <span class="helpStepNum">1</span>
-          <div><strong>Chọn bài hát</strong><p>Chọn bài ở đầu màn hình. App nạp lời, hợp âm, tempo và drum arrangement của bài đó.</p></div>
+          <div><strong>Chọn bài hát</strong><p>Chọn bài ở đầu màn hình. App nạp lời, hợp âm, tempo, section và drum arrangement riêng của bài.</p></div>
         </li>
         <li class="helpStep">
           <span class="helpStepNum">2</span>
-          <div><strong>Chọn Tone</strong><p>Nếu đã biết tone, chọn ngay trong ô Tone. Nếu chưa biết, bấm <b>🎙 Tìm tone giọng</b> → <b>🎙 Bắt đầu nghe</b>, hát hoặc đàn một đoạn rồi xem kết quả.</p></div>
+          <div><strong>Chọn Tone và Capo</strong><p>Nếu biết tone, chọn trực tiếp trong ô <b>Tone</b>. Nếu chưa biết, bấm <b>🎙 Tìm tone giọng</b> → <b>🎙 Bắt đầu nghe</b>. Bấm <b>🎸 Tone + Capo</b> để chọn chord shape dễ bấm và vị trí capo. Khi mở mic tìm tone, Auto Follow sẽ tạm dừng để tránh hai chức năng dùng mic cùng lúc.</p></div>
         </li>
         <li class="helpStep">
           <span class="helpStepNum">3</span>
-          <div><strong>Chọn Capo nếu muốn hợp âm dễ bấm</strong><p>Bấm <b>🎸 Tone + Capo</b>, chọn một gợi ý. App sẽ đổi chord shape trên màn hình và cho biết capo cần gắn.</p></div>
+          <div><strong>Chọn chỗ muốn tập</strong><p>Chạm vào bất kỳ dòng lời/hợp âm nào để nhảy tới đó. Dùng <b>Show all</b> để xem toàn bài; chế độ thường giữ phần đang chơi gọn hơn.</p></div>
         </li>
         <li class="helpStep">
           <span class="helpStepNum">4</span>
-          <div><strong>Chỉnh drummer</strong><p>Tempo = tốc độ. Intensity = mạnh/nhẹ. Human feel = độ tự nhiên. Nút <b>🥁 Fill</b> sẽ xếp fill vào đầu ô nhịp kế tiếp.</p></div>
+          <div><strong>Chỉnh drummer</strong><p><b>Tempo</b> = tốc độ. <b>Intensity 1–5</b> = lực đánh. <b>Human feel</b> = mức tự nhiên/micro-timing. <b>🥁 Fill</b> xếp một fill vào đầu ô nhịp kế tiếp; app cũng có thể tự fill trước section cao trào.</p></div>
         </li>
         <li class="helpStep">
           <span class="helpStepNum">5</span>
-          <div><strong>Bấm Play và chơi</strong><p>Muốn bắt đầu ở dòng nào thì chạm dòng đó trước. Bấm <b>▶ Play</b>, theo nhịp 1–2–3–4 rồi đàn và hát. <b>■ Stop</b> sẽ đưa bài về đầu.</p></div>
+          <div><strong>Bật Auto Follow nếu muốn drummer nghe bạn</strong><p>Bấm <b>🎙 Bật Auto Follow</b> và cho phép microphone. Ở Playing Mode, app tự phản ứng theo lực đàn; khi tín hiệu đủ chắc, nó còn có thể bám BPM, beat 1, section và chuỗi hợp âm.</p></div>
+        </li>
+        <li class="helpStep">
+          <span class="helpStepNum">6</span>
+          <div><strong>Bấm Play và chơi tự nhiên</strong><p>Bấm <b>▶ Play</b>, nghe count-in 1–2–3–4 rồi đàn/hát. <b>Pause</b> giữ vị trí; <b>■ Stop</b> về đầu bài. Khi Auto Follow đang chạy, app có thể giảm trống khi bạn ngừng, HOLD khi nghỉ lâu và bắt lại ở beat 1 khi bạn chơi tiếp.</p></div>
         </li>
       </ol>
-      <div class="helpQuick">Nhớ nhanh: <b>Chọn bài → Tone/Capo → chỉnh Drum → Play → đàn & hát.</b></div>
+
+      <div class="helpQuick">Dùng hàng ngày: <b>Chọn bài → Tone/Capo → chọn dòng → Auto Follow (nếu cần) → Play → đàn & hát.</b></div>
+
+      <div class="helpSection">
+        <h3>🎸 Playing Mode và Developer Mode</h3>
+        <p>Mặc định app dùng <b>Playing Mode</b> để màn hình gọn khi đang cầm đàn. Phần Auto Follow chỉ hiện trạng thái quan trọng như Health, section/phrase và kế hoạch chuyển đoạn.</p>
+        <div class="helpModes">
+          <div class="helpMode"><strong>Playing Mode</strong>Dùng để chơi thật. Chỉ cần bật/tắt Auto Follow và nhìn summary.</div>
+          <div class="helpMode"><strong>Developer</strong>Bấm nút <b>Developer</b> để mở meter, detector, Calibration, Debug, Auto‑Tune và Regression. Bấm <b>Playing mode</b> để thu gọn lại.</div>
+        </div>
+      </div>
+
+      <div class="helpSection">
+        <h3>🤖 Auto Follow đang làm gì?</h3>
+        <ul class="helpBullets">
+          <li><b>Dynamics:</b> đàn nhẹ → drummer nhẹ; đàn mạnh → drummer tăng Intensity.</li>
+          <li><b>Follow BPM:</b> ước lượng tempo từ các cú quạt và chỉ kéo BPM từ từ khi đủ ổn định.</li>
+          <li><b>Sync beat 1:</b> tìm downbeat của ô nhịp và chỉ re-sync khi confidence đủ cao.</li>
+          <li><b>Follow section:</b> dự đoán section kế tiếp trong cấu trúc đã biết và có thể chuẩn bị fill trước khi chuyển đoạn.</li>
+          <li><b>Follow chords:</b> dùng chuỗi hợp âm để xác nhận vị trí bài; progression mơ hồ sẽ không tự nhảy.</li>
+          <li><b>Phrase-aware drummer:</b> drummer biết vị trí trong phrase <b>P x/y</b>, build dần qua phrase, nâng nhẹ Chorus sau và giảm dần ở Outro.</li>
+          <li><b>Stop / Resume:</b> nghỉ ngắn → trống mỏng đi; nghỉ lâu → HOLD; khi đàn lại, app chờ tín hiệu nhịp đủ chắc rồi REJOIN ở beat 1.</li>
+          <li><b>Predictive Plan:</b> khi dấu hiệu chuyển đoạn đủ chắc, app có thể arm trước, đánh fill ở bar cuối rồi đáp đúng đầu section mới.</li>
+        </ul>
+      </div>
+
+      <div class="helpSection">
+        <h3>🟢 Follow Health</h3>
+        <p>Health quyết định app được phép tự động tới mức nào. Đây là cơ chế an toàn, không phải điểm chấm khả năng chơi guitar.</p>
+        <div class="helpHealth">
+          <span class="helpBadge">GREEN · Full Auto</span>
+          <span class="helpBadge">YELLOW · Safe Follow</span>
+          <span class="helpBadge">RED · Manual Safe</span>
+        </div>
+        <ul class="helpBullets">
+          <li><b>GREEN:</b> có thể dùng đầy đủ automation khi evidence ổn.</li>
+          <li><b>YELLOW:</b> vẫn follow nhưng bảo thủ hơn; chặn harmonic re-position và big fill rủi ro.</li>
+          <li><b>RED:</b> chặn các action tự động rủi ro; bạn vẫn điều khiển tay và cơ chế THIN/HOLD an toàn vẫn hoạt động.</li>
+        </ul>
+      </div>
+
+      <div class="helpSection">
+        <h3>🧰 Các công cụ trong Developer</h3>
+        <ul class="helpBullets">
+          <li><b>Độ nhạy mic:</b> chỉ chỉnh khi guitar quá khó bắt hoặc mic bắt quá nhiều tiếng ngoài.</li>
+          <li><b>Clean mic:</b> nên để ON khi phát drum bằng loa iPad; app cố loại tiếng drum tự phát và giảm trigger từ giọng hát.</li>
+          <li><b>Mic Calibration:</b> bấm <b>Calibrate</b> và làm 5 bước <b>Quiet → Drum only → Guitar only → Voice only → Full mix</b>. Profile được lưu trên thiết bị.</li>
+          <li><b>Record debug:</b> bấm <b>● Record debug</b>; khi app quyết định sai bấm <b>⚑ Mark</b>; cuối buổi dùng <b>↗ Export JSON</b>. Debug chỉ ghi telemetry/state, <b>không ghi audio</b>.</li>
+          <li><b>Auto‑Tune:</b> dùng <b>✨ Analyze marks</b> hoặc <b>Import JSON</b> để nhận đề xuất Mic Profile. App chỉ thay đổi khi bạn bấm <b>Apply suggestion</b>; có <b>Undo tune</b>.</li>
+          <li><b>Regression:</b> dùng <b>Load regression sessions</b> + <b>Replay suite</b> để kiểm tra đề xuất mới trên các session cũ. Nếu có regression đáng kể, Apply có thể bị chặn.</li>
+        </ul>
+      </div>
+
       <div class="helpTrouble">
-        <strong>Nếu drummer chưa khớp</strong>
-        <p>Đánh đều vài nhịp để tạo pulse rõ. Có thể Pause rồi Play lại; nếu muốn làm lại từ đầu thì dùng Stop. Khi dùng tính năng nghe microphone/Auto Follow, tránh đặt iPad quá sát loa để giảm tiếng drum lọt ngược vào mic.</p>
+        <strong>Nếu app follow chưa đúng</strong>
+        <p>Giữ <b>Clean mic</b> ON, đặt iPad sao cho mic nghe guitar rõ nhưng không quá sát loa, rồi chạy <b>Mic Calibration</b>. Nếu vị trí bài bị sai, chạm trực tiếp vào dòng đúng — thao tác tay sẽ ưu tiên hơn pending AI transition. Nếu Health đang RED, hãy tiếp tục chơi đều vài ô nhịp hoặc chuyển sang điều khiển tay; RED chủ động chặn automation rủi ro. Nếu tone giọng khó nhận, thử một đoạn rõ hơn hoặc chọn Tone thủ công.</p>
       </div>
     </section>
   </div>
