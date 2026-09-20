@@ -73,7 +73,9 @@ Các bài mới sẽ tiếp tục được thêm vào cùng cấu trúc này.
 - Follow guitar phải dùng smoothing/hysteresis/hold time để không đổi groove lực theo từng cú quạt riêng lẻ.
 - Auto Follow có **Tempo Follow (POC)** tùy chọn: dùng onset guitar gần đây để ước lượng BPM + confidence, chỉ cập nhật khi candidate đủ ổn định và phải glide từ từ thay vì nhảy BPM.
 - Tempo Follow phải cho phép tắt riêng để user vẫn dùng dynamics follow mà giữ BPM thủ công.
-- POC hiện follow **dynamics + tempo**, nhưng downbeat/beat 1 và section vẫn theo song map hiện tại. Downbeat/bar sync là bước nâng cấp kế tiếp.
+- Auto Follow có **Beat-1 / Bar Sync (POC)**: từ accent/onset pattern 4/4, app có thể suy ra downbeat khi confidence cao và phase ổn định nhiều giây; chỉ nudge timing nhẹ và re-index beat counter, không được nhảy song position.
+- Beat-1 sync phải fail-safe: nếu pattern không đủ rõ, hiển thị learning/low confidence và không tự can thiệp.
+- POC hiện follow **dynamics + tempo + bar phase**; section/song position vẫn theo song map hiện tại. Section following là bước nâng cấp kế tiếp.
 
 ## 7. Điều khiển khi tập
 
