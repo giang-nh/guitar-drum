@@ -52,6 +52,7 @@
   const ui = buildUi();
   restoreSettings();
   renderState('silent', 0, -80, 0);
+  renderTempo();
   attachListeners();
 
   function injectStyles() {
@@ -331,6 +332,7 @@
 
   function resetTempoTracking() {
     onsetTimes = [];
+    if (ui?.strums) ui.strums.dataset.rate = '0';
     tempoEstimate = null;
     tempoConfidence = 0;
     tempoCandidate = null;
