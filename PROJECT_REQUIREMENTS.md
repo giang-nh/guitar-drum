@@ -61,10 +61,12 @@ Các bài mới sẽ tiếp tục được thêm vào cùng cấu trúc này.
 - Beat hiện tại phải sáng rõ để người chơi nhìn được nhịp.
 - Khi bấm Play từ đầu hoặc từ một dòng, có **count-in 4 beat** trước khi vào bài.
 - Drum dùng Web Audio với kick, snare, hi-hat và các accent bổ sung như open hi-hat, tom, crash.
-- Drummer tự chọn groove theo section hiện tại: Intro nhẹ, Verse giữ pocket, Pre-chorus build, Chorus mạnh hơn, Bridge half-time, Interlude mở hơn, Outro hạ động lực.
-- Có **Intensity 1–5** để người dùng chỉnh lực chơi mà không đổi BPM.
-- Có nút **Fill**; khi đang Play, fill được queue và bắt đầu ở đầu ô nhịp 4/4 kế tiếp.
-- Khi chuyển loại section, engine có accent/fill ngắn để chuyển đoạn tự nhiên hơn.
+- Drummer có fallback groove theo section hiện tại: Intro nhẹ, Verse giữ pocket, Pre-chorus build, Chorus mạnh hơn, Bridge half-time, Interlude mở hơn, Outro hạ động lực.
+- Mỗi bài có **arrangement riêng theo exact section name** để định nghĩa pattern, gain/độ mạnh, label và section nào cần auto-fill.
+- Có **Intensity 1–5** để người dùng chỉnh lực chơi mà không đổi BPM; intensity được nhân với gain của arrangement.
+- Có nút **Fill**; khi đang Play, fill thủ công được queue và bắt đầu ở đầu ô nhịp 4/4 kế tiếp.
+- Với section được đánh dấu auto-fill, engine tự bắt đầu fill 4 beat trước section đó để fill kết thúc đúng lúc vào Chorus/cao trào.
+- Khi chuyển section mà không có fill, engine có accent ngắn để chuyển đoạn tự nhiên hơn.
 - Mỗi bài hiện có một style mặc định: Acoustic Pop / Soft Ballad / Acoustic Ballad.
 - Drum phải chạy đồng bộ với BPM và dòng lời hiện tại.
 
@@ -143,7 +145,8 @@ Repo hiện đã có prototype chạy client-side với:
 - Transpose hợp âm.
 - Tempo control.
 - Drummer 4/4 bằng Web Audio, tự đổi groove theo section.
-- Intensity 1–5 và queued Fill.
+- Per-section arrangement riêng cho 3 bài hiện tại.
+- Intensity 1–5, queued Fill thủ công và auto-fill trước Chorus/cao trào.
 - Count-in.
 - Visual 4 beat.
 - Play/Pause/Stop.
