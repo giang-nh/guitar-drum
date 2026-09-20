@@ -17,10 +17,14 @@ Prototype hiện đã có:
 - BPM slider;
 - 4-beat visual indicator;
 - section-aware Web Audio drummer với kick/snare/closed-open hi-hat/tom/crash;
-- per-song drum style cho 3 bài hiện tại;
+- per-song drum style và per-section arrangement cho 3 bài hiện tại;
+- Nàng Thơ có build riêng qua Intro → Verse → Tiền ĐK → Chorus → Interlude → Final;
+- Quê Xa giữ Soft Ballad và tăng lực dần giữa các Verse/Điệp khúc;
+- Giấc Mơ Tình Yêu chuyển từ verse mềm sang full ballad ở Điệp khúc và half-time ở Bridge;
 - Intensity 1–5;
-- queued Fill ở đầu ô nhịp kế tiếp;
-- transition accent khi đổi loại section;
+- queued Fill thủ công ở đầu ô nhịp kế tiếp;
+- auto-fill 4 beat trước Chorus/cao trào đã đánh dấu;
+- transition accent khi đổi section không dùng fill;
 - 4-beat count-in;
 - Play/Pause/Stop;
 - click/tap row to jump;
@@ -69,7 +73,7 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 - nhập thêm bài hát từ nguồn của người dùng;
 - kiểm tra độ chính xác lời/hợp âm;
 - tinh chỉnh beat count cho playback;
-- test cảm giác drummer trên iPad khi vừa đàn acoustic vừa hát, đặc biệt mức Intensity và thời điểm Fill;
+- test cảm giác drummer trên iPad khi vừa đàn acoustic vừa hát, đặc biệt auto-fill vào Chorus, mức Intensity và balance giữa Verse/Chorus;
 - cải thiện workflow import OneNote khi connector phù hợp có sẵn;
 - chỉ refactor code khi complexity thực sự cản trở việc thêm/chỉnh bài.
 
@@ -78,7 +82,7 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 - chưa có automated tests;
 - song data và app logic cùng nằm trong `index.html`;
 - beat timing là thủ công;
-- drummer hiện dùng rule-based section patterns, chưa bám arrangement gốc và chưa follow tempo trực tiếp từ guitar;
+- drummer hiện có arrangement thủ công riêng cho 3 bài, nhưng chưa được phân tích từ bản thu gốc và chưa follow tempo trực tiếp từ guitar;
 - không có cloud sync;
 - không có in-app editor;
 - không có in-app OneNote integration;
