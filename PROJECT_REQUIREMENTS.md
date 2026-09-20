@@ -171,3 +171,13 @@ Repo hiện đã có prototype chạy client-side với:
 - Cấu hình deploy GitHub Pages.
 
 Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác hơn từ dữ liệu người dùng** và **tự động hóa việc đọc/import từ OneNote khi connector Microsoft hỗ trợ**.
+
+
+## Sensor Fusion / PerformanceState
+
+- Các detector dynamics, tempo, beat-1/bar, section và harmonic position chỉ được cung cấp evidence; không detector nào tự thay đổi song position trực tiếp.
+- Một `PerformanceState` trung tâm phải tổng hợp confidence/margin/continuity và là authority duy nhất cho `fill/section transition` hoặc `harmonic re-anchor`.
+- Harmonic re-anchor chỉ được phép khi raw best match và fused best candidate trùng đúng cùng row/beat, candidate ổn định đủ lâu, bar/tempo đã lock và sequence không ambiguous.
+- Strong harmonic evidence mâu thuẫn với predicted next section phải chặn section transition thay vì để hai subsystem cạnh tranh.
+- Repeated progression phải chuyển sang trạng thái ambiguous và giữ vị trí hiện tại.
+- Shared action cooldown phải ngăn hai transport action xảy ra sát nhau.
