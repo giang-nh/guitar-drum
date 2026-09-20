@@ -6,6 +6,7 @@
   const intensityLabel = document.querySelector('#intensityLabel');
   const bpmInput = document.querySelector('#bpm');
   const bpmLabel = document.querySelector('#bpmLabel');
+  const humanizeInput = document.querySelector('#humanize');
   const drummer = document.querySelector('.drummer');
   if (!intensity || !bpmInput || !drummer) return;
 
@@ -55,6 +56,9 @@
   const SELF_HIT_HISTORY_MS = 900;
   const SELF_HIT_PRE_MS = 35;
   const INPUT_CLASS_HOLD_MS = 420;
+  const TELEMETRY_SAMPLE_MS = 250;
+  const TELEMETRY_MAX_SAMPLES = 7200;
+  const TELEMETRY_MAX_EVENTS = 1200;
   const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const NOTES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
   const NOTE_MAP = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
@@ -127,6 +131,13 @@
   let inputClassSince = 0;
   let acceptedOnsets = 0;
   let rejectedOnsets = 0;
+  let telemetryRecording = false;
+  let telemetryStartedAt = 0;
+  let telemetryStartedIso = null;
+  let telemetrySamples = [];
+  let telemetryEvents = [];
+  let telemetryLastSampleAt = 0;
+  let telemetryLastSignature = '';
 
   injectStyles();
   const ui = buildUi();
@@ -163,6 +174,11 @@
       .gd-follow-tempo-option{display:flex!important;align-items:center;gap:7px;min-height:40px;padding:0 10px;border:1px solid var(--border);border-radius:10px;background:var(--card);white-space:nowrap;font-weight:750!important}
       .gd-follow-tempo-option input{width:18px;height:18px;margin:0}
       .gd-follow-hint{margin-top:8px;color:var(--muted);font-size:11px;line-height:1.4}
+      .gd-debug{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+      .gd-debug-row{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+      .gd-debug-row button{min-height:36px;padding:0 10px;font-size:11px}
+      .gd-debug-status{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+      .gd-debug-note{margin-top:6px;font-size:10px;color:var(--muted);line-height:1.35}
       @media(max-width:560px){
         .gd-follow-stats{grid-template-columns:repeat(2,1fr)}
         .gd-follow-controls{grid-template-columns:1fr}
@@ -209,6 +225,15 @@
         <label class="gd-follow-tempo-option" for="gdCleanInput"><input id="gdCleanInput" type="checkbox" checked /> Clean mic</label>
       </div>
       <div id="gdFollowHint" class="gd-follow-hint">POC: Clean mic dùng self-drum timing + spectral transient gate để giảm tiếng drum từ loa và giọng hát kích nhầm onset/chord. Nếu guitar bị bỏ sót, có thể tắt Clean mic để A/B.</div>
+      <div class="gd-debug">
+        <div class="gd-debug-row">
+          <button type="button" id="gdDebugRecord">● Record debug</button>
+          <button type="button" id="gdDebugMark" disabled>⚑ Mark</button>
+          <button type="button" id="gdDebugExport" disabled>↗ Export JSON</button>
+          <span id="gdDebugStatus" class="gd-debug-status">chưa ghi session</span>
+        </div>
+        <div class="gd-debug-note">Chỉ ghi telemetry/state; không ghi hoặc lưu audio. Dữ liệu ở local cho tới khi bạn chủ động Export.</div>
+      </div>
     `;
     const hint = drummer.querySelector('.drumHint');
     if (hint) hint.insertAdjacentElement('afterend', host);
@@ -243,6 +268,10 @@
       sectionToggle: host.querySelector('#gdSectionFollow'),
       harmonicToggle: host.querySelector('#gdHarmonicFollow'),
       cleanInputToggle: host.querySelector('#gdCleanInput'),
+      debugRecord: host.querySelector('#gdDebugRecord'),
+      debugMark: host.querySelector('#gdDebugMark'),
+      debugExport: host.querySelector('#gdDebugExport'),
+      debugStatus: host.querySelector('#gdDebugStatus'),
       hint: host.querySelector('#gdFollowHint')
     };
   }
@@ -253,6 +282,9 @@
       else startListening();
     });
     ui.sensitivity.addEventListener('input', saveSettings);
+    ui.debugRecord.addEventListener('click', toggleTelemetryRecording);
+    ui.debugMark.addEventListener('click', () => recordTelemetryEvent('manual-mark',{label:'user-mark'}));
+    ui.debugExport.addEventListener('click', exportTelemetry);
     ui.tempoToggle.addEventListener('change', () => {
       saveSettings();
       resetTempoTracking();
@@ -510,6 +542,274 @@
     renderFusion();
     renderPlan();
     renderInput();
+    recordTelemetryFrame(ts, db);
+    renderTelemetryStatus(ts);
+  }
+
+  function round(value,digits=3) {
+    if(!Number.isFinite(Number(value)))return null;
+    const p=Math.pow(10,digits);
+    return Math.round(Number(value)*p)/p;
+  }
+
+  function telemetrySnapshot(now=performance.now(),db=null) {
+    const transport=api.getTransport?.()||{};
+    const song=api.getCurrentSong?.()||{};
+    return {
+      t:telemetryStartedAt?Math.round(now-telemetryStartedAt):0,
+      song:{id:song.id||'',title:song.title||''},
+      transport:{
+        playing:Boolean(transport.playing),
+        paused:Boolean(transport.paused),
+        songBeat:Number.isFinite(transport.songBeat)?transport.songBeat:null,
+        row:Number.isFinite(transport.currentRow)?transport.currentRow:null,
+        section:transport.currentSection||'',
+        bpm:Number.isFinite(transport.bpm)?transport.bpm:null,
+        followMode:transport.followSilenceMode||'',
+        held:Boolean(transport.followHeld)
+      },
+      mic:{
+        db:db==null?null:round(db,1),
+        energy:round(smoothedEnergy),
+        state:currentState,
+        inputClass,
+        clean:Boolean(ui.cleanInputToggle.checked),
+        acceptedOnsets,
+        rejectedOnsets,
+        flux:round(spectralFrame.flux),
+        flatness:round(spectralFrame.flatness),
+        low:round(spectralFrame.lowRatio),
+        mid:round(spectralFrame.midRatio),
+        high:round(spectralFrame.highRatio),
+        drumPenalty:round(spectralFrame.drumPenalty),
+        voiceLike:round(spectralFrame.voiceLike),
+        guitarEvidence:round(spectralFrame.guitarEvidence)
+      },
+      tempo:{
+        estimate:round(tempoEstimate,1),
+        confidence:round(tempoConfidence),
+        barConfidence:round(barConfidence),
+        barStable:Boolean(barCandidateSince&&now-barCandidateSince>=BAR_STABLE_MS)
+      },
+      chord:{
+        current:currentChord?.symbol||null,
+        confidence:round(currentChord?.confidence),
+        matchConfidence:round(harmonicMatch?.confidence),
+        matchMargin:round(harmonicMatch?.margin),
+        targetRow:Number.isFinite(harmonicMatch?.target?.rowIndex)?harmonicMatch.target.rowIndex:null,
+        targetSection:harmonicMatch?.target?.section||null
+      },
+      section:{
+        next:sectionPrediction?.next?.name||null,
+        confidence:round(sectionPrediction?.confidence),
+        beatsAway:Number.isFinite(sectionPrediction?.beatsAway)?round(sectionPrediction.beatsAway,1):null,
+        trend:round(sectionPrediction?.trend)
+      },
+      fusion:{
+        mode:performanceState?.mode||'',
+        confidence:round(performanceState?.confidence),
+        reason:performanceState?.reason||'',
+        target:performanceState?.target?.section||performanceState?.target?.name||null
+      },
+      plan:{
+        mode:transitionPlan?.mode||'',
+        confidence:round(transitionPlan?.confidence),
+        reason:transitionPlan?.reason||'',
+        target:transitionPlan?.target?.name||transitionPlan?.target?.section||null,
+        beatsAway:Number.isFinite(transitionPlan?.beatsAway)?round(transitionPlan.beatsAway,1):null,
+        fillStyle:transitionPlan?.fillStyle||null
+      },
+      controls:{
+        intensity:Number(intensity.value)||0,
+        humanFeel:Number(humanizeInput?.value)||0,
+        sensitivity:Number(ui.sensitivity.value)||0
+      }
+    };
+  }
+
+  function telemetrySignature(snapshot) {
+    return [
+      snapshot.mic.inputClass,
+      snapshot.mic.state,
+      snapshot.fusion.mode,
+      snapshot.plan.mode,
+      snapshot.chord.current||'',
+      snapshot.transport.followMode,
+      snapshot.transport.section
+    ].join('|');
+  }
+
+  function resetTelemetryData() {
+    telemetrySamples=[];
+    telemetryEvents=[];
+    telemetryLastSampleAt=0;
+    telemetryLastSignature='';
+  }
+
+  function startTelemetryRecording() {
+    resetTelemetryData();
+    telemetryRecording=true;
+    telemetryStartedAt=performance.now();
+    telemetryStartedIso=new Date().toISOString();
+    ui.debugRecord.textContent='■ Stop debug';
+    ui.debugMark.disabled=false;
+    ui.debugExport.disabled=true;
+    recordTelemetryEvent('session-start',{
+      settings:{
+        cleanInput:Boolean(ui.cleanInputToggle.checked),
+        tempoFollow:Boolean(ui.tempoToggle.checked),
+        barFollow:Boolean(ui.barToggle.checked),
+        sectionFollow:Boolean(ui.sectionToggle.checked),
+        harmonicFollow:Boolean(ui.harmonicToggle.checked)
+      }
+    });
+    renderTelemetryStatus();
+  }
+
+  function stopTelemetryRecording() {
+    if(!telemetryRecording)return;
+    recordTelemetryEvent('session-stop');
+    telemetryRecording=false;
+    ui.debugRecord.textContent='● Record debug';
+    ui.debugMark.disabled=true;
+    ui.debugExport.disabled=telemetrySamples.length===0&&telemetryEvents.length===0;
+    renderTelemetryStatus();
+  }
+
+  function toggleTelemetryRecording() {
+    if(telemetryRecording)stopTelemetryRecording();
+    else startTelemetryRecording();
+  }
+
+  function recordTelemetryEvent(type,payload={}) {
+    if(!telemetryRecording&&type!=='session-stop')return;
+    const now=performance.now();
+    const event={
+      t:telemetryStartedAt?Math.round(now-telemetryStartedAt):0,
+      type:String(type),
+      payload,
+      snapshot:telemetrySnapshot(now)
+    };
+    telemetryEvents.push(event);
+    if(telemetryEvents.length>TELEMETRY_MAX_EVENTS)telemetryEvents.shift();
+    renderTelemetryStatus(now);
+  }
+
+  function recordTelemetryFrame(now,db) {
+    if(!telemetryRecording)return;
+    if(now-telemetryLastSampleAt>=TELEMETRY_SAMPLE_MS){
+      telemetryLastSampleAt=now;
+      const snapshot=telemetrySnapshot(now,db);
+      telemetrySamples.push(snapshot);
+      if(telemetrySamples.length>TELEMETRY_MAX_SAMPLES)telemetrySamples.shift();
+
+      const signature=telemetrySignature(snapshot);
+      if(telemetryLastSignature&&signature!==telemetryLastSignature){
+        telemetryEvents.push({
+          t:Math.round(now-telemetryStartedAt),
+          type:'state-change',
+          payload:{from:telemetryLastSignature,to:signature},
+          snapshot
+        });
+        if(telemetryEvents.length>TELEMETRY_MAX_EVENTS)telemetryEvents.shift();
+      }
+      telemetryLastSignature=signature;
+    }
+  }
+
+  function telemetryDurationMs(now=performance.now()) {
+    if(!telemetryStartedAt)return 0;
+    if(telemetryRecording)return Math.max(0,now-telemetryStartedAt);
+    const lastSample=telemetrySamples[telemetrySamples.length-1];
+    const lastEvent=telemetryEvents[telemetryEvents.length-1];
+    return Math.max(Number(lastSample?.t)||0,Number(lastEvent?.t)||0);
+  }
+
+  function formatDuration(ms) {
+    const sec=Math.floor(Math.max(0,ms)/1000);
+    const m=Math.floor(sec/60),s=sec%60;
+    return m+':'+String(s).padStart(2,'0');
+  }
+
+  function renderTelemetryStatus(now=performance.now()) {
+    if(!ui.debugStatus)return;
+    if(!telemetryStartedAt){
+      ui.debugStatus.textContent='chưa ghi session';
+      return;
+    }
+    ui.debugStatus.textContent=
+      (telemetryRecording?'REC ':'')+
+      formatDuration(telemetryDurationMs(now))+
+      ' · '+telemetrySamples.length+' samples · '+telemetryEvents.length+' events';
+  }
+
+  function safeFilenamePart(value) {
+    return String(value||'session')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/[^a-zA-Z0-9-_]+/g,'-')
+      .replace(/^-+|-+$/g,'')
+      .toLowerCase()||'session';
+  }
+
+  async function exportTelemetry() {
+    if(telemetryRecording)stopTelemetryRecording();
+    if(!telemetrySamples.length&&!telemetryEvents.length)return;
+
+    const song=api.getCurrentSong?.()||{};
+    const payload={
+      schema:'guitar-drum-debug-v1',
+      appCache:'v23',
+      startedAt:telemetryStartedIso,
+      durationMs:Math.round(telemetryDurationMs()),
+      note:'Local telemetry only; no audio samples are recorded.',
+      environment:{
+        userAgent:navigator.userAgent||'',
+        language:navigator.language||''
+      },
+      song:{id:song.id||'',title:song.title||'',artist:song.artist||''},
+      settings:{
+        cleanInput:Boolean(ui.cleanInputToggle.checked),
+        tempoFollow:Boolean(ui.tempoToggle.checked),
+        barFollow:Boolean(ui.barToggle.checked),
+        sectionFollow:Boolean(ui.sectionToggle.checked),
+        harmonicFollow:Boolean(ui.harmonicToggle.checked),
+        sensitivity:Number(ui.sensitivity.value)||0,
+        intensity:Number(intensity.value)||0,
+        humanFeel:Number(humanizeInput?.value)||0
+      },
+      summary:{
+        samples:telemetrySamples.length,
+        events:telemetryEvents.length,
+        acceptedOnsets,
+        rejectedOnsets,
+        inputClass
+      },
+      events:telemetryEvents,
+      samples:telemetrySamples
+    };
+    const json=JSON.stringify(payload,null,2);
+    const fileName='guitar-drum-debug-'+safeFilenamePart(song.id||song.title)+'-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+    const file=new File([json],fileName,{type:'application/json'});
+
+    try{
+      if(navigator.canShare?.({files:[file]})&&navigator.share){
+        await navigator.share({title:'Guitar Drum debug session',files:[file]});
+        api.setStatus?.('Debug session đã mở Share sheet.');
+        return;
+      }
+    }catch(error){
+      if(error?.name==='AbortError')return;
+    }
+
+    const url=URL.createObjectURL(file);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    api.setStatus?.('Debug session đã export JSON.');
   }
 
   function resetInputTracking() {
@@ -2033,6 +2333,12 @@
       spectralFrame:{...spectralFrame},
       acceptedOnsets,
       rejectedOnsets,
+      telemetry:{
+        recording:telemetryRecording,
+        samples:telemetrySamples.length,
+        events:telemetryEvents.length,
+        durationMs:Math.round(telemetryDurationMs())
+      },
       intentStage,
       lastMusicalActivityAt
     })
