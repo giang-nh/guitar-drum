@@ -904,7 +904,7 @@
     const song=api.getCurrentSong?.()||{};
     const payload={
       schema:'guitar-drum-debug-v1',
-      appCache:'v25',
+      appCache:'v26',
       startedAt:telemetryStartedIso,
       durationMs:Math.round(telemetryDurationMs()),
       note:'Local telemetry only; no audio samples are recorded.',
@@ -1589,7 +1589,10 @@
     if(calibrationProfile){
       const q=Math.round((calibrationProfile.quality||0)*100);
       const t=calibrationProfile.thresholds||{};
-      ui.calProfile.textContent='Profile '+q+'% · sens '+(calibrationProfile.recommendedSensitivity>=0?'+':'')+calibrationProfile.recommendedSensitivity+' dB';
+      const tuned=calibrationProfile.autoTune
+        ? ' · tuned '+Math.round((calibrationProfile.autoTune.confidence||0)*100)+'%'
+        : '';
+      ui.calProfile.textContent='Profile '+q+'%'+tuned+' · sens '+(calibrationProfile.recommendedSensitivity>=0?'+':'')+calibrationProfile.recommendedSensitivity+' dB';
       if(!calibrationActive&&ui.calPanel.classList.contains('on')){
         ui.calStep.textContent='Calibration complete';
         ui.calInstruction.textContent='Profile đang được dùng cho Clean mic / onset / chord gates.';
