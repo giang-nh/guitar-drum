@@ -262,3 +262,19 @@ Follow v2 now separates **decision time** from **performance time**. Once tempo/
 A plan must remain stable before it can be armed. When armed, the main drum engine stores the target section and fill style but keeps the current groove running. It only starts the 1-bar fill when the target section is within the final 4 beats, then anchors/crashes into the target on beat 1. If a plan somehow reaches the target late, a fail-safe anchors without leaving a stuck pending plan.
 
 Fill rendering now has three intensity classes (`small`, `medium`, `big`) with three deterministic variants per class. The planner rotates variants to reduce repetition. Existing automatic fills are suppressed while a predictive transition is pending, so two fill systems cannot compete.
+
+
+### Humanization / Performance Layer
+
+The drum synth now separates **musical timing decisions** from **hit performance**. The scheduler still owns the exact beat/grid and all follow/re-sync logic; before each synthesized kick/snare/hat/tom/crash, a deterministic humanization layer applies a small per-hit timing and velocity offset based on song beat, quarter, instrument voice and hit serial.
+
+Key rules:
+
+- `Human feel` is user-adjustable from 0–100% and persists per song; default is 55%.
+- Beat-1 kick/crash timing is strongly protected (very small timing range) so Humanization cannot undo bar/downbeat sync.
+- Snare can sit slightly late for a natural backbeat; hats get the largest timing/velocity variation and small filter/decay changes for articulation.
+- Fills use reduced timing variation versus normal groove so target beat 1 stays reliable.
+- Ghost snare notes are context-aware and only appear in eligible pocket/build/open patterns when Human feel is above a minimum amount. Their occurrence is deterministic, not random-at-runtime, which keeps debugging/reproducibility possible.
+- Drum timbre also varies subtly: kick start frequency, snare/hat filter cutoff, hat/open-hat decay, tom pitch and crash brightness.
+
+This layer is independent of microphone Auto Follow, so the drummer can sound less mechanical even when follow features are disabled.
