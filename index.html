@@ -248,8 +248,9 @@
   }
   function saveState(){
     try{
+      const previous=loadState(songId);
       localStorage.setItem(stateKey(songId),JSON.stringify({
-        row:currentRow,key:keySel.value,bpm:bpm.value,showAll
+        ...previous,row:currentRow,key:keySel.value,bpm:bpm.value,showAll
       }));
       localStorage.setItem(STORAGE_KEY+'-last-song',songId);
     }catch{}
@@ -452,6 +453,21 @@
     status.textContent='Đã dừng · trở về đầu bài.';renderSheet();saveState();
   }
 
+  window.GuitarDrumAPI={
+    getCurrentSong:()=>({id:songId,title:song.title,artist:song.artist,meta:song.meta,baseKey:song.baseKey,preferFlats:Boolean(song.preferFlats),rows:song.rows}),
+    getCurrentKey:()=>Number(keySel.value),
+    applyChordKey:key=>{keySel.value=String(key);changeKey()},
+    stopPlayback:stopPlaybackOnly,
+    getToneMeta:()=>loadState(songId),
+    setToneMeta:patch=>{
+      try{
+        const current=loadState(songId);
+        localStorage.setItem(stateKey(songId),JSON.stringify({...current,...patch}));
+      }catch{}
+    },
+    setStatus:text=>{status.textContent=text}
+  };
+
   songSel.addEventListener('change',()=>loadSong(songSel.value,true));
   viewBtn.addEventListener('click',()=>{showAll=!showAll;renderSheet();saveState()});
   keySel.addEventListener('change',changeKey);
@@ -465,5 +481,6 @@
   if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 })();
 </script>
+<script src="./tone.js"></script>
 </body>
 </html>
