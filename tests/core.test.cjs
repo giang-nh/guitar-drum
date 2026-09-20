@@ -183,3 +183,105 @@ test('small harmless replay changes pass regression guards',()=>{
   });
   assert.deepEqual(blockers,[]);
 });
+
+
+function validationSample(t,patch={}){
+  return {
+    t,
+    transport:{section:'Verse',held:false,followMode:'normal'},
+    mic:{inputClass:'guitar',acceptedOnsets:0,rejectedOnsets:0,energy:.4,guitarEvidence:.6,drumPenalty:.1,voiceLike:.1,state:'medium'},
+    tempo:{confidence:.7,barConfidence:.7},
+    health:{level:'green',score:.8},
+    plan:{mode:'stay'},
+    fusion:{mode:'locked'},
+    ...patch,
+    mic:{inputClass:'guitar',acceptedOnsets:0,rejectedOnsets:0,energy:.4,guitarEvidence:.6,drumPenalty:.1,voiceLike:.1,state:'medium',...(patch.mic||{})},
+    tempo:{confidence:.7,barConfidence:.7,...(patch.tempo||{})},
+    health:{level:'green',score:.8,...(patch.health||{})},
+    transport:{section:'Verse',held:false,followMode:'normal',...(patch.transport||{})},
+    plan:{mode:'stay',...(patch.plan||{})},
+    fusion:{mode:'locked',...(patch.fusion||{})}
+  };
+}
+
+test('validation drum-only passes when bleed is rejected',()=>{
+  const session={samples:[
+    validationSample(0,{mic:{inputClass:'drum',acceptedOnsets:0,guitarEvidence:.08,drumPenalty:.8}}),
+    validationSample(1000,{mic:{inputClass:'drum',acceptedOnsets:1,guitarEvidence:.07,drumPenalty:.82}}),
+    validationSample(2000,{mic:{inputClass:'drum',acceptedOnsets:1,guitarEvidence:.06,drumPenalty:.85}}),
+    validationSample(3000,{mic:{inputClass:'drum',acceptedOnsets:1,guitarEvidence:.08,drumPenalty:.78}})
+  ],events:[]};
+  const m=core.validationWindowMetrics(session,0,3000);
+  assert.equal(m.acceptedOnsets,1);
+  assert.equal(core.validationStepStatus('drum',m).status,'pass');
+});
+
+test('validation voice-only fails on repeated false guitar onset',()=>{
+  const session={samples:[
+    validationSample(0,{mic:{inputClass:'guitar',acceptedOnsets:0,voiceLike:.8,guitarEvidence:.38}}),
+    validationSample(1000,{mic:{inputClass:'guitar',acceptedOnsets:2,voiceLike:.82,guitarEvidence:.4}}),
+    validationSample(2000,{mic:{inputClass:'voice',acceptedOnsets:4,voiceLike:.84,guitarEvidence:.25}}),
+    validationSample(3000,{mic:{inputClass:'guitar',acceptedOnsets:7,voiceLike:.86,guitarEvidence:.4}})
+  ],events:[]};
+  const m=core.validationWindowMetrics(session,0,3000);
+  assert.equal(core.validationStepStatus('voice',m).status,'fail');
+});
+
+test('validation guitar step measures tempo and bar lock relative to step start',()=>{
+  const session={samples:[
+    validationSample(1000,{mic:{acceptedOnsets:0},tempo:{confidence:.2,barConfidence:.2}}),
+    validationSample(2000,{mic:{acceptedOnsets:2},tempo:{confidence:.5,barConfidence:.4}}),
+    validationSample(3000,{mic:{acceptedOnsets:4},tempo:{confidence:.65,barConfidence:.5}}),
+    validationSample(4500,{mic:{acceptedOnsets:6},tempo:{confidence:.72,barConfidence:.7}})
+  ],events:[]};
+  const m=core.validationWindowMetrics(session,1000,4500);
+  assert.equal(m.tempoLockMs,2000);
+  assert.equal(m.barLockMs,3500);
+  assert.equal(core.validationStepStatus('guitar',m).status,'pass');
+});
+
+test('validation stop-resume requires both HOLD and REJOIN',()=>{
+  const session={samples:[
+    validationSample(0),
+    validationSample(1000,{transport:{held:true,followMode:'hold'},fusion:{mode:'hold'}}),
+    validationSample(2000,{transport:{held:true,followMode:'hold'},fusion:{mode:'reacquire'}}),
+    validationSample(3000,{fusion:{mode:'rejoin'}})
+  ],events:[]};
+  const m=core.validationWindowMetrics(session,0,3000);
+  assert.equal(m.heldSeen,true);
+  assert.equal(m.rejoinSeen,true);
+  assert.equal(core.validationStepStatus('stop-resume',m).status,'pass');
+});
+
+test('validation transition passes only when plan and section change are both observed',()=>{
+  const session={samples:[
+    validationSample(0,{transport:{section:'Verse'},plan:{mode:'build'}}),
+    validationSample(1000,{transport:{section:'Verse'},plan:{mode:'armed'}}),
+    validationSample(2000,{transport:{section:'Chorus'},plan:{mode:'fill-medium'}}),
+    validationSample(3000,{transport:{section:'Chorus'},plan:{mode:'stay'}})
+  ],events:[]};
+  const m=core.validationWindowMetrics(session,0,3000);
+  assert.equal(m.sectionChanged,true);
+  assert.equal(m.planFillSeen,true);
+  assert.equal(core.validationStepStatus('transition',m).status,'pass');
+});
+
+test('validation report summarizes guided session',()=>{
+  const samples=[];
+  for(let i=0;i<4;i++)samples.push(validationSample(i*500,{mic:{inputClass:'drum',acceptedOnsets:i?1:0,guitarEvidence:.06}}));
+  for(let i=0;i<4;i++)samples.push(validationSample(3000+i*500,{mic:{inputClass:'voice',acceptedOnsets:i?1:0,guitarEvidence:.08}}));
+  for(let i=0;i<4;i++)samples.push(validationSample(6000+i*500,{mic:{acceptedOnsets:i*2},tempo:{confidence:i>=1?.7:.2,barConfidence:i>=2?.7:.2}}));
+  const report=core.buildValidationReport(
+    {samples,events:[]},
+    [
+      {id:'drum',label:'Drum',startT:0,endT:1500},
+      {id:'voice',label:'Voice',startT:3000,endT:4500},
+      {id:'guitar',label:'Guitar',startT:6000,endT:7500}
+    ]
+  );
+  assert.equal(report.completedSteps,3);
+  assert.equal(report.micSeparation,'pass');
+  assert.equal(report.falseDrumOnsets,1);
+  assert.equal(report.voiceFalseTriggers,1);
+  assert.ok(report.tempoLockMedianMs!=null);
+});
