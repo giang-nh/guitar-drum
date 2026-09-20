@@ -232,3 +232,19 @@ Không tự ý:
 - tự động “sửa” lời/hợp âm nếu chưa chắc nguồn.
 
 Mọi thay đổi lớn về architecture phải được ghi lại trong tài liệu và có lý do dựa trên requirement mới.
+
+
+### Sensor Fusion / PerformanceState (Follow v2)
+
+`guitar-follow.js` now treats intensity, tempo, bar/downbeat, section-energy prediction, and harmonic-position matching as separate evidence streams. A central `performanceState` arbitrates them into modes such as `acquiring`, `listening`, `locked`, `following`, `ambiguous`, `transition`, and `reposition`.
+
+Key rules:
+
+- Section and harmonic detectors no longer directly trigger transport actions.
+- Harmonic candidates are fused with exact-chord count, uniqueness/margin, bar confidence, tempo confidence, section support, and a light continuity prior.
+- A harmonic auto-reposition requires the raw best harmonic match and fused best candidate to point to the exact same row/beat, plus high score/margin and a stable candidate window.
+- Repeated/ambiguous progressions move `PerformanceState` to `ambiguous`; no position jump occurs.
+- Section transitions are considered only when the next-section energy predictor is ready. Strong harmonic evidence that disagrees with that next section suppresses the transition.
+- A shared fusion cooldown prevents a section fill and a harmonic re-anchor from competing in the same musical moment.
+
+This creates one decision authority for the drummer while keeping each detector independently debuggable.
