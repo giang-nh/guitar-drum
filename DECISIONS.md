@@ -112,3 +112,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** Follow v2 uses a two-stage silence response: a short gap requests a sparse `THIN` groove; a longer gap queues `HOLD` at the next beat 1, freezes `songBeat`, and discards old timing/harmonic evidence. Re-entry requires fresh tempo/downbeat evidence, aligns the silent transport to the detected guitar downbeat, then resumes on beat 1.
 
 **Reason:** letting the backing continue through an unplanned guitarist stop makes song position drift and makes later harmonic matching harder. Freezing position preserves musical intent, while a short thin-out prevents every small breath/rest from feeling like a hard stop.
+
+
+## D018 — Quyết định sớm, chơi fill đúng bar cuối
+
+**Decision:** Predictive Drummer may arm a section transition several beats early, but the drum engine does not start the fill immediately. It stores the plan, continues the current groove, and triggers the selected 1-bar fill only when the target is within the final 4 beats. Fill size is chosen from small/medium/big and variants rotate deterministically.
+
+**Reason:** anticipation is musically useful only if it preserves structure. Early decision-making should create confidence and preparation, not an early section jump. Separating planning from rendering also lets later AI/performance layers change how a fill is played without changing when the section transition happens.
