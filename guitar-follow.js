@@ -150,6 +150,7 @@
   let inputClassSince = 0;
   let acceptedOnsets = 0;
   let rejectedOnsets = 0;
+  let lastOnsetDecision = {rise:0,requiredRise:.105,spectralOk:false,accepted:false,rejected:false};
   let telemetryRecording = false;
   let telemetryStartedAt = 0;
   let telemetryStartedIso = null;
@@ -744,7 +745,12 @@
         transient:round(spectralFrame.transient),
         drumPenalty:round(spectralFrame.drumPenalty),
         voiceLike:round(spectralFrame.voiceLike),
-        guitarEvidence:round(spectralFrame.guitarEvidence)
+        guitarEvidence:round(spectralFrame.guitarEvidence),
+        onsetRise:round(lastOnsetDecision.rise),
+        requiredRise:round(lastOnsetDecision.requiredRise),
+        spectralOk:Boolean(lastOnsetDecision.spectralOk),
+        onsetAcceptedFrame:Boolean(lastOnsetDecision.accepted),
+        onsetRejectedFrame:Boolean(lastOnsetDecision.rejected)
       },
       tempo:{
         estimate:round(tempoEstimate,1),
@@ -1143,7 +1149,27 @@
     const rejectedByDrum=drum>t.drumReject&&guitar<Math.max(t.guitarEvidenceMin+.20,.48);
     const rejectedByVoice=voice>t.voiceReject&&transient<t.voiceTransientMax;
     const spectralOk=guitar>=t.guitarEvidenceMin||(drum<Math.max(.26,t.drumReject-.23)&&(Number(m.flux)||0)>=.08);
-    return energy>t.minEnergy&&spectralOk&&!rejectedByDrum&&!rejectedByVoice;
+    const rise=Number(m.onsetRise);
+    const requiredRise=t.onsetRiseBase+drum*.075+voice*.040;
+    const onsetOk=Number.isFinite(rise)?rise>requiredRise:true;
+    return energy>t.minEnergy&&onsetOk&&spectralOk&&!rejectedByDrum&&!rejectedByVoice;
+  }
+
+  function observedSessionContext(session) {
+    const samples=session?.samples||[];
+    const firstTempo=samples.find(s=>Number(s?.tempo?.confidence)>=TEMPO_CONFIDENCE_MIN);
+    const firstBar=samples.find(s=>Number(s?.tempo?.barConfidence)>=BAR_CONFIDENCE_MIN);
+    const red=samples.filter(s=>s?.health?.level==='red').length;
+    const actionish=samples.filter(s=>
+      ['transition','reposition'].includes(s?.fusion?.mode)||
+      s?.plan?.mode==='armed'
+    ).length;
+    return {
+      firstTempoLockMs:Number.isFinite(Number(firstTempo?.t))?Number(firstTempo.t):null,
+      firstBarLockMs:Number.isFinite(Number(firstBar?.t))?Number(firstBar.t):null,
+      redFraction:samples.length?red/samples.length:null,
+      actionFrames:actionish
+    };
   }
 
   function compareThresholds(session,before,after,marks) {
@@ -1432,6 +1458,7 @@
   function replaySession(session,label,before,after) {
     const marks=manualMarks(session);
     const compare=compareThresholds(session,before,after,marks);
+    const context=observedSessionContext(session);
     const markBefore=markReplayScore(session,before);
     const markAfter=markReplayScore(session,after);
     const actionBefore=actionRiskProxy(session,before);
@@ -1462,6 +1489,7 @@
       samples:(session?.samples||[]).length,
       marks:marks.length,
       compare,
+      context,
       markBefore,
       markAfter,
       actionBefore,
@@ -1504,11 +1532,14 @@
       const guitar=cmp.guitarRetentionBefore==null?'n/a':fmtPct(cmp.guitarRetentionBefore)+'→'+fmtPct(cmp.guitarRetentionAfter);
       const contam=cmp.contaminationPassBefore==null?'n/a':fmtPct(cmp.contaminationPassBefore)+'→'+fmtPct(cmp.contaminationPassAfter);
       const mark=r.markBefore.score==null?'n/a':fmtPct(r.markBefore.score)+'→'+fmtPct(r.markAfter.score);
+      const tempoLock=r.context.firstTempoLockMs==null?'—':(r.context.firstTempoLockMs/1000).toFixed(1)+'s';
+      const barLock=r.context.firstBarLockMs==null?'—':(r.context.firstBarLockMs/1000).toFixed(1)+'s';
       lines.push(
         (r.blocked?'⚠ ':'✓ ')+r.label+
         ' · guitar '+guitar+
         ' · contam '+contam+
         ' · marked '+mark+
+        ' · observed lock '+tempoLock+'/'+barLock+
         (r.blockers.length?' · '+r.blockers.join(', '):'')
       );
     });
@@ -1835,6 +1866,7 @@
     inputClassSince=0;
     acceptedOnsets=0;
     rejectedOnsets=0;
+    lastOnsetDecision={rise:0,requiredRise:calibrationThresholds().onsetRiseBase,spectralOk:false,accepted:false,rejected:false};
   }
 
   function handleSelfDrumHit(event) {
@@ -2036,6 +2068,13 @@
       energy>thresholds.minEnergy &&
       spectralOk &&
       now-lastOnsetAt>120;
+    const rejectCandidate=
+      clean &&
+      rise>thresholds.onsetRiseBase &&
+      energy>thresholds.minEnergy &&
+      now-lastOnsetAt>120 &&
+      (evidence.drumPenalty>Math.max(.36,thresholds.drumReject-.13) || evidence.voiceLike>Math.max(.52,thresholds.voiceReject-.10));
+    lastOnsetDecision={rise,requiredRise,spectralOk,accepted:accept,rejected:!accept&&rejectCandidate};
 
     if (accept) {
       onsetCount++;
@@ -2043,13 +2082,7 @@
       recordHealthOnset(now,true);
       lastOnsetAt = now;
       recordOnset(now, energy);
-    } else if (
-      clean &&
-      rise>thresholds.onsetRiseBase &&
-      energy>thresholds.minEnergy &&
-      now-lastOnsetAt>120 &&
-      (evidence.drumPenalty>Math.max(.36,thresholds.drumReject-.13) || evidence.voiceLike>Math.max(.52,thresholds.voiceReject-.10))
-    ) {
+    } else if (rejectCandidate) {
       rejectedOnsets++;
       recordHealthOnset(now,false);
     }
