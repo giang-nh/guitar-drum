@@ -38,6 +38,7 @@ The repository is intended to contain enough context that a new agent can contin
 - PWA-style install support
 - Integrated vocal tone detection for the 3 current songs
 - Tone + Capo recommendations that favor common guitar chord shapes
+- Microphone **Follow guitar** POC: listens to acoustic-guitar energy and automatically maps stable `silent / soft / medium / big` states to drummer Intensity
 
 ## Architecture summary
 
@@ -47,6 +48,7 @@ The repository is intended to contain enough context that a new agent can contin
 - No database
 - Song data currently embedded in `index.html`
 - Web Audio for drum synthesis
+- `guitar-follow.js` for optional microphone-driven drummer intensity following
 - `localStorage` for device-local state
 - GitHub Pages for deployment
 
