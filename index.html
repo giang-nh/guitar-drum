@@ -482,8 +482,8 @@
 
   let ctx=null,master=null,noise=null,timer=null,playing=false,paused=false,nextTime=0,quarter=0,countIn=4,songBeat=0,visualTimers=[];
   let fillRequested=false,fillRemaining=0,pendingSectionTransition=null,pendingHarmonicAnchor=null;
-  let activeFillStyle='medium',activeFillVariant=0,fillVariantCounter=0;
-  let humanContext={songBeat:0,quarter:0,beat:0,pattern:'',fill:false};
+  let activeFillStyle='medium',activeFillVariant=0,activeFillTargetKind='verse',fillVariantCounter=0;
+  let humanContext={songBeat:0,quarter:0,beat:0,pattern:'',fill:false,energy:.5,health:'yellow'};
   let humanHitSerial=0;
   let followSilenceMode='normal',followHeld=false,pendingFollowHold=false,pendingFollowResume=false;
 
@@ -502,7 +502,7 @@
     return ((x^(x>>>14))>>>0)/4294967295;
   }
   function voiceCode(voice){
-    return {kick:11,snare:23,ghost:29,hat:37,openHat:41,tom:53,crash:67}[voice]||79;
+    return {kick:11,snare:23,ghost:29,hat:37,openHat:41,ride:47,rim:49,tom:53,crash:67}[voice]||79;
   }
   function notifyFollowDrumHit(voice,t,p){
     if(typeof window.CustomEvent!=='function'||!ctx)return;
@@ -518,12 +518,12 @@
     const fillScale=humanContext.fill?.72:1;
     const timingMs={
       kick:humanContext.beat===0?1.2:3.0,
-      snare:5.5,ghost:7.0,hat:6.5,openHat:5.0,tom:6.0,crash:1.8
+      snare:5.5,ghost:7.0,hat:6.5,openHat:5.0,ride:4.6,rim:4.8,tom:6.0,crash:1.8
     }[voice]||4;
     let timing=centered*timingMs*amount*fillScale;
     if(voice==='snare'&&!humanContext.fill)timing+=2.2*amount;
     if((voice==='kick'||voice==='crash')&&humanContext.beat===0)timing=Math.max(-.8,timing);
-    const velocityRange={kick:.045,snare:.075,ghost:.16,hat:.14,openHat:.10,tom:.08,crash:.045}[voice]||.06;
+    const velocityRange={kick:.055,snare:.075,ghost:.18,hat:.15,openHat:.11,ride:.10,rim:.09,tom:.08,crash:.045}[voice]||.06;
     let velocity=1+(r2*2-1)*velocityRange*amount;
     if(voice==='hat'){
       const accent=humanContext.beat%2===0?1.035:.965;
@@ -538,9 +538,46 @@
   function ghostSnare(t,p=1){const h=humanHit('ghost',t,p),s=ctx.createBufferSource(),bp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;bp.type='bandpass';bp.frequency.value=1450+h.r*280;bp.Q.value=.65;g.gain.setValueAtTime(.055*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.075);s.connect(bp);bp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+.08)}
   function hat(t,p=1){const h=humanHit('hat',t,p),s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=6100+h.r*1500;const decay=.032+h.r*.022;g.gain.setValueAtTime(.05*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+decay);s.connect(hp);hp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+decay+.01)}
   function openHat(t,p=1){const h=humanHit('openHat',t,p),s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=4900+h.r*800;const decay=.19+h.r*.07;g.gain.setValueAtTime(.07*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+decay);s.connect(hp);hp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+decay+.02)}
+  function ride(t,p=1,bell=false){const h=humanHit('ride',t,p),s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=bell?7200+h.r*900:5200+h.r*1000;const decay=bell?.12+h.r*.035:.17+h.r*.06;g.gain.setValueAtTime((bell?.055:.045)*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+decay);s.connect(hp);hp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+decay+.02)}
+  function rim(t,p=1){const h=humanHit('rim',t,p),o=ctx.createOscillator(),g=ctx.createGain();o.type='triangle';o.frequency.value=1650+h.r*180;g.gain.setValueAtTime(.065*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.045);o.connect(g);g.connect(master);o.start(h.t);o.stop(h.t+.05)}
   function tom(t,p=1,f=150){const h=humanHit('tom',t,p),o=ctx.createOscillator(),g=ctx.createGain();const hf=f*(.985+h.r*.03);o.frequency.setValueAtTime(hf,h.t);o.frequency.exponentialRampToValueAtTime(Math.max(70,hf*.62),h.t+.16);g.gain.setValueAtTime(.28*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.2);o.connect(g);g.connect(master);o.start(h.t);o.stop(h.t+.21)}
   function crash(t,p=1){const h=humanHit('crash',t,p),s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=3400+h.r*500;g.gain.setValueAtTime(.12*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.55);s.connect(hp);hp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+.58)}
   function click(t,strong){notifyFollowDrumHit('click',t,strong?.25:.16);const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=strong?1050:820;g.gain.setValueAtTime(strong?.15:.09,t);g.gain.exponentialRampToValueAtTime(.001,t+.04);o.connect(g);g.connect(master);o.start(t);o.stop(t+.05)}
+  function performanceIntent(){
+    const fallback={
+      energy:Math.max(.18,Math.min(1,(Number(intensity.value)||3)/5)),
+      state:Number(intensity.value)>=5?'big':Number(intensity.value)>=3?'medium':'soft',
+      health:'yellow',
+      healthScore:.62,
+      plan:'stay',
+      planConfidence:0
+    };
+    try{
+      const s=window.GuitarFollowAPI?.getState?.();
+      if(!s||!window.GuitarFollowAPI?.isRunning?.())return fallback;
+      return {
+        energy:Number.isFinite(Number(s.energy))?Math.max(0,Math.min(1,Number(s.energy))):fallback.energy,
+        state:s.state||fallback.state,
+        health:s.followHealth?.level||'yellow',
+        healthScore:Number.isFinite(Number(s.followHealth?.score))?Number(s.followHealth.score):.62,
+        plan:s.transitionPlan?.mode||'stay',
+        planConfidence:Number(s.transitionPlan?.confidence)||0
+      };
+    }catch{return fallback}
+  }
+  function performanceSeed(salt=0){
+    return (songBeat+1)*173+(quarter+1)*59+(humanContext.beat+1)*31+salt*97;
+  }
+  function performanceChance(prob,salt=0){
+    return humanHash(performanceSeed(salt))<Math.max(0,Math.min(1,prob));
+  }
+  function barPulse(){
+    return ((Math.floor(songBeat/4)%4)+4)%4;
+  }
+  function grooveEnergy(intent,arr){
+    const arrangementGain=Math.max(.6,Math.min(1.25,Number(arr?.gain)||1));
+    return Math.max(0,Math.min(1,.58*intent.energy+.22*((Number(intensity.value)||3)/5)+.20*((arrangementGain-.6)/.65)));
+  }
   function rowForBeat(b){for(let i=0;i<rows.length;i++)if(b>=rows[i].start&&b<rows[i].end)return i;return rows.length-1}
   function sectionKind(name){
     const v=String(name||'').toLowerCase();
