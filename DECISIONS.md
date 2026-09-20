@@ -182,3 +182,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** 4/8-bar phrase position is derived from the existing section beat map and used as contextual evidence for performance arcs and planner confidence. Phrase logic can alter density, articulation and short phrase-end pickups, but it cannot move `songBeat`, change BPM, re-phase the clock or independently trigger a section jump.
 
 **Reason:** phrase awareness makes the drummer feel like it is shaping a musical sentence while preserving the core safety property established by Humanization/Performance v1/v2: expression stays downstream of transport. This also avoids introducing new mandatory per-song phrase authoring until real-song testing shows it is needed.
+
+
+## D028 — Tách Playing UI khỏi Developer diagnostics
+
+**Decision:** the app defaults to a compact Playing Mode while keeping the full detector/tuning surface behind a persistent Developer toggle. UI mode changes visibility only and does not reset or reconfigure the Follow engine. A compact Health/section/phrase/Plan summary is kept live from transport events even when Auto Follow is off.
+
+**Reason:** the diagnostic surface has grown substantially through calibration, Health, Auto-Tune and regression work. Keeping those tools always visible makes the iPad performance workflow harder without adding musical value. Separating presentation from runtime preserves all engineering tools while making the product usable as an instrument companion.
