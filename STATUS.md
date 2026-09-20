@@ -43,6 +43,7 @@ Prototype hiện đã có:
 - **Beat-1 / Bar Sync POC**: folds recent onset accents onto a 4/4 grid, requires a high-confidence downbeat phase that remains stable for several seconds, then only performs a small timing nudge/re-index of the next unscheduled beat; exposes `learning / stable / synced` debug state;
 - **Section Follow POC**: reads the known section timeline, compares recent guitar energy to a longer baseline, combines proximity + arrangement gain + bar/tempo confidence, and can arm a one-bar fill followed by an early anchor to the next high-energy section; manual jump/Fill cancels the pending AI transition;
 - **Harmonic Position POC**: 4096-point FFT → 12-bin chroma near strum onsets → expected-chord template scoring in the current sounding key/capo → stable chord events → 3–5 chord sequence matching against the known row/chord timeline; repeated/ambiguous progressions are surfaced but do not auto-reposition;
+- **Sensor Fusion / Follow v2**: central `PerformanceState` combines tempo, bar/downbeat, dynamics, section prediction and harmonic candidates; individual detectors no longer directly change song position. Fusion alone can request section fill/transition or harmonic re-anchor, with stable-candidate and shared cooldown gates;
 
 ## Current data model
 
