@@ -93,3 +93,5 @@ node tests/run-tests.cjs
 Current baseline: **105 cases / 105 PASS / 0 FAIL**. The suite exercises deterministic production helpers from `tone.js`, `guitar-follow.js`, and `index.html`. GitHub Actions also runs it automatically on pushes to `main` and pull requests.
 
 This suite does not replace real-device validation for microphone input, speaker bleed, Web Audio timing, or iPad/Safari interaction.
+
+- **Playing Mode + Developer Mode**: the Follow panel now defaults to a compact performance surface with Auto Follow, Health, section/phrase and Plan summary. Detailed meter/stats, sensitivity, detector toggles, Calibration, Debug, Auto-Tune and Regression remain available behind a persistent `Developer` toggle. The compact summary stays synced even when Auto Follow is off.
