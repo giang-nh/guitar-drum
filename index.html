@@ -636,6 +636,29 @@
     getCurrentKey:()=>Number(keySel.value),
     applyChordKey:key=>{keySel.value=String(key);changeKey()},
     stopPlayback:stopPlaybackOnly,
+    getTransport:()=>({
+      playing:Boolean(playing),
+      paused:Boolean(paused),
+      countIn:Number(countIn),
+      bpm:Number(bpm.value),
+      songBeat:Number(songBeat),
+      nextBeatIndex:((quarter%4)+4)%4,
+      nextBeatPerformanceMs:ctx&&playing&&!paused
+        ? performance.now()+(nextTime-ctx.currentTime)*1000
+        : null
+    }),
+    syncNextBeat:(targetPerformanceMs,beatIndex=0)=>{
+      if(!ctx||!playing||paused||countIn>0||!Number.isFinite(targetPerformanceMs))return false;
+      const nowPerf=performance.now();
+      const targetAudio=ctx.currentTime+(targetPerformanceMs-nowPerf)/1000;
+      const delta=targetAudio-nextTime;
+      if(targetAudio<ctx.currentTime+.025||targetAudio>ctx.currentTime+.32||Math.abs(delta)>.09)return false;
+      nextTime=targetAudio;
+      const wanted=((Math.round(beatIndex)%4)+4)%4;
+      const current=((quarter%4)+4)%4;
+      quarter+=((wanted-current+4)%4);
+      return true;
+    },
     getToneMeta:()=>loadState(songId),
     setToneMeta:patch=>{
       try{
