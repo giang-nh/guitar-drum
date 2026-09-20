@@ -312,3 +312,15 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - Phrase turns must be suppressed during active/pending full fills, predictive transitions, RED Health, and actual section-turn beats.
 - The transition planner may use phrase-end alignment as additional confidence evidence, but phrase alignment alone must never authorize a section jump.
 - Phrase context must be available through the main API and included in diagnostics/telemetry.
+
+
+## Playing Mode + Developer Mode
+
+- The default performance UI should prioritize Play/BPM/Intensity/Human Feel/Auto Follow/Health/current section+phrase/Tone+Capo and lyrics/chords.
+- Detailed detector diagnostics and tuning tools must not occupy the default playing surface.
+- Developer Mode should reveal existing technical controls without altering runtime detector, transport or performance state.
+- Developer Mode preference should persist locally and default to off for users with no prior preference.
+- The compact Follow summary should combine Health, current section, phrase position and current Plan mode in one readable line.
+- Compact section/phrase state must remain synchronized during playback even when Auto Follow/microphone analysis is off.
+- Calibration, Debug Recorder, Auto-Tune and Regression Replay must remain accessible in Developer Mode.
+- UI mode should be exposed in API/debug telemetry so a recorded session can be interpreted with the display state that was active.
