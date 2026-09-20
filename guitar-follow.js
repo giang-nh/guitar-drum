@@ -30,12 +30,24 @@
   const SECTION_ACTION_COOLDOWN_MS = 10000;
   const SECTION_MIN_BEATS_AWAY = 5;
   const SECTION_MAX_BEATS_AWAY = 14;
+  const CHROMA_ANALYSIS_MS = 120;
+  const CHORD_STABLE_MS = 480;
+  const CHORD_SCORE_MIN = 0.58;
+  const CHORD_MARGIN_MIN = 0.035;
+  const HARMONIC_MIN_EVENTS = 3;
+  const HARMONIC_MATCH_MIN = 0.80;
+  const HARMONIC_MARGIN_MIN = 0.09;
+  const HARMONIC_ANCHOR_COOLDOWN_MS = 10000;
+  const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const NOTES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+  const NOTE_MAP = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
 
   let audioCtx = null;
   let stream = null;
   let source = null;
   let analyser = null;
   let buffer = null;
+  let frequencyBuffer = null;
   let running = false;
   let raf = 0;
   let lastAnalysisAt = 0;
@@ -70,6 +82,14 @@
   let sectionCandidateSince = 0;
   let sectionArmedIndex = null;
   let lastSectionActionAt = 0;
+  let lastChromaAt = 0;
+  let chromaEma = new Array(12).fill(0);
+  let chordCandidate = null;
+  let chordCandidateSince = 0;
+  let currentChord = null;
+  let chordEvents = [];
+  let harmonicMatch = null;
+  let lastHarmonicAnchorAt = 0;
 
   injectStyles();
   const ui = buildUi();
@@ -78,6 +98,7 @@
   renderTempo();
   renderBar();
   renderSection();
+  renderHarmonic();
   attachListeners();
 
   function injectStyles() {
@@ -130,6 +151,7 @@
         <div class="gd-follow-stat"><span>Tempo</span><strong id="gdFollowTempo">— BPM</strong><span id="gdFollowTempoConfidence">chưa đủ onset</span></div>
         <div class="gd-follow-stat"><span>Bar</span><strong id="gdFollowBarState">—</strong><span id="gdFollowBarConfidence">chưa thấy beat 1</span></div>
         <div class="gd-follow-stat"><span>Section</span><strong id="gdFollowSectionState">—</strong><span id="gdFollowSectionConfidence">theo song map</span></div>
+        <div class="gd-follow-stat"><span>Chord</span><strong id="gdFollowChord">—</strong><span id="gdFollowHarmonic">chưa đủ chord</span></div>
       </div>
       <div class="gd-follow-controls">
         <button type="button" id="gdFollowToggle">🎙 Bật Auto Follow</button>
@@ -140,8 +162,9 @@
         <label class="gd-follow-tempo-option" for="gdTempoFollow"><input id="gdTempoFollow" type="checkbox" checked /> Follow BPM</label>
         <label class="gd-follow-tempo-option" for="gdBarFollow"><input id="gdBarFollow" type="checkbox" checked /> Sync beat 1</label>
         <label class="gd-follow-tempo-option" for="gdSectionFollow"><input id="gdSectionFollow" type="checkbox" checked /> Follow section</label>
+        <label class="gd-follow-tempo-option" for="gdHarmonicFollow"><input id="gdHarmonicFollow" type="checkbox" checked /> Follow chords</label>
       </div>
-      <div id="gdFollowHint" class="gd-follow-hint">POC: dynamics + BPM + beat 1 + dự đoán section kế tiếp. Section Follow chỉ dùng known song map + bar confidence + xu hướng energy; hiện ưu tiên chuyển vào Chorus/cao trào, chưa nhận chord audio.</div>
+      <div id="gdFollowHint" class="gd-follow-hint">POC: dynamics + BPM + beat 1 + section + harmonic position. Chord detector ưu tiên vài trăm ms sau cú quạt để giảm nhiễu giọng hát; auto re-anchor chỉ chạy khi chuỗi nhiều chord khớp rõ với một vị trí trong song map.</div>
     `;
     const hint = drummer.querySelector('.drumHint');
     if (hint) hint.insertAdjacentElement('afterend', host);
@@ -161,11 +184,14 @@
       barConfidence: host.querySelector('#gdFollowBarConfidence'),
       sectionState: host.querySelector('#gdFollowSectionState'),
       sectionConfidence: host.querySelector('#gdFollowSectionConfidence'),
+      chord: host.querySelector('#gdFollowChord'),
+      harmonic: host.querySelector('#gdFollowHarmonic'),
       toggle: host.querySelector('#gdFollowToggle'),
       sensitivity: host.querySelector('#gdFollowSensitivity'),
       tempoToggle: host.querySelector('#gdTempoFollow'),
       barToggle: host.querySelector('#gdBarFollow'),
       sectionToggle: host.querySelector('#gdSectionFollow'),
+      harmonicToggle: host.querySelector('#gdHarmonicFollow'),
       hint: host.querySelector('#gdFollowHint')
     };
   }
@@ -183,6 +209,8 @@
       renderBar();
       resetSectionTracking();
       renderSection();
+      resetHarmonicTracking();
+      renderHarmonic();
     });
     ui.barToggle.addEventListener('change', () => {
       saveSettings();
@@ -196,6 +224,11 @@
       saveSettings();
       resetSectionTracking();
       renderSection();
+    });
+    ui.harmonicToggle.addEventListener('change', () => {
+      saveSettings();
+      resetHarmonicTracking();
+      renderHarmonic();
     });
 
     document.querySelector('#songSelect')?.addEventListener('change', () => {
@@ -225,6 +258,7 @@
       if (saved.tempoFollow != null) ui.tempoToggle.checked = Boolean(saved.tempoFollow);
       if (saved.barFollow != null) ui.barToggle.checked = Boolean(saved.barFollow);
       if (saved.sectionFollow != null) ui.sectionToggle.checked = Boolean(saved.sectionFollow);
+      if (saved.harmonicFollow != null) ui.harmonicToggle.checked = Boolean(saved.harmonicFollow);
     } catch {}
   }
 
@@ -234,7 +268,8 @@
         sensitivity:Number(ui.sensitivity.value) || 0,
         tempoFollow:Boolean(ui.tempoToggle.checked),
         barFollow:Boolean(ui.barToggle.checked),
-        sectionFollow:Boolean(ui.sectionToggle.checked)
+        sectionFollow:Boolean(ui.sectionToggle.checked),
+        harmonicFollow:Boolean(ui.harmonicToggle.checked)
       }));
     } catch {}
   }
@@ -260,9 +295,12 @@
       if (audioCtx.state === 'suspended') await audioCtx.resume();
       source = audioCtx.createMediaStreamSource(stream);
       analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
+      analyser.fftSize = 4096;
       analyser.smoothingTimeConstant = 0;
+      analyser.minDecibels = -90;
+      analyser.maxDecibels = -10;
       buffer = new Float32Array(analyser.fftSize);
+      frequencyBuffer = new Float32Array(analyser.frequencyBinCount);
       source.connect(analyser);
 
       running = true;
@@ -280,11 +318,12 @@
       lastOnsetAt = 0;
       resetTempoTracking();
       resetSectionTracking();
+      resetHarmonicTracking();
       ui.toggle.textContent = '■ Tắt Auto Follow';
       ui.pill.textContent = 'LISTENING';
       setHint(ui.tempoToggle.checked
-        ? 'Đang nghe guitar. Dynamics phản ứng ngay; BPM, beat 1 và section cue chỉ thay đổi khi tín hiệu đủ ổn định.'
-        : 'Đang nghe guitar. Follow BPM đang tắt; app chỉ phản ứng theo lực đàn.');
+        ? 'Đang nghe guitar. Dynamics phản ứng ngay; BPM, beat 1, section và harmonic position chỉ thay đổi khi tín hiệu đủ ổn định.'
+        : 'Đang nghe guitar. Follow BPM đang tắt; dynamics/chord debug vẫn có thể hoạt động.');
       raf = requestAnimationFrame(frame);
     } catch (error) {
       cleanupAudio();
@@ -302,11 +341,13 @@
     currentState = 'silent';
     resetTempoTracking();
     resetSectionTracking();
+    resetHarmonicTracking();
     renderState('silent', 0, -80, 0);
     renderTempo();
     renderBar();
     renderSection();
-    if (message) setHint(message + ' Intensity, BPM, bar sync và section follow trở lại điều khiển tay.');
+    renderHarmonic();
+    if (message) setHint(message + ' Intensity, BPM, bar sync, section và harmonic follow trở lại điều khiển tay.');
   }
 
   function cleanupAudio() {
@@ -324,6 +365,7 @@
     source = null;
     analyser = null;
     buffer = null;
+    frequencyBuffer = null;
   }
 
   function frame(ts) {
@@ -346,12 +388,14 @@
     updateTempoFollow(ts);
     updateBarFollow(ts);
     updateSectionFollow(ts);
+    updateHarmonicFollow(ts);
     const state = stateForEnergy(smoothedEnergy, ts);
     updateState(state, ts);
     renderState(currentState, smoothedEnergy, db, strumRate);
     renderTempo();
     renderBar();
     renderSection();
+    renderHarmonic();
   }
 
   function rmsOf(data) {
@@ -791,6 +835,282 @@
     } else ui.sectionConfidence.textContent = confidence + '% · watching';
   }
 
+  function resetHarmonicTracking() {
+    lastChromaAt = 0;
+    chromaEma = new Array(12).fill(0);
+    chordCandidate = null;
+    chordCandidateSince = 0;
+    currentChord = null;
+    chordEvents = [];
+    harmonicMatch = null;
+    lastHarmonicAnchorAt = 0;
+  }
+
+  function chordQuality(symbol) {
+    const m = String(symbol||'').match(/^([A-G])([#b]?)(.*)$/);
+    if (!m) return null;
+    const rest = m[3] || '';
+    if (/m7b5/.test(rest)) return 'm7b5';
+    if (/dim/.test(rest)) return 'dim';
+    if (/aug/.test(rest)) return 'aug';
+    if (/sus2/.test(rest)) return 'sus2';
+    if (/sus/.test(rest)) return 'sus4';
+    if (/^m(?!aj)/.test(rest)) return /7/.test(rest) ? 'm7' : 'm';
+    if (/maj7/.test(rest)) return 'maj7';
+    if (/7/.test(rest)) return '7';
+    return 'maj';
+  }
+
+  function chordIntervals(quality) {
+    return {
+      maj:[0,4,7], m:[0,3,7], '7':[0,4,7,10], m7:[0,3,7,10],
+      maj7:[0,4,7,11], dim:[0,3,6], m7b5:[0,3,6,10],
+      aug:[0,4,8], sus2:[0,2,7], sus4:[0,5,7]
+    }[quality] || [0,4,7];
+  }
+
+  function soundingShift() {
+    const song = api.getCurrentSong?.();
+    if (!song) return 0;
+    const meta = api.getToneMeta?.() || {};
+    const sounding = meta.soundingKey != null ? Number(meta.soundingKey) : Number(api.getCurrentKey?.() ?? song.baseKey);
+    return ((sounding - Number(song.baseKey) + 12) % 12);
+  }
+
+  function transposeChordSymbol(symbol, semitones) {
+    const m = String(symbol||'').match(/^([A-G])([#b]?)(.*)$/);
+    if (!m) return symbol;
+    const song = api.getCurrentSong?.() || {};
+    const names = song.preferFlats ? NOTES_FLAT : NOTES_SHARP;
+    const root = NOTE_MAP[m[1]+m[2]];
+    if (root == null) return symbol;
+    let rest = m[3] || '';
+    rest = rest.replace(/\/([A-G])([#b]?)/, (_, a, b) => {
+      const bass = NOTE_MAP[a+b];
+      return bass == null ? '/'+a+b : '/'+names[(bass+semitones+12)%12];
+    });
+    return names[(root+semitones+12)%12] + rest;
+  }
+
+  function chordDescriptor(baseSymbol) {
+    const shifted = transposeChordSymbol(baseSymbol, soundingShift());
+    const m = String(shifted||'').match(/^([A-G])([#b]?)(.*)$/);
+    if (!m) return null;
+    const root = NOTE_MAP[m[1]+m[2]];
+    const quality = chordQuality(shifted);
+    if (root == null || !quality) return null;
+    const slash = (m[3]||'').match(/\/([A-G])([#b]?)/);
+    const bass = slash ? NOTE_MAP[slash[1]+slash[2]] : null;
+    return {baseSymbol, symbol:shifted, root, quality, bass, id:root+':'+quality};
+  }
+
+  function templateForChord(desc) {
+    const vector = new Array(12).fill(0);
+    const intervals = chordIntervals(desc.quality);
+    const weights = [1.0,0.84,0.68,0.50];
+    intervals.forEach((interval, i) => {
+      vector[(desc.root+interval)%12] += weights[Math.min(i,weights.length-1)];
+    });
+    if (desc.bass != null) vector[desc.bass] += 0.22;
+    return vector;
+  }
+
+  function normalizeVector(values) {
+    const norm = Math.sqrt(values.reduce((sum,v)=>sum+v*v,0)) || 1;
+    return values.map(v=>v/norm);
+  }
+
+  function spectralChroma() {
+    if (!analyser || !frequencyBuffer || !audioCtx) return null;
+    analyser.getFloatFrequencyData(frequencyBuffer);
+    const chroma = new Array(12).fill(0);
+    const binHz = audioCtx.sampleRate / analyser.fftSize;
+    for (let i=1; i<frequencyBuffer.length; i++) {
+      const f = i * binHz;
+      if (f < 70 || f > 1250) continue;
+      const db = frequencyBuffer[i];
+      if (!Number.isFinite(db) || db < -78) continue;
+      const midi = 69 + 12 * Math.log2(f / 440);
+      const nearest = Math.round(midi);
+      const cents = Math.abs((midi-nearest)*100);
+      if (cents > 48) continue;
+      const pc = ((nearest%12)+12)%12;
+      const magnitude = Math.pow(10, db/20);
+      const tuningWeight = Math.exp(-0.5 * Math.pow(cents/28,2));
+      const frequencyWeight = 1 / Math.sqrt(Math.max(1, f/110));
+      chroma[pc] += magnitude * tuningWeight * frequencyWeight;
+    }
+    const total = chroma.reduce((a,b)=>a+b,0);
+    if (total <= 1e-7) return null;
+    return chroma.map(v=>v/total);
+  }
+
+  function expectedChordDescriptors() {
+    const timeline = api.getHarmonicTimeline?.() || [];
+    const map = new Map();
+    timeline.forEach(item => {
+      const desc = chordDescriptor(item.symbol);
+      if (desc && !map.has(desc.id)) map.set(desc.id, desc);
+    });
+    return [...map.values()];
+  }
+
+  function detectChordFromChroma() {
+    const descs = expectedChordDescriptors();
+    if (!descs.length) return null;
+    const chromaNorm = normalizeVector(chromaEma);
+    const ranked = descs.map(desc => {
+      const tpl = normalizeVector(templateForChord(desc));
+      let score = 0;
+      for (let i=0;i<12;i++) score += chromaNorm[i]*tpl[i];
+      score = clamp(score + chromaEma[desc.root]*0.10, 0, 1);
+      return {...desc, score};
+    }).sort((a,b)=>b.score-a.score);
+    const best = ranked[0], second = ranked[1] || {score:0};
+    const margin = best.score-second.score;
+    if (best.score < CHORD_SCORE_MIN || margin < CHORD_MARGIN_MIN) return null;
+    return {...best, margin, confidence:clamp(0.72*best.score+0.28*clamp(margin/0.16,0,1),0,1)};
+  }
+
+  function updateChordCandidate(now, detected) {
+    if (!detected) {
+      chordCandidate = null;
+      chordCandidateSince = 0;
+      return;
+    }
+    if (!chordCandidate || chordCandidate.id !== detected.id) {
+      chordCandidate = detected;
+      chordCandidateSince = now;
+      return;
+    }
+    chordCandidate = detected;
+    if (now-chordCandidateSince < CHORD_STABLE_MS) return;
+    if (currentChord?.id === detected.id) {
+      currentChord = detected;
+      return;
+    }
+    currentChord = detected;
+    chordEvents.push({
+      time:now,
+      id:detected.id,
+      symbol:detected.symbol,
+      baseSymbol:detected.baseSymbol,
+      confidence:detected.confidence
+    });
+    if (chordEvents.length > 8) chordEvents.shift();
+  }
+
+  function expectedSequence() {
+    return (api.getHarmonicTimeline?.() || []).map(item => {
+      const desc = chordDescriptor(item.symbol);
+      return desc ? {...item, id:desc.id, soundingSymbol:desc.symbol} : null;
+    }).filter(Boolean);
+  }
+
+  function matchHarmonicPosition() {
+    const observed = chordEvents.slice(-5);
+    if (observed.length < HARMONIC_MIN_EVENTS) return null;
+    const expected = expectedSequence();
+    if (expected.length < observed.length) return null;
+    const n = Math.min(observed.length, 5);
+    const obs = observed.slice(-n);
+    const ranked = [];
+
+    for (let end=n-1; end<expected.length; end++) {
+      let score=0;
+      let exact=0;
+      for (let j=0;j<n;j++) {
+        const o=obs[j], e=expected[end-n+1+j];
+        if (o.id===e.id) {
+          score += 1.0 * (0.70+0.30*o.confidence);
+          exact++;
+        } else {
+          const oroot=Number(o.id.split(':')[0]), eroot=Number(e.id.split(':')[0]);
+          if (oroot===eroot) score += 0.58 * (0.70+0.30*o.confidence);
+        }
+      }
+      const normalized=score/n;
+      ranked.push({
+        score:normalized,
+        exact,
+        endIndex:end,
+        target:expected[end]
+      });
+    }
+    ranked.sort((a,b)=>b.score-a.score);
+    const best=ranked[0], second=ranked[1]||{score:0};
+    const margin=best.score-second.score;
+    return {
+      ...best,
+      margin,
+      confidence:clamp(0.78*best.score+0.22*clamp(margin/0.22,0,1),0,1),
+      observed:obs.map(x=>x.symbol)
+    };
+  }
+
+  function maybeAnchorHarmonicPosition(now) {
+    if (!ui.harmonicToggle.checked || !harmonicMatch) return;
+    if (harmonicMatch.score < HARMONIC_MATCH_MIN || harmonicMatch.margin < HARMONIC_MARGIN_MIN) return;
+    if (now-lastHarmonicAnchorAt < HARMONIC_ANCHOR_COOLDOWN_MS) return;
+    if (tempoConfidence < TEMPO_CONFIDENCE_MIN || barConfidence < BAR_CONFIDENCE_MIN) return;
+    if (!barCandidateSince || now-barCandidateSince < BAR_STABLE_MS) return;
+    if (typeof api.getTransport !== 'function' || typeof api.requestHarmonicAnchor !== 'function') return;
+
+    const transport=api.getTransport();
+    const target=harmonicMatch.target;
+    if (!transport?.playing || transport.paused || transport.countIn>0 || !target) return;
+    if (Math.abs(Number(target.beat)-Number(transport.songBeat)) < 4) return;
+
+    const accepted=api.requestHarmonicAnchor(target.beat,target.rowIndex,harmonicMatch.confidence);
+    if (!accepted) return;
+    lastHarmonicAnchorAt=now;
+    api.setStatus?.('🎸 Chord sequence '+Math.round(harmonicMatch.confidence*100)+'% → re-anchor Line '+(target.rowIndex+1)+' · '+target.section+'.');
+  }
+
+  function updateHarmonicFollow(now) {
+    if (!running || !frequencyBuffer) return;
+    const sinceOnset=now-lastOnsetAt;
+    if (smoothedEnergy < 0.14 || sinceOnset < 40 || sinceOnset > 720) return;
+    if (now-lastChromaAt < CHROMA_ANALYSIS_MS) return;
+    lastChromaAt=now;
+
+    const chroma=spectralChroma();
+    if (!chroma) return;
+    const alpha=chromaEma.some(v=>v>0) ? 0.28 : 1;
+    for (let i=0;i<12;i++) chromaEma[i]=(1-alpha)*chromaEma[i]+alpha*chroma[i];
+    const sum=chromaEma.reduce((a,b)=>a+b,0)||1;
+    chromaEma=chromaEma.map(v=>v/sum);
+
+    const detected=detectChordFromChroma();
+    updateChordCandidate(now,detected);
+    harmonicMatch=matchHarmonicPosition();
+    maybeAnchorHarmonicPosition(now);
+  }
+
+  function renderHarmonic() {
+    if (!ui.chord) return;
+    if (!running) {
+      ui.chord.textContent='—';
+      ui.harmonic.textContent='bật Auto Follow để nghe chord';
+      return;
+    }
+    ui.chord.textContent=currentChord?.symbol || chordCandidate?.symbol || '…';
+    if (!ui.harmonicToggle.checked) {
+      ui.harmonic.textContent='auto re-anchor tắt';
+      return;
+    }
+    if (!harmonicMatch) {
+      ui.harmonic.textContent=chordEvents.length+'/'+HARMONIC_MIN_EVENTS+' chord ổn định';
+      return;
+    }
+    const target=harmonicMatch.target;
+    const conf=Math.round(harmonicMatch.confidence*100);
+    const ambiguous=harmonicMatch.margin<HARMONIC_MARGIN_MIN;
+    ui.harmonic.textContent=target
+      ? '→ L'+(target.rowIndex+1)+' '+target.section+' · '+conf+'%'+(ambiguous?' · ambiguous':'')
+      : conf+'%';
+  }
+
   function stateForEnergy(energy, now) {
     if (energy < 0.12) {
       if (!silentSince) silentSince = now;
@@ -880,7 +1200,11 @@
       barFollow:Boolean(ui.barToggle.checked),
       barEstimate,
       sectionFollow:Boolean(ui.sectionToggle.checked),
-      sectionPrediction
+      sectionPrediction,
+      harmonicFollow:Boolean(ui.harmonicToggle.checked),
+      currentChord,
+      harmonicMatch,
+      chordEvents:chordEvents.slice()
     })
   };
 })();
