@@ -56,3 +56,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** POC drummer dùng rule-based 4/4 groove theo section, có per-song style, Intensity 1–5 và queued Fill; chưa nghe guitar để tự bám tempo/section.
 
 **Reason:** cho phép kiểm tra trải nghiệm cốt lõi “vừa đàn acoustic + hát, app làm tay trống” với Web Audio hiện có trước khi tăng complexity sang realtime audio-following.
+
+
+## D010 — Per-song drum arrangement + auto-fill
+
+**Decision:** mỗi bài có thể khai báo `drumArrangement` theo exact section name, gồm pattern/gain/label và cờ `autoFillIn`. Section được đánh dấu sẽ nhận fill 4 beat ngay trước điểm vào section; các section không khai báo vẫn dùng fallback theo loại Intro/Verse/Chorus/Bridge.
+
+**Reason:** cùng một rule chung chưa đủ tạo cảm giác một tay trống đang đệm theo diễn tiến của từng bài; arrangement nhỏ theo section cho khác biệt rõ mà vẫn giữ kiến trúc static/Web Audio đơn giản.
