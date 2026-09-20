@@ -191,6 +191,7 @@
   renderInput();
   renderCalibration();
   renderHealth();
+  renderPlayingSummary();
   attachListeners();
 
   function injectStyles() {
@@ -532,6 +533,7 @@
     });
 
     window.addEventListener('guitar-drum-self-hit', handleSelfDrumHit);
+    window.addEventListener('guitar-drum-transport', renderPlayingSummary);
     window.addEventListener('pagehide', cleanupAudio);
   }
 
@@ -877,7 +879,8 @@
       controls:{
         intensity:Number(intensity.value)||0,
         humanFeel:Number(humanizeInput?.value)||0,
-        sensitivity:Number(ui.sensitivity.value)||0
+        sensitivity:Number(ui.sensitivity.value)||0,
+        developerMode:Boolean(developerMode)
       },
       performance:typeof api.getPerformanceIntent==='function'
         ? api.getPerformanceIntent()
