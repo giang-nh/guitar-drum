@@ -36,6 +36,7 @@ The repository is intended to contain enough context that a new agent can contin
 - Line numbering and current-line highlight
 - Per-song local persistence
 - PWA-style install support
+- Experimental vocal tone detection PoC for Nàng Thơ
 
 ## Architecture summary
 
@@ -60,3 +61,5 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) before making structural changes.
 On iPad: open the site in Safari → Share → Add to Home Screen.
 
 Deployment workflow is configured in `.github/workflows/pages.yml`.
+
+Experimental vocal tone PoC: `https://giang-nh.github.io/guitar-drum/tone-poc.html`
