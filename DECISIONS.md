@@ -147,3 +147,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** the current PWA calibrates the existing heuristic detector thresholds from five short local sound conditions and never records or trains on raw audio. Learned values are quality-weighted against known-safe defaults, and sensitivity changes are capped to ±6 dB.
 
 **Reason:** the dominant variation right now is device placement, speaker bleed, room level and singer/guitar balance. A lightweight per-device profile can improve every existing detector immediately without introducing a server/model pipeline or making the static PWA dependent on opaque learned behavior.
+
+
+## D023 — Global Health quyết định quyền tự động
+
+**Decision:** no high-impact Follow action is authorized solely by its local detector confidence. A separate global Health layer controls automation permissions with three hysteretic modes: GREEN Full Auto, YELLOW Safe Follow and RED Manual Safe. Health downgrades cancel pending AI section/harmonic anchors; RED blocks risky automation but preserves silence→THIN/HOLD safety, and rejoin waits for recovery.
+
+**Reason:** multiple detectors can become simultaneously confident for the wrong reason (for example speaker bleed producing regular onsets). Global health combines independent evidence and contamination signals, making the system degrade gracefully instead of turning uncertainty into transport changes.
