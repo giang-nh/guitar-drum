@@ -24,6 +24,12 @@
   const BAR_MIN_ALIGNED = 10;
   const BAR_STABLE_MS = 2600;
   const BAR_SYNC_COOLDOWN_MS = 7000;
+  const SECTION_ENERGY_WINDOW_MS = 7000;
+  const SECTION_CONFIDENCE_MIN = 0.72;
+  const SECTION_STABLE_MS = 1400;
+  const SECTION_ACTION_COOLDOWN_MS = 10000;
+  const SECTION_MIN_BEATS_AWAY = 5;
+  const SECTION_MAX_BEATS_AWAY = 14;
 
   let audioCtx = null;
   let stream = null;
@@ -58,12 +64,19 @@
   let barCandidateBase = null;
   let barCandidateSince = 0;
   let lastBarSyncAt = 0;
+  let energyHistory = [];
+  let sectionPrediction = null;
+  let sectionCandidateIndex = null;
+  let sectionCandidateSince = 0;
+  let lastSectionActionAt = 0;
 
   injectStyles();
   const ui = buildUi();
   restoreSettings();
   renderState('silent', 0, -80, 0);
   renderTempo();
+  renderBar();
+  renderSection();
   attachListeners();
 
   function injectStyles() {
@@ -77,11 +90,11 @@
       .gd-follow-meter{height:10px;border-radius:999px;background:#e5e7ea;overflow:hidden}
       .gd-follow-meter>div{height:100%;width:0;background:var(--accent);transition:width .12s linear}
       .gd-follow-value{min-width:54px;text-align:right;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
-      .gd-follow-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-top:9px}
+      .gd-follow-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
       .gd-follow-stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:7px 8px}
       .gd-follow-stat span{display:block;font-size:9px;color:var(--muted);font-weight:800;text-transform:uppercase}
       .gd-follow-stat strong{display:block;margin-top:2px;font-size:13px}
-      .gd-follow-controls{display:grid;grid-template-columns:auto minmax(110px,1fr) auto auto;gap:10px;align-items:end;margin-top:10px}
+      .gd-follow-controls{display:grid;grid-template-columns:auto minmax(110px,1fr) auto auto auto;gap:10px;align-items:end;margin-top:10px}
       .gd-follow-controls button{min-width:134px;min-height:40px;padding:0 12px}
       .gd-follow-controls label{font-size:11px;margin:0}
       .gd-follow-controls input[type=range]{margin-top:5px}
@@ -115,6 +128,7 @@
         <div class="gd-follow-stat"><span>Strum</span><strong id="gdFollowStrums">0.0/s</strong></div>
         <div class="gd-follow-stat"><span>Tempo</span><strong id="gdFollowTempo">— BPM</strong><span id="gdFollowTempoConfidence">chưa đủ onset</span></div>
         <div class="gd-follow-stat"><span>Bar</span><strong id="gdFollowBarState">—</strong><span id="gdFollowBarConfidence">chưa thấy beat 1</span></div>
+        <div class="gd-follow-stat"><span>Section</span><strong id="gdFollowSectionState">—</strong><span id="gdFollowSectionConfidence">theo song map</span></div>
       </div>
       <div class="gd-follow-controls">
         <button type="button" id="gdFollowToggle">🎙 Bật Auto Follow</button>
@@ -124,8 +138,9 @@
         </div>
         <label class="gd-follow-tempo-option" for="gdTempoFollow"><input id="gdTempoFollow" type="checkbox" checked /> Follow BPM</label>
         <label class="gd-follow-tempo-option" for="gdBarFollow"><input id="gdBarFollow" type="checkbox" checked /> Sync beat 1</label>
+        <label class="gd-follow-tempo-option" for="gdSectionFollow"><input id="gdSectionFollow" type="checkbox" checked /> Follow section</label>
       </div>
-      <div id="gdFollowHint" class="gd-follow-hint">POC: mic follow lực đàn + tempo. “Sync beat 1” chỉ can thiệp khi accent pattern đủ rõ và chỉ nudge/re-index ô nhịp nhẹ; section vẫn theo song map. Dùng tai nghe hoặc giảm loa sẽ giảm mic bleed.</div>
+      <div id="gdFollowHint" class="gd-follow-hint">POC: dynamics + BPM + beat 1 + dự đoán section kế tiếp. Section Follow chỉ dùng known song map + bar confidence + xu hướng energy; hiện ưu tiên chuyển vào Chorus/cao trào, chưa nhận chord audio.</div>
     `;
     const hint = drummer.querySelector('.drumHint');
     if (hint) hint.insertAdjacentElement('afterend', host);
@@ -143,10 +158,13 @@
       tempoConfidence: host.querySelector('#gdFollowTempoConfidence'),
       barState: host.querySelector('#gdFollowBarState'),
       barConfidence: host.querySelector('#gdFollowBarConfidence'),
+      sectionState: host.querySelector('#gdFollowSectionState'),
+      sectionConfidence: host.querySelector('#gdFollowSectionConfidence'),
       toggle: host.querySelector('#gdFollowToggle'),
       sensitivity: host.querySelector('#gdFollowSensitivity'),
       tempoToggle: host.querySelector('#gdTempoFollow'),
       barToggle: host.querySelector('#gdBarFollow'),
+      sectionToggle: host.querySelector('#gdSectionFollow'),
       hint: host.querySelector('#gdFollowHint')
     };
   }
@@ -162,12 +180,21 @@
       resetTempoTracking();
       renderTempo();
       renderBar();
+      resetSectionTracking();
+      renderSection();
     });
     ui.barToggle.addEventListener('change', () => {
       saveSettings();
       barEstimate = null;
       barConfidence = 0;
+      resetSectionTracking();
       renderBar();
+      renderSection();
+    });
+    ui.sectionToggle.addEventListener('change', () => {
+      saveSettings();
+      resetSectionTracking();
+      renderSection();
     });
 
     document.querySelector('#songSelect')?.addEventListener('change', () => {
@@ -194,6 +221,7 @@
       if (saved.sensitivity != null) ui.sensitivity.value = String(Math.max(-12, Math.min(12, Number(saved.sensitivity) || 0)));
       if (saved.tempoFollow != null) ui.tempoToggle.checked = Boolean(saved.tempoFollow);
       if (saved.barFollow != null) ui.barToggle.checked = Boolean(saved.barFollow);
+      if (saved.sectionFollow != null) ui.sectionToggle.checked = Boolean(saved.sectionFollow);
     } catch {}
   }
 
@@ -202,7 +230,8 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         sensitivity:Number(ui.sensitivity.value) || 0,
         tempoFollow:Boolean(ui.tempoToggle.checked),
-        barFollow:Boolean(ui.barToggle.checked)
+        barFollow:Boolean(ui.barToggle.checked),
+        sectionFollow:Boolean(ui.sectionToggle.checked)
       }));
     } catch {}
   }
@@ -247,10 +276,11 @@
       onsetWindowStartedAt = performance.now();
       lastOnsetAt = 0;
       resetTempoTracking();
+      resetSectionTracking();
       ui.toggle.textContent = '■ Tắt Auto Follow';
       ui.pill.textContent = 'LISTENING';
       setHint(ui.tempoToggle.checked
-        ? 'Đang nghe guitar. Dynamics phản ứng ngay; BPM và beat 1 chỉ thay đổi khi tín hiệu đủ ổn định.'
+        ? 'Đang nghe guitar. Dynamics phản ứng ngay; BPM, beat 1 và section cue chỉ thay đổi khi tín hiệu đủ ổn định.'
         : 'Đang nghe guitar. Follow BPM đang tắt; app chỉ phản ứng theo lực đàn.');
       raf = requestAnimationFrame(frame);
     } catch (error) {
@@ -268,10 +298,13 @@
     candidateState = 'silent';
     currentState = 'silent';
     resetTempoTracking();
+    resetSectionTracking();
     renderState('silent', 0, -80, 0);
     renderTempo();
     renderBar();
-    if (message) setHint(message + ' Intensity, BPM và bar sync trở lại điều khiển tay.');
+    renderSection();
+    renderSection();
+    if (message) setHint(message + ' Intensity, BPM, bar sync và section follow trở lại điều khiển tay.');
   }
 
   function cleanupAudio() {
@@ -306,9 +339,11 @@
     updateAdaptiveRange(db);
     const energy = normalizeEnergy(db);
     smoothedEnergy = smoothedEnergy * 0.80 + energy * 0.20;
+    recordEnergy(ts, smoothedEnergy);
     const strumRate = updateOnsetRate(ts, smoothedEnergy);
     updateTempoFollow(ts);
     updateBarFollow(ts);
+    updateSectionFollow(ts);
     const state = stateForEnergy(smoothedEnergy, ts);
     updateState(state, ts);
     renderState(currentState, smoothedEnergy, db, strumRate);
@@ -608,6 +643,149 @@
     ui.barConfidence.textContent = Math.round(barConfidence * 100) + '% ' + (justSynced ? '· synced' : stable ? '· stable' : '· learning');
   }
 
+  function resetSectionTracking() {
+    energyHistory = [];
+    sectionPrediction = null;
+    sectionCandidateIndex = null;
+    sectionCandidateSince = 0;
+    lastSectionActionAt = 0;
+  }
+
+  function recordEnergy(now, energy) {
+    energyHistory.push({time:now, energy:clamp(Number(energy)||0, 0, 1)});
+    const cutoff = now - SECTION_ENERGY_WINDOW_MS;
+    while (energyHistory.length && energyHistory[0].time < cutoff) energyHistory.shift();
+  }
+
+  function meanEnergyBetween(now, newestAgeMs, oldestAgeMs) {
+    const values = energyHistory
+      .filter(x => {
+        const age = now - x.time;
+        return age >= newestAgeMs && age <= oldestAgeMs;
+      })
+      .map(x => x.energy);
+    if (values.length < 5) return null;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }
+
+  function sectionSignal(now) {
+    const recent = meanEnergyBetween(now, 0, 1500);
+    const baseline = meanEnergyBetween(now, 2600, 5600);
+    if (recent == null || baseline == null) return null;
+    return {recent, baseline, trend:recent-baseline};
+  }
+
+  function updateSectionFollow(now) {
+    sectionPrediction = null;
+    if (!ui.sectionToggle.checked || !ui.barToggle.checked || !ui.tempoToggle.checked) {
+      sectionCandidateIndex = null;
+      sectionCandidateSince = 0;
+      return;
+    }
+    if (typeof api.getTransport !== 'function' || typeof api.getSectionTimeline !== 'function' || typeof api.requestSectionTransition !== 'function') return;
+
+    const transport = api.getTransport();
+    if (!transport?.playing || transport.paused || transport.countIn > 0) return;
+    if (!barEstimate || barConfidence < BAR_CONFIDENCE_MIN || !barCandidateSince || now - barCandidateSince < BAR_STABLE_MS) return;
+    if (tempoConfidence < TEMPO_CONFIDENCE_MIN) return;
+
+    const timeline = api.getSectionTimeline();
+    if (!Array.isArray(timeline) || timeline.length < 2) return;
+    const currentIndex = timeline.findIndex(s => transport.songBeat >= s.startBeat && transport.songBeat < s.endBeat);
+    if (currentIndex < 0 || currentIndex >= timeline.length - 1) return;
+
+    const current = timeline[currentIndex];
+    const next = timeline[currentIndex + 1];
+    const beatsAway = next.startBeat - transport.songBeat;
+    if (beatsAway < SECTION_MIN_BEATS_AWAY || beatsAway > SECTION_MAX_BEATS_AWAY) {
+      sectionCandidateIndex = null;
+      sectionCandidateSince = 0;
+      return;
+    }
+
+    const gainDelta = Number(next.gain||1) - Number(current.gain||1);
+    const isBuildTarget = Boolean(next.autoFillIn) || gainDelta >= 0.10;
+    if (!isBuildTarget) {
+      sectionCandidateIndex = null;
+      sectionCandidateSince = 0;
+      return;
+    }
+
+    const signal = sectionSignal(now);
+    if (!signal) return;
+
+    const trendScore = clamp((signal.trend - 0.035) / 0.17, 0, 1);
+    const gainScore = clamp((gainDelta + 0.04) / 0.30, 0, 1);
+    const proximityScore = clamp(1 - Math.abs(beatsAway - 8) / 7, 0, 1);
+    const stateScore = currentState === 'big' ? 1 : currentState === 'medium' ? 0.62 : currentState === 'soft' ? 0.22 : 0;
+    const confidence = clamp(
+      0.34 * trendScore +
+      0.18 * gainScore +
+      0.16 * proximityScore +
+      0.14 * stateScore +
+      0.10 * barConfidence +
+      0.08 * tempoConfidence,
+      0, 1
+    );
+
+    sectionPrediction = {
+      current,
+      next,
+      beatsAway,
+      trend:signal.trend,
+      confidence,
+      armed:false
+    };
+
+    if (confidence < SECTION_CONFIDENCE_MIN) {
+      sectionCandidateIndex = null;
+      sectionCandidateSince = 0;
+      return;
+    }
+
+    if (sectionCandidateIndex !== next.index) {
+      sectionCandidateIndex = next.index;
+      sectionCandidateSince = now;
+      return;
+    }
+    if (now - sectionCandidateSince < SECTION_STABLE_MS) return;
+    if (now - lastSectionActionAt < SECTION_ACTION_COOLDOWN_MS) return;
+
+    const accepted = api.requestSectionTransition(next.index);
+    if (!accepted) return;
+    lastSectionActionAt = now;
+    sectionPrediction.armed = true;
+    api.setStatus?.('🎸 Section Follow ' + Math.round(confidence*100) + '% · chuẩn bị fill → ' + next.name + '.');
+  }
+
+  function renderSection() {
+    if (!ui.sectionState) return;
+    if (!ui.sectionToggle.checked) {
+      ui.sectionState.textContent = 'OFF';
+      ui.sectionConfidence.textContent = 'section follow tắt';
+      return;
+    }
+    if (!ui.barToggle.checked || !ui.tempoToggle.checked) {
+      ui.sectionState.textContent = 'WAIT';
+      ui.sectionConfidence.textContent = 'cần BPM + beat 1';
+      return;
+    }
+    if (!sectionPrediction) {
+      ui.sectionState.textContent = 'MAP';
+      ui.sectionConfidence.textContent = 'đang theo vị trí bài';
+      return;
+    }
+
+    const label = sectionPrediction.next?.name || 'next';
+    ui.sectionState.textContent = '→ ' + label;
+    const confidence = Math.round((sectionPrediction.confidence||0)*100);
+    if (sectionPrediction.armed) ui.sectionConfidence.textContent = confidence + '% · armed';
+    else if (sectionCandidateIndex === sectionPrediction.next?.index && sectionCandidateSince) {
+      const stable = performance.now() - sectionCandidateSince >= SECTION_STABLE_MS;
+      ui.sectionConfidence.textContent = confidence + '% · ' + (stable ? 'ready' : 'learning');
+    } else ui.sectionConfidence.textContent = confidence + '% · watching';
+  }
+
   function stateForEnergy(energy, now) {
     if (energy < 0.12) {
       if (!silentSince) silentSince = now;
@@ -695,7 +873,9 @@
       tempoFollow:Boolean(ui.tempoToggle.checked),
       barConfidence,
       barFollow:Boolean(ui.barToggle.checked),
-      barEstimate
+      barEstimate,
+      sectionFollow:Boolean(ui.sectionToggle.checked),
+      sectionPrediction
     })
   };
 })();
