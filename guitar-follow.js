@@ -72,6 +72,19 @@
   const REGRESSION_GUITAR_LOSS_BLOCK = 0.08;
   const REGRESSION_CONTAM_WORSE_BLOCK = 0.035;
   const REGRESSION_MARK_WORSE_BLOCK = 0.10;
+  const VALIDATION_VERSION = 1;
+  const VALIDATION_STEPS = [
+    {id:'quiet',label:'1/10 · Quiet room',ms:6000,instruction:'Để phòng yên · drum OFF · không đàn · không hát.'},
+    {id:'drum',label:'2/10 · Drum only',ms:10000,instruction:'Bật Play drummer · không đàn · không hát. Giữ volume đúng mức bạn thường dùng.'},
+    {id:'guitar',label:'3/10 · Guitar only',ms:12000,instruction:'Drum OFF · không hát · quạt guitar đều như lúc biểu diễn cho tới hết timer.'},
+    {id:'voice',label:'4/10 · Voice only',ms:10000,instruction:'Drum OFF · không đàn · hát một đoạn ở âm lượng thật.'},
+    {id:'guitar-voice',label:'5/10 · Guitar + voice',ms:12000,instruction:'Drum OFF · vừa đàn vừa hát bình thường.'},
+    {id:'full-mix',label:'6/10 · Full mix',ms:15000,instruction:'Bật drummer · vừa đàn vừa hát như lúc sử dụng thật.'},
+    {id:'stop-resume',label:'7/10 · Stop / Resume',ms:18000,instruction:'Đàn + drum vài giây → ngừng guitar khoảng 5 giây → chơi lại rõ beat. Quan sát HOLD rồi REJOIN.'},
+    {id:'transition',label:'8/10 · Verse → Chorus',ms:25000,instruction:'Chọn gần cuối Verse/Pre trước Chorus, bật drum và chơi build tự nhiên xuyên qua điểm chuyển section.'},
+    {id:'soft-big',label:'9/10 · Soft → Big',ms:18000,instruction:'Quạt rất nhẹ khoảng nửa đầu, sau đó tăng rõ lên mạnh/cao trào.'},
+    {id:'free',label:'10/10 · Free play',ms:30000,instruction:'Chơi tự do 30 giây với guitar + hát + drum như một performance thật.'}
+  ];
   const CALIBRATION_STEPS = [
     {id:'quiet',label:'1/5 · Quiet',ms:5000,instruction:'Để phòng yên · không drum · không đàn · không hát.'},
     {id:'drum',label:'2/5 · Drum only',ms:5000,instruction:'Bật Play drum · không đàn · không hát.'},
@@ -178,6 +191,16 @@
   let developerMode = false;
   let regressionSessions = [];
   let regressionReport = null;
+  let validationActive = false;
+  let validationStepIndex = 0;
+  let validationStepRunning = false;
+  let validationStepStartedAt = 0;
+  let validationStepStartT = 0;
+  let validationRuns = [];
+  let validationTimer = 0;
+  let validationReport = null;
+  let validationOwnTelemetry = false;
+  let validationAddedToRegression = false;
 
   injectStyles();
   const ui = buildUi();
@@ -193,6 +216,7 @@
   renderCalibration();
   renderHealth();
   renderPlayingSummary();
+  renderValidation();
   attachListeners();
 
   function injectStyles() {
@@ -230,6 +254,19 @@
       .gd-debug-row button{min-height:36px;padding:0 10px;font-size:11px}
       .gd-debug-status{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
       .gd-debug-note{margin-top:6px;font-size:10px;color:var(--muted);line-height:1.35}
+      .gd-validation{margin-top:9px;padding:9px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+      .gd-validation-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
+      .gd-validation-title{font-size:11px;font-weight:800}
+      .gd-validation-status{font-size:10px;color:var(--muted)}
+      .gd-validation-panel{display:none;margin-top:8px}
+      .gd-validation-panel.on{display:block}
+      .gd-validation-step{font-size:12px;font-weight:800}
+      .gd-validation-instruction{margin-top:4px;font-size:11px;color:var(--muted);line-height:1.4}
+      .gd-validation-progress{height:7px;margin-top:8px;border-radius:999px;background:#e5e7ea;overflow:hidden}
+      .gd-validation-progress>div{height:100%;width:0;background:var(--accent);transition:width .1s linear}
+      .gd-validation-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+      .gd-validation-actions button{min-height:34px;padding:0 9px;font-size:10px}
+      .gd-validation-report{margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);font-size:10px;color:var(--muted);line-height:1.45;white-space:pre-line}
       .gd-autotune{margin-top:9px;padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
       .gd-autotune-head{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
       .gd-autotune-head button{min-height:34px;padding:0 9px;font-size:10px}
@@ -314,6 +351,28 @@
           <span id="gdDebugStatus" class="gd-debug-status">chưa ghi session</span>
         </div>
         <div class="gd-debug-note">Chỉ ghi telemetry/state; không ghi hoặc lưu audio. Dữ liệu ở local cho tới khi bạn chủ động Export.</div>
+        <div class="gd-validation">
+          <div class="gd-validation-head">
+            <div>
+              <div class="gd-validation-title">🎯 iPad Validation Session</div>
+              <div id="gdValidationStatus" class="gd-validation-status">10 bước · guided telemetry · không ghi audio</div>
+            </div>
+            <button type="button" id="gdValidationOpen">Start validation</button>
+          </div>
+          <div id="gdValidationPanel" class="gd-validation-panel">
+            <div id="gdValidationStep" class="gd-validation-step">1/10 · Quiet room</div>
+            <div id="gdValidationInstruction" class="gd-validation-instruction"></div>
+            <div class="gd-validation-progress"><div id="gdValidationProgress"></div></div>
+            <div class="gd-validation-actions">
+              <button type="button" id="gdValidationStartStep">Start step</button>
+              <button type="button" id="gdValidationSkip">Skip</button>
+              <button type="button" id="gdValidationCancel">Cancel</button>
+              <button type="button" id="gdValidationRegression" disabled>Add to regression</button>
+              <button type="button" id="gdValidationAnalyze" disabled>Analyze failures</button>
+            </div>
+            <div id="gdValidationReport" class="gd-validation-report">Bắt đầu session để app tự label từng cửa sổ test.</div>
+          </div>
+        </div>
         <div class="gd-autotune">
           <div class="gd-autotune-head">
             <button type="button" id="gdTuneAnalyze" disabled>✨ Analyze marks</button>
@@ -398,6 +457,18 @@
       debugMark: host.querySelector('#gdDebugMark'),
       debugExport: host.querySelector('#gdDebugExport'),
       debugStatus: host.querySelector('#gdDebugStatus'),
+      validationOpen: host.querySelector('#gdValidationOpen'),
+      validationPanel: host.querySelector('#gdValidationPanel'),
+      validationStatus: host.querySelector('#gdValidationStatus'),
+      validationStep: host.querySelector('#gdValidationStep'),
+      validationInstruction: host.querySelector('#gdValidationInstruction'),
+      validationProgress: host.querySelector('#gdValidationProgress'),
+      validationStartStep: host.querySelector('#gdValidationStartStep'),
+      validationSkip: host.querySelector('#gdValidationSkip'),
+      validationCancel: host.querySelector('#gdValidationCancel'),
+      validationRegression: host.querySelector('#gdValidationRegression'),
+      validationAnalyze: host.querySelector('#gdValidationAnalyze'),
+      validationReport: host.querySelector('#gdValidationReport'),
       tuneAnalyze: host.querySelector('#gdTuneAnalyze'),
       tuneImport: host.querySelector('#gdTuneImport'),
       tuneFile: host.querySelector('#gdTuneFile'),
@@ -433,6 +504,12 @@
     ui.debugRecord.addEventListener('click', toggleTelemetryRecording);
     ui.debugMark.addEventListener('click', () => recordTelemetryEvent('manual-mark',{label:'user-mark'}));
     ui.debugExport.addEventListener('click', exportTelemetry);
+    ui.validationOpen.addEventListener('click', startValidationSession);
+    ui.validationStartStep.addEventListener('click', startValidationStep);
+    ui.validationSkip.addEventListener('click', skipValidationStep);
+    ui.validationCancel.addEventListener('click', () => cancelValidationSession('Validation đã dừng.'));
+    ui.validationRegression.addEventListener('click', addValidationToRegression);
+    ui.validationAnalyze.addEventListener('click', analyzeCurrentTelemetryForTune);
     ui.tuneAnalyze.addEventListener('click', analyzeCurrentTelemetryForTune);
     ui.tuneImport.addEventListener('click', () => ui.tuneFile.click());
     ui.tuneFile.addEventListener('change', importTelemetryForTune);
@@ -505,6 +582,7 @@
     });
 
     document.querySelector('#songSelect')?.addEventListener('change', () => {
+      if(validationActive)cancelValidationSession('Đổi bài · validation đã dừng.',true);
       if(calibrationActive)cancelCalibration('',true);
       smoothedEnergy = 0;
       currentState = 'silent';
@@ -530,6 +608,7 @@
     });
 
     document.querySelector('#gdToneMic')?.addEventListener('click', () => {
+      if(validationActive)cancelValidationSession('Mở Tone Mic · validation đã dừng.',true);
       if (running) stopListening('Auto Follow tạm tắt để dùng mic tìm tone.');
     });
 
