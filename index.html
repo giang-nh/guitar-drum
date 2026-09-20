@@ -138,7 +138,7 @@
         </div>
         <button id="fill" class="fillBtn" type="button" disabled>🥁 Fill</button>
       </div>
-      <div class="drumHint">Tự đổi groove theo Intro / Verse / Chorus / Bridge. Fill sẽ vào đầu ô nhịp kế tiếp.</div>
+      <div class="drumHint">Arrangement riêng cho từng bài · tự fill trước Chorus/cao trào · Fill tay vẫn vào đầu ô nhịp kế tiếp.</div>
     </div>
     <div class="actions">
       <div id="status" class="status">Sẵn sàng.</div>
@@ -173,6 +173,16 @@
   const songs={
     'nang-tho':{
       title:'Nàng Thơ',artist:'Hoàng Dũng',meta:'Ballad · 4/4',baseKey:0,defaultBpm:62,drumStyle:'Acoustic Pop',
+      drumArrangement:{
+        'Intro':{pattern:'air',gain:.72,label:'Intro · kick thưa'},
+        'Verse 1':{pattern:'pocket',gain:.82,label:'Verse 1 · pocket nhẹ'},
+        'Tiền ĐK':{pattern:'build',gain:1,label:'Tiền ĐK · build dần'},
+        'Chorus 1':{pattern:'open',gain:1.08,label:'Chorus 1 · mở rộng',autoFillIn:true},
+        'Interlude':{pattern:'ride',gain:.98,label:'Interlude · hi-hat mở'},
+        'Verse 2':{pattern:'pocketPlus',gain:.9,label:'Verse 2 · thêm lực'},
+        'Chorus 2':{pattern:'openPlus',gain:1.14,label:'Chorus 2 · full groove',autoFillIn:true},
+        'Final +1 Tone':{pattern:'finale',gain:1.24,label:'Final · cao trào',autoFillIn:true}
+      },
       rows:[
         ['Intro',24,['C',' · ','F',' · ','G',' · ','C',' · ','F',' · ','Cm',' · ','Dm',' · ','G']],
         ['Verse 1',6,['C','Em, ngày em đánh ','Em7','rơi nụ cười vào ','Am7','anh']],
@@ -220,6 +230,14 @@
     },
     'que-xa':{
       title:'Quê Xa',artist:'Quang Dũng',meta:'Ballad · 4/4 · tone gốc D/Dm',baseKey:2,defaultBpm:62,preferFlats:true,drumStyle:'Soft Ballad',
+      drumArrangement:{
+        'Verse 1':{pattern:'air',gain:.76,label:'Verse 1 · rất nhẹ'},
+        'Điệp khúc':{pattern:'open',gain:1.02,label:'Điệp khúc · mở vừa',autoFillIn:true},
+        'Verse 2':{pattern:'pocket',gain:.84,label:'Verse 2 · pocket nhẹ'},
+        'Điệp khúc 2':{pattern:'openPlus',gain:1.08,label:'Điệp khúc 2 · rộng hơn',autoFillIn:true},
+        'Verse 3':{pattern:'pocketPlus',gain:.9,label:'Verse 3 · thêm lực'},
+        'Outro':{pattern:'outro',gain:.65,label:'Outro · hạ dần'}
+      },
       rows:[
         ['Verse 1',8,['','Bỗng ','D',' dưng thấy đời buồn thiu không ','Em7b5','mê xem phim chán ','D/A','cà phê chiều']],
         ['Verse 1',8,['','Gió ','Gm',' mang nỗi buồn quạnh ','Em7b5','hiu gửi chút thương ','Bb',' yêu về nơi tôi ','A7',' nhớ']],
@@ -249,6 +267,12 @@
     },
     'giac-mo-tinh-yeu':{
       title:'Giấc Mơ Tình Yêu',artist:'Mỹ Tâm',meta:'Ballad · 4/4 · tone gốc F',baseKey:5,defaultBpm:62,preferFlats:true,drumStyle:'Acoustic Ballad',
+      drumArrangement:{
+        'Verse 1':{pattern:'air',gain:.78,label:'Verse 1 · mềm'},
+        'Verse 2':{pattern:'pocket',gain:.86,label:'Verse 2 · vào groove'},
+        'Điệp khúc':{pattern:'openPlus',gain:1.12,label:'Điệp khúc · full ballad',autoFillIn:true},
+        'Bridge':{pattern:'halftime',gain:.94,label:'Bridge · half-time'}
+      },
       rows:[
         ['Verse 1',8,['F',' Có giấc mơ nào êm ','C7',' đềm, ','Dm',' khẽ lướt qua làn môi ','Am',' mềm']],
         ['Verse 1',8,['Bb',' Lấp lánh như ngàn tia ','F','nắng, sưởi ','Gm',' ấm cõi lòng ','C7',' em']],
@@ -453,28 +477,50 @@
     if(v.includes('outro'))return 'outro';
     return 'verse';
   }
-  function sectionPatternLabel(name){
-    const kind=sectionKind(name);
+  function arrangementForRow(rowIndex){
+    const r=rows[Math.max(0,Math.min(rows.length-1,rowIndex))];
+    const exact=song.drumArrangement&&song.drumArrangement[r.s];
+    if(exact)return exact;
+    const kind=sectionKind(r.s);
     return {
-      intro:'Intro · nhẹ, thoáng',
-      verse:'Verse · giữ pocket',
-      pre:'Pre-chorus · build dần',
-      chorus:'Chorus · full groove',
-      bridge:'Bridge · half-time',
-      interlude:'Interlude · mở hi-hat',
-      outro:'Outro · hạ động lực'
-    }[kind];
+      pattern:{intro:'air',verse:'pocket',pre:'build',chorus:'open',bridge:'halftime',interlude:'ride',outro:'outro'}[kind]||'pocket',
+      gain:{intro:.72,verse:.82,pre:.96,chorus:1.12,bridge:.9,interlude:1.02,outro:.68}[kind]||.85,
+      label:{
+        intro:'Intro · nhẹ, thoáng',
+        verse:'Verse · giữ pocket',
+        pre:'Pre-chorus · build dần',
+        chorus:'Chorus · full groove',
+        bridge:'Bridge · half-time',
+        interlude:'Interlude · mở hi-hat',
+        outro:'Outro · hạ động lực'
+      }[kind]
+    };
   }
-  function updateDrummerUI(name){
+  function updateDrummerUI(name,rowIndex=currentRow){
+    const arr=arrangementForRow(rowIndex);
     drumStyle.textContent=song.drumStyle||'Acoustic';
-    drumPattern.textContent=sectionPatternLabel(name);
+    drumPattern.textContent=arr.label||name;
     intensityLabel.textContent=intensity.value;
   }
-  function drumPower(kind){
+  function drumPower(rowIndex){
     const level=Math.max(1,Math.min(5,Number(intensity.value)||3));
     const base=[.54,.7,.86,1.02,1.18][level-1];
-    const section={intro:.72,verse:.82,pre:.96,chorus:1.12,bridge:.9,interlude:1.02,outro:.68}[kind]||.85;
-    return base*section;
+    return base*(arrangementForRow(rowIndex).gain||1);
+  }
+  function sectionStartIndexAtBeat(beat){
+    for(let i=0;i<rows.length;i++){
+      if(rows[i].start===beat && (i===0||rows[i-1].s!==rows[i].s))return i;
+    }
+    return -1;
+  }
+  function maybeStartAutoFill(){
+    const targetIndex=sectionStartIndexAtBeat(songBeat+4);
+    if(targetIndex<0||fillRequested||fillRemaining>0)return false;
+    const target=arrangementForRow(targetIndex);
+    if(!target.autoFillIn)return false;
+    fillRemaining=4;
+    fillBtn.textContent='AUTO → '+rows[targetIndex].s;
+    return true;
   }
   function scheduleFillBeat(t,q,step,p){
     hat(t,.7*p);
@@ -498,7 +544,7 @@
       if(isCount)status.textContent='Count-in: '+(beat+1);
       else{
         const next=rowForBeat(songBeat);if(next!==currentRow)updateRow(next);
-        updateDrummerUI(rows[next].s);
+        updateDrummerUI(rows[next].s,next);
         updateTime();status.textContent='Line '+(currentRow+1)+' · Beat '+(beat+1);songBeat++;
         if(songBeat>=total)stopToBeginning();
       }
@@ -508,33 +554,47 @@
     const beat=quarter%4;
     if(countIn>0){click(t,beat===0);visualBeat(beat,t,true);countIn--;quarter++;return}
     const q=60/Number(bpm.value);
-    const rowIndex=rowForBeat(songBeat), current=rows[rowIndex], kind=sectionKind(current.s), p=drumPower(kind);
+    const rowIndex=rowForBeat(songBeat), current=rows[rowIndex], kind=sectionKind(current.s);
+    const arr=arrangementForRow(rowIndex), pattern=arr.pattern||kind, p=drumPower(rowIndex);
     const nextIndex=rowForBeat(Math.min(total-1,songBeat+1));
-    const autoTurn=nextIndex!==rowIndex && sectionKind(rows[nextIndex].s)!==kind;
+    const autoTurn=nextIndex!==rowIndex && rows[nextIndex].s!==current.s;
     if(fillRequested && beat===0){fillRequested=false;fillRemaining=4;fillBtn.textContent='🥁 Fill'}
+    else maybeStartAutoFill();
     if(fillRemaining>0){
       scheduleFillBeat(t,q,4-fillRemaining,p);
       fillRemaining--;
-    }else if(kind==='bridge'){
+      if(fillRemaining===0)fillBtn.textContent='🥁 Fill';
+    }else if(pattern==='halftime'){
       hat(t,.72*p);
       if(beat===0)kick(t,.9*p);
       if(beat===2)snare(t,.88*p);
       if(Number(intensity.value)>=4)hat(t+q/2,.38*p);
+    }else if(pattern==='air'){
+      hat(t,.58*p);
+      if(beat===0)kick(t,.82*p);
+      if(beat===3)snare(t,.44*p);
+      if(Number(intensity.value)>=4&&beat===2)hat(t+q/2,.3*p);
+    }else if(pattern==='outro'){
+      hat(t,.5*p);
+      if(beat===0)kick(t,.72*p);
+      if(beat===1||beat===3)snare(t,.48*p);
     }else{
-      const soft=kind==='intro'||kind==='verse'||kind==='outro';
-      const open=kind==='chorus'||kind==='interlude';
-      if(open && beat===3)openHat(t,.72*p);else hat(t,.9*p);
-      if(!soft||Number(intensity.value)>=3)hat(t+q/2,.42*p);
+      const more=pattern==='pocketPlus'||pattern==='openPlus'||pattern==='finale';
+      const opened=pattern==='open'||pattern==='openPlus'||pattern==='ride'||pattern==='finale';
+      if(opened&&beat===3)openHat(t,.74*p);else hat(t,.86*p);
+      if(pattern!=='pocket'||Number(intensity.value)>=3)hat(t+q/2,(more?.5:.4)*p);
       if(beat===0)kick(t,.96*p);
-      if(beat===2 && kind!=='intro')kick(t,(kind==='chorus'?.78:.58)*p);
-      if(beat===1||beat===3)snare(t,(soft?.68:.88)*p);
-      if(kind==='pre' && beat===3)openHat(t,.45*p);
-      if(kind==='chorus' && beat===0 && songBeat%8===0)crash(t,.45*p);
-      if(song.drumStyle==='Acoustic Pop' && beat===2)kick(t+q*.5,.3*p);
+      if(beat===2)kick(t,(more?.76:.56)*p);
+      if(more&&beat===2)kick(t+q*.5,.3*p);
+      if(beat===1||beat===3)snare(t,(opened?.9:.72)*p);
+      if(pattern==='build'&&beat===3)openHat(t,.52*p);
+      if((pattern==='openPlus'||pattern==='finale')&&beat===0&&songBeat%8===0)crash(t,.48*p);
+      if(pattern==='finale'&&beat===0)kick(t+q*.5,.26*p);
+      if(song.drumStyle==='Acoustic Pop'&&pattern!=='air'&&beat===2)kick(t+q*.5,.24*p);
     }
-    if(autoTurn && fillRemaining===0){
-      tom(t+q*.52,.52*p,150);
-      snare(t+q*.76,.5*p);
+    if(autoTurn&&fillRemaining===0&&!arr.autoFillIn){
+      tom(t+q*.52,.42*p,150);
+      snare(t+q*.76,.42*p);
     }
     visualBeat(beat,t,false);quarter++;
   }
@@ -588,7 +648,7 @@
   viewBtn.addEventListener('click',()=>{showAll=!showAll;renderSheet();saveState()});
   keySel.addEventListener('change',changeKey);
   bpm.addEventListener('input',()=>{bpmLabel.textContent=bpm.value;saveState()});
-  intensity.addEventListener('input',()=>{intensityLabel.textContent=intensity.value;updateDrummerUI(rows[currentRow].s);saveState()});
+  intensity.addEventListener('input',()=>{intensityLabel.textContent=intensity.value;updateDrummerUI(rows[currentRow].s,currentRow);saveState()});
   fillBtn.addEventListener('click',queueFill);
   toggleBtn.addEventListener('click',toggle);
   stopBtn.addEventListener('click',stopToBeginning);
