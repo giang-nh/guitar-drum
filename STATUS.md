@@ -52,6 +52,7 @@ Prototype hiện đã có:
 - **Mic Calibration Mode**: 5-step guided local calibration learns device/placement-specific mic rejection thresholds and sensitivity. Low-quality calibration automatically blends toward defaults; profile is persisted and included in debug export;
 - **Follow Health / Fail-safe Mode**: smoothed detector-health score drives `GREEN Full Auto / YELLOW Safe Follow / RED Manual Safe`; risky permissions are gated centrally, pending AI anchors are cancelled on downgrade, YELLOW disables harmonic re-position and big fills, RED freezes risky automation while preserving THIN/HOLD safety;
 - **Auto-Tune Engine / Profile Suggestions**: current or imported debug JSON + user Marks → directional failure classification → bounded Mic Profile suggestions → estimated before/after guitar retention and contamination pass → explicit Apply/Undo. Harmonic ambiguity is not mis-treated as a mic-threshold problem; unsafe comparisons disable Apply;
+- **Replay / Regression Test Harness**: import up to 12 historical debug sessions, replay current vs proposed mic thresholds on stored telemetry, compare guitar retention / contamination leakage / marked-case score / action-risk proxy, and block Auto-Tune Apply when any old session regresses. v27 adds onset decision telemetry for higher-fidelity future replay;
 
 ## Current data model
 
@@ -126,3 +127,6 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 
 - test **Auto-Tune** with at least 2–3 marked failures of the same type, then compare the suggestion and run a fresh debug session after Apply. Use Undo if guitar retention/tempo lock visibly worsens despite the offline estimate.
 - import an older exported debug JSON and verify Auto-Tune handles missing newer telemetry fields (for example `transient`/Health) conservatively rather than failing.
+
+- test **Regression suite** with at least 3 different scenarios (clean guitar, drum/voice contamination, full mix). Create a new Auto-Tune suggestion and verify every loaded session replays automatically; Apply must be blocked if any session crosses a regression threshold.
+- verify an older v25/v26 JSON without onset-rise fields still imports and replays via fallback rather than crashing.
