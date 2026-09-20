@@ -42,6 +42,19 @@ Hiện chứa cả:
 
 Đây là kiến trúc intentionally simple cho prototype. Agent không nên tự tách framework/build system nếu chưa có yêu cầu rõ.
 
+### Experimental `tone-poc.html`
+
+PoC riêng cho song-aware vocal key detection, hiện thử với Nàng Thơ:
+
+- xin quyền microphone bằng `getUserMedia`;
+- Web Audio lấy waveform và autocorrelation để ước lượng pitch;
+- gom pitch class trong cửa sổ khoảng 8 giây;
+- so với major-key profile để chọn transpose candidate;
+- preview chord sau transpose;
+- ghi key được chọn vào cùng `localStorage` mà `index.html` đang dùng rồi quay về app chính.
+
+PoC intentionally tách khỏi player chính. Chưa xem đây là architecture production cho đến khi test thực tế xác nhận hướng nhận tone đủ tốt. Bước nâng cấp dự kiến là thêm melody reference theo bài/phrase và match semitone offset thay vì chỉ dựa trên key profile.
+
 ### Song data
 
 Song data hiện nằm trong object `songs` ở JavaScript trong `index.html`.
