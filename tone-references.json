@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "referenceType": "harmonic-profile-v1",
+  "noteOrder": [
+    "C",
+    "C#",
+    "D",
+    "D#",
+    "E",
+    "F",
+    "F#",
+    "G",
+    "G#",
+    "A",
+    "A#",
+    "B"
+  ],
+  "songs": {
+    "nang-tho": {
+      "baseKey": 0,
+      "preferFlats": false,
+      "prompt": "Hát một đoạn điệp khúc đầu, ví dụ: “Em không là nàng thơ…”",
+      "chords": [
+        "C",
+        "F",
+        "G",
+        "Cm",
+        "Dm",
+        "Em7",
+        "Am7",
+        "Gm7",
+        "C7",
+        "A#",
+        "Dm7",
+        "Am",
+        "E7",
+        "Em",
+        "A"
+      ],
+      "profile": [
+        0.176415,
+        0.002402,
+        0.1385,
+        0.002402,
+        0.124817,
+        0.105598,
+        0.000104,
+        0.221224,
+        0.0047,
+        0.116252,
+        0.03802,
+        0.069563
+      ]
+    },
+    "que-xa": {
+      "baseKey": 2,
+      "preferFlats": true,
+      "prompt": "Hát một đoạn quen thuộc, ví dụ: “Gió ơi nhắn gửi dùm tôi…”",
+      "chords": [
+        "D",
+        "Em7b5",
+        "D/A",
+        "Gm",
+        "Bb",
+        "A7",
+        "Am/C",
+        "Eb",
+        "Cm",
+        "Am7",
+        "E7",
+        "A",
+        "Dm"
+      ],
+      "profile": [
+        0.040581,
+        0.030649,
+        0.201944,
+        0.024883,
+        0.145771,
+        0.031183,
+        0.042396,
+        0.161256,
+        0.009504,
+        0.171615,
+        0.129432,
+        0.010786
+      ]
+    },
+    "giac-mo-tinh-yeu": {
+      "baseKey": 5,
+      "preferFlats": true,
+      "prompt": "Hát một đoạn điệp khúc, ví dụ: “Người về đây với em…”",
+      "chords": [
+        "F",
+        "C7",
+        "Dm",
+        "Am",
+        "Bb",
+        "Gm",
+        "Db",
+        "Eb"
+      ],
+      "profile": [
+        0.198167,
+        0.024028,
+        0.116671,
+        0.024028,
+        0.067129,
+        0.211791,
+        0.000248,
+        0.096854,
+        0.012633,
+        0.12113,
+        0.127075,
+        0.000248
+      ]
+    }
+  }
+}
