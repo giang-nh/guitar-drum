@@ -4,14 +4,21 @@
 
   const intensity = document.querySelector('#intensity');
   const intensityLabel = document.querySelector('#intensityLabel');
+  const bpmInput = document.querySelector('#bpm');
+  const bpmLabel = document.querySelector('#bpmLabel');
   const drummer = document.querySelector('.drummer');
-  if (!intensity || !drummer) return;
+  if (!intensity || !bpmInput || !drummer) return;
 
   const STORAGE_KEY = 'guitar-drum-follow-v1';
   const ANALYSIS_MS = 80;
   const STATE_HOLD_MS = 520;
   const APPLY_COOLDOWN_MS = 900;
   const SILENCE_HOLD_MS = 1400;
+  const TEMPO_WINDOW_MS = 8000;
+  const TEMPO_MIN_ONSETS = 6;
+  const TEMPO_CONFIDENCE_MIN = 0.62;
+  const TEMPO_STABLE_MS = 2400;
+  const TEMPO_APPLY_MS = 850;
 
   let audioCtx = null;
   let stream = null;
@@ -34,6 +41,12 @@
   let onsetCount = 0;
   let onsetWindowStartedAt = performance.now();
   let lastOnsetAt = 0;
+  let onsetTimes = [];
+  let tempoEstimate = null;
+  let tempoConfidence = 0;
+  let tempoCandidate = null;
+  let tempoCandidateSince = 0;
+  let lastTempoApplyAt = 0;
 
   injectStyles();
   const ui = buildUi();
@@ -52,16 +65,22 @@
       .gd-follow-meter{height:10px;border-radius:999px;background:#e5e7ea;overflow:hidden}
       .gd-follow-meter>div{height:100%;width:0;background:var(--accent);transition:width .12s linear}
       .gd-follow-value{min-width:54px;text-align:right;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
-      .gd-follow-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+      .gd-follow-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px}
       .gd-follow-stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:7px 8px}
       .gd-follow-stat span{display:block;font-size:9px;color:var(--muted);font-weight:800;text-transform:uppercase}
       .gd-follow-stat strong{display:block;margin-top:2px;font-size:13px}
-      .gd-follow-controls{display:grid;grid-template-columns:auto minmax(110px,1fr);gap:10px;align-items:end;margin-top:10px}
+      .gd-follow-controls{display:grid;grid-template-columns:auto minmax(110px,1fr) auto;gap:10px;align-items:end;margin-top:10px}
       .gd-follow-controls button{min-width:134px;min-height:40px;padding:0 12px}
       .gd-follow-controls label{font-size:11px;margin:0}
-      .gd-follow-controls input{margin-top:5px}
+      .gd-follow-controls input[type=range]{margin-top:5px}
+      .gd-follow-tempo-option{display:flex!important;align-items:center;gap:7px;min-height:40px;padding:0 10px;border:1px solid var(--border);border-radius:10px;background:var(--card);white-space:nowrap;font-weight:750!important}
+      .gd-follow-tempo-option input{width:18px;height:18px;margin:0}
       .gd-follow-hint{margin-top:8px;color:var(--muted);font-size:11px;line-height:1.4}
-      @media(max-width:560px){.gd-follow-controls{grid-template-columns:1fr}.gd-follow-controls button{width:100%}}
+      @media(max-width:560px){
+        .gd-follow-stats{grid-template-columns:repeat(2,1fr)}
+        .gd-follow-controls{grid-template-columns:1fr}
+        .gd-follow-controls button{width:100%}
+      }
     `;
     document.head.appendChild(style);
   }
@@ -82,6 +101,7 @@
         <div class="gd-follow-stat"><span>Guitar</span><strong id="gdFollowState">Silent</strong></div>
         <div class="gd-follow-stat"><span>Mic</span><strong id="gdFollowDb">— dB</strong></div>
         <div class="gd-follow-stat"><span>Strum</span><strong id="gdFollowStrums">0.0/s</strong></div>
+        <div class="gd-follow-stat"><span>Tempo</span><strong id="gdFollowTempo">— BPM</strong><span id="gdFollowTempoConfidence">chưa đủ onset</span></div>
       </div>
       <div class="gd-follow-controls">
         <button type="button" id="gdFollowToggle">🎙 Bật Auto Follow</button>
@@ -89,8 +109,9 @@
           <label for="gdFollowSensitivity">Độ nhạy mic</label>
           <input id="gdFollowSensitivity" type="range" min="-12" max="12" value="0" step="1" />
         </div>
+        <label class="gd-follow-tempo-option" for="gdTempoFollow"><input id="gdTempoFollow" type="checkbox" checked /> Follow BPM</label>
       </div>
-      <div id="gdFollowHint" class="gd-follow-hint">POC: mic chỉ điều khiển lực drummer (Intensity). BPM và section vẫn theo bài. Nếu meter bị ảnh hưởng bởi loa iPad, giảm loa hoặc dùng tai nghe.</div>
+      <div id="gdFollowHint" class="gd-follow-hint">POC: mic follow lực đàn và có thể kéo BPM từ từ khi tempo ước lượng đủ ổn định. Section vẫn theo song map. Tempo Follow tốt nhất khi giảm loa hoặc dùng tai nghe để mic ít bắt tiếng drum.</div>
     `;
     const hint = drummer.querySelector('.drumHint');
     if (hint) hint.insertAdjacentElement('afterend', host);
@@ -104,8 +125,11 @@
       state: host.querySelector('#gdFollowState'),
       db: host.querySelector('#gdFollowDb'),
       strums: host.querySelector('#gdFollowStrums'),
+      tempo: host.querySelector('#gdFollowTempo'),
+      tempoConfidence: host.querySelector('#gdFollowTempoConfidence'),
       toggle: host.querySelector('#gdFollowToggle'),
       sensitivity: host.querySelector('#gdFollowSensitivity'),
+      tempoToggle: host.querySelector('#gdTempoFollow'),
       hint: host.querySelector('#gdFollowHint')
     };
   }
@@ -116,13 +140,20 @@
       else startListening();
     });
     ui.sensitivity.addEventListener('input', saveSettings);
+    ui.tempoToggle.addEventListener('change', () => {
+      saveSettings();
+      resetTempoTracking();
+      renderTempo();
+    });
 
     document.querySelector('#songSelect')?.addEventListener('change', () => {
       smoothedEnergy = 0;
       currentState = 'silent';
       candidateState = 'silent';
       silentSince = 0;
+      resetTempoTracking();
       renderState('silent', 0, -80, 0);
+      renderTempo();
     });
 
     document.querySelector('#gdToneMic')?.addEventListener('click', () => {
@@ -136,12 +167,16 @@
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
       if (saved.sensitivity != null) ui.sensitivity.value = String(Math.max(-12, Math.min(12, Number(saved.sensitivity) || 0)));
+      if (saved.tempoFollow != null) ui.tempoToggle.checked = Boolean(saved.tempoFollow);
     } catch {}
   }
 
   function saveSettings() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({sensitivity:Number(ui.sensitivity.value) || 0}));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        sensitivity:Number(ui.sensitivity.value) || 0,
+        tempoFollow:Boolean(ui.tempoToggle.checked)
+      }));
     } catch {}
   }
 
@@ -184,9 +219,12 @@
       onsetCount = 0;
       onsetWindowStartedAt = performance.now();
       lastOnsetAt = 0;
+      resetTempoTracking();
       ui.toggle.textContent = '■ Tắt Auto Follow';
       ui.pill.textContent = 'LISTENING';
-      setHint('Đang nghe guitar. Hãy quạt nhẹ → vừa → mạnh để kiểm tra drummer phản ứng.');
+      setHint(ui.tempoToggle.checked
+        ? 'Đang nghe guitar. Dynamics phản ứng ngay; BPM chỉ thay đổi sau khi tempo ổn định đủ lâu.'
+        : 'Đang nghe guitar. Follow BPM đang tắt; app chỉ phản ứng theo lực đàn.');
       raf = requestAnimationFrame(frame);
     } catch (error) {
       cleanupAudio();
@@ -202,8 +240,10 @@
     ui.pill.textContent = 'OFF';
     candidateState = 'silent';
     currentState = 'silent';
+    resetTempoTracking();
     renderState('silent', 0, -80, 0);
-    if (message) setHint(message + ' Intensity trở lại điều khiển tay.');
+    renderTempo();
+    if (message) setHint(message + ' Intensity và BPM trở lại điều khiển tay.');
   }
 
   function cleanupAudio() {
@@ -239,9 +279,11 @@
     const energy = normalizeEnergy(db);
     smoothedEnergy = smoothedEnergy * 0.80 + energy * 0.20;
     const strumRate = updateOnsetRate(ts, smoothedEnergy);
+    updateTempoFollow(ts);
     const state = stateForEnergy(smoothedEnergy, ts);
     updateState(state, ts);
     renderState(currentState, smoothedEnergy, db, strumRate);
+    renderTempo();
   }
 
   function rmsOf(data) {
@@ -275,6 +317,7 @@
     if (rise > 0.11 && energy > 0.20 && now - lastOnsetAt > 120) {
       onsetCount++;
       lastOnsetAt = now;
+      recordOnset(now);
     }
     const elapsed = now - onsetWindowStartedAt;
     if (elapsed >= 2400) {
@@ -284,6 +327,119 @@
       onsetWindowStartedAt = now;
     }
     return Number(ui.strums.dataset.rate || 0);
+  }
+
+  function resetTempoTracking() {
+    onsetTimes = [];
+    tempoEstimate = null;
+    tempoConfidence = 0;
+    tempoCandidate = null;
+    tempoCandidateSince = 0;
+    lastTempoApplyAt = 0;
+  }
+
+  function recordOnset(now) {
+    onsetTimes.push(now);
+    const cutoff = now - TEMPO_WINDOW_MS;
+    while (onsetTimes.length && onsetTimes[0] < cutoff) onsetTimes.shift();
+  }
+
+  function normalizeBpmFromInterval(intervalMs, minBpm, maxBpm) {
+    if (!Number.isFinite(intervalMs) || intervalMs < 120 || intervalMs > 1800) return null;
+    let value = 60000 / intervalMs;
+    while (value > maxBpm * 1.08) value /= 2;
+    while (value < minBpm * 0.92) value *= 2;
+    return value >= minBpm * 0.92 && value <= maxBpm * 1.08 ? value : null;
+  }
+
+  function median(values) {
+    if (!values.length) return null;
+    const sorted = values.slice().sort((a,b) => a-b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+
+  function estimateTempo() {
+    if (onsetTimes.length < TEMPO_MIN_ONSETS) return null;
+    const minBpm = Number(bpmInput.min) || 50;
+    const maxBpm = Number(bpmInput.max) || 90;
+    const candidates = [];
+
+    for (let i = 1; i < onsetTimes.length; i++) {
+      const interval = onsetTimes[i] - onsetTimes[i - 1];
+      const bpm = normalizeBpmFromInterval(interval, minBpm, maxBpm);
+      if (bpm != null) candidates.push(bpm);
+    }
+    if (candidates.length < TEMPO_MIN_ONSETS - 1) return null;
+
+    let bestCenter = null;
+    let bestMembers = [];
+    for (let center = minBpm; center <= maxBpm; center += 0.5) {
+      const members = candidates.filter(v => Math.abs(v - center) <= 3.0);
+      if (members.length > bestMembers.length) {
+        bestMembers = members;
+        bestCenter = center;
+      }
+    }
+    if (!bestMembers.length || bestCenter == null) return null;
+
+    const bpm = median(bestMembers);
+    const spread = median(bestMembers.map(v => Math.abs(v - bpm))) || 0;
+    const density = bestMembers.length / candidates.length;
+    const sampleScore = clamp(bestMembers.length / 8, 0, 1);
+    const consistency = clamp(1 - spread / 4.5, 0, 1);
+    const confidence = clamp(0.50 * density + 0.30 * consistency + 0.20 * sampleScore, 0, 1);
+    return {bpm, confidence, samples:bestMembers.length};
+  }
+
+  function updateTempoFollow(now) {
+    const estimate = estimateTempo();
+    tempoEstimate = estimate?.bpm ?? null;
+    tempoConfidence = estimate?.confidence ?? 0;
+
+    if (!ui.tempoToggle.checked || !estimate || estimate.confidence < TEMPO_CONFIDENCE_MIN) {
+      tempoCandidate = null;
+      tempoCandidateSince = 0;
+      return;
+    }
+
+    const rounded = Math.round(estimate.bpm);
+    if (tempoCandidate == null || Math.abs(rounded - tempoCandidate) > 2) {
+      tempoCandidate = rounded;
+      tempoCandidateSince = now;
+      return;
+    }
+
+    tempoCandidate = Math.round(tempoCandidate * 0.7 + rounded * 0.3);
+    if (now - tempoCandidateSince < TEMPO_STABLE_MS) return;
+    if (now - lastTempoApplyAt < TEMPO_APPLY_MS) return;
+
+    const current = Number(bpmInput.value) || 62;
+    const diff = tempoCandidate - current;
+    if (Math.abs(diff) < 2) return;
+
+    const next = clamp(current + Math.sign(diff), Number(bpmInput.min) || 50, Number(bpmInput.max) || 90);
+    bpmInput.value = String(next);
+    if (bpmLabel) bpmLabel.textContent = String(next);
+    bpmInput.dispatchEvent(new Event('input', {bubbles:true}));
+    lastTempoApplyAt = now;
+    api.setStatus?.('🎸 Tempo guitar ~' + tempoCandidate + ' BPM → Drummer ' + next + ' BPM.');
+  }
+
+  function renderTempo() {
+    if (!ui.tempo) return;
+    if (!ui.tempoToggle.checked) {
+      ui.tempo.textContent = 'OFF';
+      ui.tempoConfidence.textContent = 'follow BPM tắt';
+      return;
+    }
+    if (tempoEstimate == null) {
+      ui.tempo.textContent = '— BPM';
+      ui.tempoConfidence.textContent = onsetTimes.length + '/' + TEMPO_MIN_ONSETS + ' onset';
+      return;
+    }
+    ui.tempo.textContent = Math.round(tempoEstimate) + ' BPM';
+    ui.tempoConfidence.textContent = Math.round(tempoConfidence * 100) + '% confidence';
   }
 
   function stateForEnergy(energy, now) {
@@ -363,6 +519,14 @@
     start:startListening,
     stop:() => stopListening('Auto Follow đã tắt.'),
     isRunning:() => running,
-    getState:() => ({state:currentState, energy:smoothedEnergy, ambientDb, peakDb})
+    getState:() => ({
+      state:currentState,
+      energy:smoothedEnergy,
+      ambientDb,
+      peakDb,
+      tempoEstimate,
+      tempoConfidence,
+      tempoFollow:Boolean(ui.tempoToggle.checked)
+    })
   };
 })();
