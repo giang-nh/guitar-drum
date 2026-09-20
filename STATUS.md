@@ -49,6 +49,7 @@ Prototype hiện đã có:
 - **Humanization / Performance Layer**: per-hit deterministic microtiming + velocity variation, protected beat-1 timing, snare layback, hi-hat articulation, subtle timbre variation, context-aware ghost notes, and reduced humanization strength inside fills. `Human feel` slider (0–100%, default 55%) persists per song;
 - **Clean Mic / Bleed Rejection POC**: drum engine publishes scheduled self-hit metadata; mic analysis computes spectral flux/flatness/band ratios, estimates per-frame self-drum contamination and voice-like input, adaptively gates onsets/dynamics/chord frames, and exposes `GUITAR / VOICE / DRUM / MIX` debug plus accepted/rejected onset counts. This is heuristic rejection, not source separation;
 - **Debug Session / Telemetry Recorder**: local-only `Record / Mark / Export JSON` workflow; ~4 Hz bounded samples + state-change events capture mic/tempo/bar/chord/section/fusion/plan/transport metrics without storing audio, enabling real iPad sessions to be analyzed later;
+- **Mic Calibration Mode**: 5-step guided local calibration learns device/placement-specific mic rejection thresholds and sensitivity. Low-quality calibration automatically blends toward defaults; profile is persisted and included in debug export;
 
 ## Current data model
 
@@ -115,3 +116,5 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 - A/B `Clean mic` ON/OFF and record `Input` class plus accepted/rejected counts; tune penalty/voice thresholds only from real-device behavior because speaker/mic latency and frequency response are device-specific.
 
 - run at least one **debug session** per key scenario (drum-only, singing-only, guitar-only, full guitar+vocal+drum, stop/rejoin, Verse→Chorus build). Tap `Mark` whenever the app visibly/hearably makes a wrong decision, then export JSON for threshold analysis.
+
+- run **Mic Calibration** once with the actual iPad placement/volume, then run a debug session with the same setup. Compare calibration quality and `Input`/onset behavior before changing hard-coded defaults.
