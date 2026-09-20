@@ -15,7 +15,7 @@ File này là **điểm bắt đầu cho bất kỳ coding/research agent nào**
 
 ## One-line product scope
 
-**PWA ưu tiên iPad cho việc tập guitar: hiển thị lời+hợp âm, transpose tone, chỉnh BPM, chạy drummer 4/4 theo section với intensity/fill đồng bộ từng dòng, có POC microphone follow lực đàn + tempo + beat-1/bar phase + next-section intent + harmonic position matching + stop/resume intent + Predictive Transition Planner + Humanization/Performance Layer + Clean Mic rejection + Debug Session telemetry + Mic Calibration Mode + Follow Health/Fail-safe + Auto-Tune Profile Suggestions + Replay/Regression Harness + Performance Polish v2 + Phrase-aware Drummer v1 + Playing Mode + Developer Mode + Automated Test Harness, được gom qua một Sensor Fusion/PerformanceState trung tâm để tự đổi Intensity, glide BPM, sync ô nhịp, plan/arm fill trước nhưng chỉ đánh ở bar cuối, re-anchor vị trí bài, thin/hold khi user dừng, re-entry ở beat 1, render drum hit với human feel và giảm false-positive từ drum loa/giọng hát bằng self-hit + spectral gating, và hỗ trợ quy trình nhập bài hát từ ảnh/OneNote qua agent — không cần backend ở giai đoạn hiện tại.**
+**PWA ưu tiên iPad cho việc tập guitar: hiển thị lời+hợp âm, transpose tone, chỉnh BPM, chạy drummer 4/4 theo section với intensity/fill đồng bộ từng dòng, có POC microphone follow lực đàn + tempo + beat-1/bar phase + next-section intent + harmonic position matching + stop/resume intent + Predictive Transition Planner + Humanization/Performance Layer + Clean Mic rejection + Debug Session telemetry + Mic Calibration Mode + Follow Health/Fail-safe + Auto-Tune Profile Suggestions + Replay/Regression Harness + Performance Polish v2 + Phrase-aware Drummer v1 + Playing Mode + Developer Mode + Automated Test Harness + Guided iPad Validation Session, được gom qua một Sensor Fusion/PerformanceState trung tâm để tự đổi Intensity, glide BPM, sync ô nhịp, plan/arm fill trước nhưng chỉ đánh ở bar cuối, re-anchor vị trí bài, thin/hold khi user dừng, re-entry ở beat 1, render drum hit với human feel và giảm false-positive từ drum loa/giọng hát bằng self-hit + spectral gating, và hỗ trợ quy trình nhập bài hát từ ảnh/OneNote qua agent — không cần backend ở giai đoạn hiện tại.**
 
 ## Non-negotiable interaction rule
 
@@ -73,7 +73,7 @@ Trước khi coi một bài mới là hoàn tất:
 
 ## Repository workflow
 
-Ưu tiên thay đổi bằng branch + pull request khi có thể.
+Repository hiện do một người duy trì; theo workflow hiện tại, commit trực tiếp vào `main` khi user yêu cầu, không tạo branch/PR trừ khi user đổi yêu cầu.
 
 Nếu agent đang tiếp tục một PR có sẵn, kiểm tra branch/PR trước khi tạo branch mới để tránh phân mảnh context.
 
