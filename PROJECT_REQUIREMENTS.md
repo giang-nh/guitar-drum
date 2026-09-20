@@ -235,3 +235,15 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - User must be able to `Mark` a bad moment while playing and export the session as versioned JSON.
 - On iPad/iOS, export should prefer the native Share sheet when file sharing is available, with download fallback.
 - Telemetry stays local until the user explicitly exports/shares it.
+
+
+## Mic Calibration Mode
+
+- Calibration must be guided and local, with separate samples for quiet, drum-only, guitar-only, voice-only and full-mix conditions.
+- Each sample stage must be explicitly started by the user after they prepare the requested sound condition; the app must not assume the environment is ready.
+- Calibration must not record audio; only derived numerical features may be retained.
+- Follow/transport actions must be suspended while calibration is active so calibration material cannot cause BPM changes, fills, re-positioning or intensity automation.
+- The profile must be versioned, stored locally, and fall back cleanly to safe defaults when missing/reset.
+- Learned thresholds must include source-rejection and onset/chord gates, plus a bounded mic-sensitivity recommendation.
+- Calibration must compute a quality/separation score; weak calibration should blend learned thresholds toward defaults rather than overfit poor samples.
+- Debug exports must include the active calibration profile.
