@@ -624,7 +624,7 @@
   function validationSessionSnapshot(){
     return {
       schema:'guitar-drum-debug-v1',
-      appCache:'v32',
+      appCache:'v33',
       samples:telemetrySamples.slice(),
       events:telemetryEvents.slice(),
       settings:{calibrationProfile:deepClone(calibrationProfile)}
