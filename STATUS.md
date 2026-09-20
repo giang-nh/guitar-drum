@@ -38,6 +38,7 @@ Prototype hiện đã có:
 - GitHub Pages deployment setup;
 - integrated **Tone & Capo** tools in the main UI for all 3 current songs: microphone pitch tracking, per-song prebuilt reference profiles, detected singing key, and easy guitar-shape + capo recommendations;
 - standalone `tone-poc.html` remains as an earlier experiment.
+- **Auto Follow guitar POC** in `guitar-follow.js`: microphone RMS/energy tracking, adaptive calibration, smoothing/hysteresis, `silent / soft / medium / big` states, live debug meter and automatic drummer Intensity mapping;
 
 ## Current data model
 
@@ -70,6 +71,9 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 
 - test integrated vocal tone detection on real iPad/Safari voices; current references are `harmonic-profile-v1`, so the next accuracy upgrade is true per-song/per-phrase melody references from trusted audio/MIDI;
 
+- test Auto Follow trên iPad khi vừa quạt acoustic vừa phát drum bằng loa; tune sensitivity/echo cancellation và ngưỡng state để tránh drum tự kích mic;
+- sau khi intensity follow ổn, thêm beat/onset tracking để ước lượng tempo drift rồi mới nghiên cứu song-position/section following;
+
 - nhập thêm bài hát từ nguồn của người dùng;
 - kiểm tra độ chính xác lời/hợp âm;
 - tinh chỉnh beat count cho playback;
@@ -82,7 +86,7 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 - chưa có automated tests;
 - song data và app logic cùng nằm trong `index.html`;
 - beat timing là thủ công;
-- drummer hiện có arrangement thủ công riêng cho 3 bài, nhưng chưa được phân tích từ bản thu gốc và chưa follow tempo trực tiếp từ guitar;
+- drummer hiện có arrangement thủ công riêng cho 3 bài; mic follow mới chỉ tự đổi **Intensity**, chưa follow BPM/downbeat/chord/section trực tiếp từ guitar;
 - không có cloud sync;
 - không có in-app editor;
 - không có in-app OneNote integration;
