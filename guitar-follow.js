@@ -38,6 +38,10 @@
   const HARMONIC_MATCH_MIN = 0.80;
   const HARMONIC_MARGIN_MIN = 0.09;
   const HARMONIC_ANCHOR_COOLDOWN_MS = 10000;
+  const FUSION_LOCK_MIN = 0.68;
+  const FUSION_ACTION_MIN = 0.79;
+  const FUSION_STABLE_MS = 1400;
+  const FUSION_ACTION_COOLDOWN_MS = 9000;
   const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const NOTES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
   const NOTE_MAP = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
@@ -91,6 +95,10 @@
   let harmonicMatch = null;
   let lastHarmonicShift = null;
   let lastHarmonicAnchorAt = 0;
+  let performanceState = {mode:'acquiring',confidence:0,reason:'waiting'};
+  let fusionCandidateKey = null;
+  let fusionCandidateSince = 0;
+  let lastFusionActionAt = 0;
 
   injectStyles();
   const ui = buildUi();
@@ -100,6 +108,7 @@
   renderBar();
   renderSection();
   renderHarmonic();
+  renderFusion();
   attachListeners();
 
   function injectStyles() {
@@ -153,6 +162,7 @@
         <div class="gd-follow-stat"><span>Bar</span><strong id="gdFollowBarState">—</strong><span id="gdFollowBarConfidence">chưa thấy beat 1</span></div>
         <div class="gd-follow-stat"><span>Section</span><strong id="gdFollowSectionState">—</strong><span id="gdFollowSectionConfidence">theo song map</span></div>
         <div class="gd-follow-stat"><span>Chord</span><strong id="gdFollowChord">—</strong><span id="gdFollowHarmonic">chưa đủ chord</span></div>
+        <div class="gd-follow-stat"><span>Follow</span><strong id="gdFollowFusion">ACQUIRE</strong><span id="gdFollowFusionDetail">đang gom tín hiệu</span></div>
       </div>
       <div class="gd-follow-controls">
         <button type="button" id="gdFollowToggle">🎙 Bật Auto Follow</button>
@@ -187,6 +197,8 @@
       sectionConfidence: host.querySelector('#gdFollowSectionConfidence'),
       chord: host.querySelector('#gdFollowChord'),
       harmonic: host.querySelector('#gdFollowHarmonic'),
+      fusion: host.querySelector('#gdFollowFusion'),
+      fusionDetail: host.querySelector('#gdFollowFusionDetail'),
       toggle: host.querySelector('#gdFollowToggle'),
       sensitivity: host.querySelector('#gdFollowSensitivity'),
       tempoToggle: host.querySelector('#gdTempoFollow'),
@@ -212,6 +224,8 @@
       renderSection();
       resetHarmonicTracking();
       renderHarmonic();
+      resetFusionTracking();
+      renderFusion();
     });
     ui.barToggle.addEventListener('change', () => {
       saveSettings();
@@ -220,16 +234,22 @@
       resetSectionTracking();
       renderBar();
       renderSection();
+      resetFusionTracking();
+      renderFusion();
     });
     ui.sectionToggle.addEventListener('change', () => {
       saveSettings();
       resetSectionTracking();
       renderSection();
+      resetFusionTracking();
+      renderFusion();
     });
     ui.harmonicToggle.addEventListener('change', () => {
       saveSettings();
       resetHarmonicTracking();
       renderHarmonic();
+      resetFusionTracking();
+      renderFusion();
     });
 
     document.querySelector('#songSelect')?.addEventListener('change', () => {
@@ -245,6 +265,8 @@
       renderSection();
       resetHarmonicTracking();
       renderHarmonic();
+      resetFusionTracking();
+      renderFusion();
     });
 
     document.querySelector('#gdToneMic')?.addEventListener('click', () => {
@@ -322,6 +344,7 @@
       resetTempoTracking();
       resetSectionTracking();
       resetHarmonicTracking();
+      resetFusionTracking();
       ui.toggle.textContent = '■ Tắt Auto Follow';
       ui.pill.textContent = 'LISTENING';
       setHint(ui.tempoToggle.checked
@@ -345,11 +368,13 @@
     resetTempoTracking();
     resetSectionTracking();
     resetHarmonicTracking();
+    resetFusionTracking();
     renderState('silent', 0, -80, 0);
     renderTempo();
     renderBar();
     renderSection();
     renderHarmonic();
+    renderFusion();
     if (message) setHint(message + ' Intensity, BPM, bar sync, section và harmonic follow trở lại điều khiển tay.');
   }
 
@@ -392,6 +417,7 @@
     updateBarFollow(ts);
     updateSectionFollow(ts);
     updateHarmonicFollow(ts);
+    updatePerformanceFusion(ts);
     const state = stateForEnergy(smoothedEnergy, ts);
     updateState(state, ts);
     renderState(currentState, smoothedEnergy, db, strumRate);
@@ -399,6 +425,7 @@
     renderBar();
     renderSection();
     renderHarmonic();
+    renderFusion();
   }
 
   function rmsOf(data) {
@@ -799,15 +826,8 @@
       sectionCandidateSince = now;
       return;
     }
-    if (now - sectionCandidateSince < SECTION_STABLE_MS) return;
-    if (now - lastSectionActionAt < SECTION_ACTION_COOLDOWN_MS) return;
 
-    const accepted = api.requestSectionTransition(next.index);
-    if (!accepted) return;
-    lastSectionActionAt = now;
-    sectionArmedIndex = next.index;
-    sectionPrediction.armed = true;
-    api.setStatus?.('🎸 Section Follow ' + Math.round(confidence*100) + '% · chuẩn bị fill → ' + next.name + '.');
+    sectionPrediction.ready = now - sectionCandidateSince >= SECTION_STABLE_MS;
   }
 
   function renderSection() {
@@ -1044,27 +1064,14 @@
       ...best,
       margin,
       confidence:clamp(0.78*best.score+0.22*clamp(margin/0.22,0,1),0,1),
-      observed:obs.map(x=>x.symbol)
+      observed:obs.map(x=>x.symbol),
+      candidates:ranked.slice(0,5).map(item=>({
+        score:item.score,
+        exact:item.exact,
+        endIndex:item.endIndex,
+        target:item.target
+      }))
     };
-  }
-
-  function maybeAnchorHarmonicPosition(now) {
-    if (!ui.harmonicToggle.checked || !harmonicMatch) return;
-    if (harmonicMatch.score < HARMONIC_MATCH_MIN || harmonicMatch.margin < HARMONIC_MARGIN_MIN) return;
-    if (now-lastHarmonicAnchorAt < HARMONIC_ANCHOR_COOLDOWN_MS) return;
-    if (tempoConfidence < TEMPO_CONFIDENCE_MIN || barConfidence < BAR_CONFIDENCE_MIN) return;
-    if (!barCandidateSince || now-barCandidateSince < BAR_STABLE_MS) return;
-    if (typeof api.getTransport !== 'function' || typeof api.requestHarmonicAnchor !== 'function') return;
-
-    const transport=api.getTransport();
-    const target=harmonicMatch.target;
-    if (!transport?.playing || transport.paused || transport.countIn>0 || !target) return;
-    if (Math.abs(Number(target.beat)-Number(transport.songBeat)) < 4) return;
-
-    const accepted=api.requestHarmonicAnchor(target.beat,target.rowIndex,harmonicMatch.confidence);
-    if (!accepted) return;
-    lastHarmonicAnchorAt=now;
-    api.setStatus?.('🎸 Chord sequence '+Math.round(harmonicMatch.confidence*100)+'% → re-anchor Line '+(target.rowIndex+1)+' · '+target.section+'.');
   }
 
   function updateHarmonicFollow(now) {
@@ -1095,7 +1102,6 @@
     const detected=detectChordFromChroma();
     updateChordCandidate(now,detected);
     harmonicMatch=matchHarmonicPosition();
-    maybeAnchorHarmonicPosition(now);
   }
 
   function renderHarmonic() {
@@ -1120,6 +1126,237 @@
     ui.harmonic.textContent=target
       ? '→ L'+(target.rowIndex+1)+' '+target.section+' · '+conf+'%'+(ambiguous?' · ambiguous':'')
       : conf+'%';
+  }
+
+  function resetFusionTracking() {
+    performanceState={mode:'acquiring',confidence:0,reason:'waiting'};
+    fusionCandidateKey=null;
+    fusionCandidateSince=0;
+    lastFusionActionAt=0;
+  }
+
+  function isBarLocked(now) {
+    return Boolean(
+      barEstimate &&
+      barConfidence >= BAR_CONFIDENCE_MIN &&
+      barCandidateSince &&
+      now-barCandidateSince >= BAR_STABLE_MS
+    );
+  }
+
+  function sectionSupportForTarget(targetSection) {
+    if (!targetSection) return 0;
+    if (sectionPrediction?.next?.name===targetSection) return clamp(sectionPrediction.confidence||0,0,1);
+    const transport=api.getTransport?.();
+    if (transport?.currentSection===targetSection) return 0.62;
+    return 0.18;
+  }
+
+  function fusedPositionCandidate(now) {
+    if (!harmonicMatch?.candidates?.length || !ui.harmonicToggle.checked) return null;
+    const transport=api.getTransport?.();
+    if (!transport?.playing || transport.paused || transport.countIn>0) return null;
+
+    const barScore=clamp(barConfidence,0,1);
+    const tempoScore=clamp(tempoConfidence,0,1);
+    const candidates=harmonicMatch.candidates.map((item,index)=>{
+      const target=item.target;
+      const distance=Math.abs(Number(target?.beat)-Number(transport.songBeat));
+      const continuity=distance<4 ? 1 : distance<=24 ? 0.88 : distance<=64 ? 0.68 : 0.48;
+      const sectionSupport=sectionSupportForTarget(target?.section);
+      const uniqueness=index===0
+        ? clamp((harmonicMatch.margin||0)/0.18,0,1)
+        : clamp((item.score-(harmonicMatch.candidates[index+1]?.score||0))/0.18,0,1);
+      const exactScore=clamp((item.exact||0)/Math.max(3,Math.min(chordEvents.length,5)),0,1);
+      const score=clamp(
+        0.48*item.score +
+        0.13*exactScore +
+        0.12*uniqueness +
+        0.10*barScore +
+        0.07*tempoScore +
+        0.06*sectionSupport +
+        0.04*continuity,
+        0,1
+      );
+      return {...item,distance,continuity,sectionSupport,uniqueness,fusionScore:score};
+    }).sort((a,b)=>b.fusionScore-a.fusionScore);
+
+    const best=candidates[0], second=candidates[1]||{fusionScore:0};
+    if(!best?.target) return null;
+    return {
+      ...best,
+      fusionMargin:best.fusionScore-second.fusionScore,
+      candidates
+    };
+  }
+
+  function updateFusionCandidate(key,now) {
+    if (!key) {
+      fusionCandidateKey=null;
+      fusionCandidateSince=0;
+      return false;
+    }
+    if (fusionCandidateKey!==key) {
+      fusionCandidateKey=key;
+      fusionCandidateSince=now;
+      return false;
+    }
+    return now-fusionCandidateSince>=FUSION_STABLE_MS;
+  }
+
+  function updatePerformanceFusion(now) {
+    const transport=api.getTransport?.();
+    if (!running || !transport?.playing || transport.paused || transport.countIn>0) {
+      performanceState={mode:'acquiring',confidence:0,reason:'waiting'};
+      updateFusionCandidate(null,now);
+      return;
+    }
+
+    const tempoLocked=tempoConfidence>=TEMPO_CONFIDENCE_MIN;
+    const barLocked=isBarLocked(now);
+    const position=fusedPositionCandidate(now);
+    const harmonicAmbiguous=Boolean(
+      harmonicMatch &&
+      (
+        harmonicMatch.margin < HARMONIC_MARGIN_MIN ||
+        (position && position.fusionMargin < 0.055)
+      )
+    );
+
+    if (!tempoLocked) {
+      performanceState={mode:'acquiring',confidence:tempoConfidence,reason:'tempo'};
+      updateFusionCandidate(null,now);
+      return;
+    }
+    if (!barLocked) {
+      performanceState={mode:'listening',confidence:0.55*tempoConfidence+0.45*barConfidence,reason:'beat-1'};
+      updateFusionCandidate(null,now);
+      return;
+    }
+
+    if (harmonicAmbiguous) {
+      performanceState={
+        mode:'ambiguous',
+        confidence:position?.fusionScore||harmonicMatch?.confidence||0,
+        reason:'repeated progression',
+        target:position?.target||harmonicMatch?.target||null
+      };
+      updateFusionCandidate(null,now);
+      return;
+    }
+
+    if (position && position.fusionScore>=FUSION_LOCK_MIN) {
+      const target=position.target;
+      const sameArea=Math.abs(Number(target.beat)-Number(transport.songBeat))<4;
+      performanceState={
+        mode:sameArea?'locked':'following',
+        confidence:position.fusionScore,
+        reason:'harmonic+bar+tempo',
+        target,
+        margin:position.fusionMargin
+      };
+
+      const key='pos:'+target.rowIndex+':'+target.beat;
+      const stable=updateFusionCandidate(key,now);
+      const actionable=
+        !sameArea &&
+        position.fusionScore>=FUSION_ACTION_MIN &&
+        position.fusionMargin>=0.07 &&
+        harmonicMatch.score>=HARMONIC_MATCH_MIN &&
+        harmonicMatch.margin>=HARMONIC_MARGIN_MIN &&
+        stable &&
+        now-lastFusionActionAt>=FUSION_ACTION_COOLDOWN_MS &&
+        now-lastHarmonicAnchorAt>=HARMONIC_ANCHOR_COOLDOWN_MS;
+
+      if (actionable && typeof api.requestHarmonicAnchor==='function') {
+        const accepted=api.requestHarmonicAnchor(target.beat,target.rowIndex,position.fusionScore);
+        if (accepted) {
+          lastFusionActionAt=now;
+          lastHarmonicAnchorAt=now;
+          performanceState.mode='reposition';
+          performanceState.reason='sequence lock';
+          api.setStatus?.('🎸 Follow v2 '+Math.round(position.fusionScore*100)+'% → '+target.section+' · Line '+(target.rowIndex+1)+'.');
+        }
+      }
+      return;
+    }
+
+    const sectionReady=Boolean(
+      ui.sectionToggle.checked &&
+      sectionPrediction?.ready &&
+      sectionPrediction.confidence>=SECTION_CONFIDENCE_MIN
+    );
+    if (sectionReady) {
+      const harmonicSupportsNext=
+        !harmonicMatch ||
+        harmonicMatch.margin<HARMONIC_MARGIN_MIN ||
+        harmonicMatch.target?.section===sectionPrediction.next?.name;
+      const confidence=clamp(
+        0.52*sectionPrediction.confidence+
+        0.18*barConfidence+
+        0.14*tempoConfidence+
+        0.10*(harmonicSupportsNext?1:0.25)+
+        0.06*(currentState==='big'?1:currentState==='medium'?0.65:0.25),
+        0,1
+      );
+      performanceState={
+        mode:'following',
+        confidence,
+        reason:harmonicSupportsNext?'section build':'section/chord conflict',
+        target:sectionPrediction.next
+      };
+
+      const key='section:'+sectionPrediction.next.index;
+      const stable=updateFusionCandidate(key,now);
+      const actionable=
+        harmonicSupportsNext &&
+        confidence>=FUSION_ACTION_MIN &&
+        stable &&
+        now-lastFusionActionAt>=FUSION_ACTION_COOLDOWN_MS &&
+        now-lastSectionActionAt>=SECTION_ACTION_COOLDOWN_MS;
+
+      if (actionable && typeof api.requestSectionTransition==='function') {
+        const accepted=api.requestSectionTransition(sectionPrediction.next.index);
+        if (accepted) {
+          lastFusionActionAt=now;
+          lastSectionActionAt=now;
+          sectionArmedIndex=sectionPrediction.next.index;
+          sectionPrediction.armed=true;
+          performanceState.mode='transition';
+          performanceState.reason='build+map';
+          api.setStatus?.('🎸 Follow v2 '+Math.round(confidence*100)+'% · fill → '+sectionPrediction.next.name+'.');
+        }
+      }
+      return;
+    }
+
+    performanceState={
+      mode:'locked',
+      confidence:clamp(0.46*tempoConfidence+0.44*barConfidence+0.10*(harmonicMatch?.confidence||0),0,1),
+      reason:'tempo+bar'
+    };
+    updateFusionCandidate(null,now);
+  }
+
+  function renderFusion() {
+    if (!ui.fusion) return;
+    const labels={
+      acquiring:'ACQUIRE',
+      listening:'LISTEN',
+      locked:'LOCKED',
+      following:'FOLLOW',
+      ambiguous:'AMBIG',
+      transition:'FILL→',
+      reposition:'RE-POS'
+    };
+    ui.fusion.textContent=labels[performanceState.mode]||String(performanceState.mode||'—').toUpperCase();
+    const confidence=Math.round(clamp(performanceState.confidence||0,0,1)*100);
+    const target=performanceState.target;
+    const targetText=target?.section||target?.name||'';
+    ui.fusionDetail.textContent=
+      (confidence?confidence+'% · ':'')+
+      (targetText?targetText+' · ':'')+
+      (performanceState.reason||'waiting');
   }
 
   function stateForEnergy(energy, now) {
@@ -1215,7 +1452,8 @@
       harmonicFollow:Boolean(ui.harmonicToggle.checked),
       currentChord,
       harmonicMatch,
-      chordEvents:chordEvents.slice()
+      chordEvents:chordEvents.slice(),
+      performanceState:{...performanceState}
     })
   };
 })();
