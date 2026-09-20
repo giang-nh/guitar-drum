@@ -511,7 +511,7 @@
   }
 
   function updateTime(){const sec=Math.round(songBeat*60/Number(bpm.value));position.textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}
-  function updateRow(i){currentRow=Math.max(0,Math.min(rows.length-1,i));sectionLabel.textContent=rows[currentRow].s;renderSheet();saveState()}
+  function updateRow(i){currentRow=Math.max(0,Math.min(rows.length-1,i));sectionLabel.textContent=rows[currentRow].s;renderSheet();saveState();notifyTransportUi()}
   function jumpToRow(i){fillRequested=false;fillRemaining=0;pendingSectionTransition=null;pendingHarmonicAnchor=null;followSilenceMode='normal';followHeld=false;pendingFollowHold=false;pendingFollowResume=false;fillBtn.textContent='🥁 Fill';songBeat=rows[i].start;updateRow(i);updateTime();status.textContent=playing&&!paused?'Đã nhảy tới Line '+(i+1)+'.':'Sẵn sàng từ Line '+(i+1)+'.';if(playing&&!paused){nextTime=ctx.currentTime+.08;quarter=songBeat%4}}
   async function playFromRow(i){
     fillRequested=false;fillRemaining=0;pendingSectionTransition=null;pendingHarmonicAnchor=null;
@@ -562,6 +562,7 @@
     sectionLabel.textContent=rows[currentRow].s;
     updateTime();
     status.textContent=currentRow===0?'Sẵn sàng.':'Sẵn sàng từ Line '+(currentRow+1)+'.';
+    notifyTransportUi();
     updateDrummerUI(rows[currentRow].s);
     renderSheet();
     saveState();
@@ -1148,6 +1149,19 @@
     snare(t+q*.78,.38*p);
   }
 
+  function notifyTransportUi(){
+    try{
+      window.dispatchEvent(new CustomEvent('guitar-drum-transport',{
+        detail:{
+          playing:Boolean(playing),
+          paused:Boolean(paused),
+          songBeat:Number(songBeat),
+          section:rows[rowForBeat(Math.min(total-1,Math.max(0,songBeat)))]?.s||''
+        }
+      }));
+    }catch{}
+  }
+
   function visualBeat(beat,t,isCount){
     const delay=Math.max(0,(t-ctx.currentTime)*1000);
     visualTimers.push(setTimeout(()=>{
@@ -1158,6 +1172,7 @@
         const next=rowForBeat(songBeat);if(next!==currentRow)updateRow(next);
         updateDrummerUI(rows[next].s,next);
         updateTime();status.textContent='Line '+(currentRow+1)+' · Beat '+(beat+1);songBeat++;
+        notifyTransportUi();
         if(songBeat>=total)stopToBeginning();
       }
     },delay));
@@ -1304,7 +1319,7 @@
   function stopToBeginning(){
     stopPlaybackOnly();
     songBeat=0;quarter=0;countIn=4;currentRow=0;position.textContent='0:00';sectionLabel.textContent=rows[0].s;
-    status.textContent='Đã dừng · trở về đầu bài.';renderSheet();saveState();
+    status.textContent='Đã dừng · trở về đầu bài.';renderSheet();saveState();notifyTransportUi();
   }
 
   window.GuitarDrumAPI={
