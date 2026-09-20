@@ -247,3 +247,15 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - Learned thresholds must include source-rejection and onset/chord gates, plus a bounded mic-sensitivity recommendation.
 - Calibration must compute a quality/separation score; weak calibration should blend learned thresholds toward defaults rather than overfit poor samples.
 - Debug exports must include the active calibration profile.
+
+
+## Follow Health / Fail-safe Mode
+
+- The app must compute a global Health score from detector quality, not rely only on the confidence of the subsystem requesting an action.
+- Health inputs should include microphone contamination/guitar evidence, recent accepted-vs-rejected onset quality, tempo confidence, bar/downbeat confidence, harmonic ambiguity and calibration quality.
+- Health must use smoothing/hysteresis so permissions do not flicker frame-to-frame.
+- `GREEN / Full Auto`: all validated Follow actions may run.
+- `YELLOW / Safe Follow`: dynamics/BPM/bar follow may continue and conservative next-section transitions may run, but harmonic song-position re-anchor is forbidden and planned big fills must be capped.
+- `RED / Manual Safe`: automated intensity changes, BPM steering, bar re-sync, harmonic re-position and predictive section transitions are forbidden. Silence-driven THIN/HOLD may still protect song position, while automatic rejoin requires recovery above RED.
+- Downgrading Health must cancel pending high-risk AI transport actions so decisions made under a previous confidence level cannot execute later.
+- Health score, mode, reasons, component scores and current permission set must be available in debug/API state and telemetry.
