@@ -544,13 +544,15 @@
   function crash(t,p=1){const h=humanHit('crash',t,p),s=ctx.createBufferSource(),hp=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=noise;hp.type='highpass';hp.frequency.value=3400+h.r*500;g.gain.setValueAtTime(.12*h.p,h.t);g.gain.exponentialRampToValueAtTime(.001,h.t+.55);s.connect(hp);hp.connect(g);g.connect(master);s.start(h.t);s.stop(h.t+.58)}
   function click(t,strong){notifyFollowDrumHit('click',t,strong?.25:.16);const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=strong?1050:820;g.gain.setValueAtTime(strong?.15:.09,t);g.gain.exponentialRampToValueAtTime(.001,t+.04);o.connect(g);g.connect(master);o.start(t);o.stop(t+.05)}
   function performanceIntent(){
+    const phrase=phraseContextAtBeat(songBeat);
     const fallback={
       energy:Math.max(.18,Math.min(1,(Number(intensity.value)||3)/5)),
       state:Number(intensity.value)>=5?'big':Number(intensity.value)>=3?'medium':'soft',
       health:'yellow',
       healthScore:.62,
       plan:'stay',
-      planConfidence:0
+      planConfidence:0,
+      phrase
     };
     try{
       const s=window.GuitarFollowAPI?.getState?.();
@@ -561,7 +563,8 @@
         health:s.followHealth?.level||'yellow',
         healthScore:Number.isFinite(Number(s.followHealth?.score))?Number(s.followHealth.score):.62,
         plan:s.transitionPlan?.mode||'stay',
-        planConfidence:Number(s.transitionPlan?.confidence)||0
+        planConfidence:Number(s.transitionPlan?.confidence)||0,
+        phrase
       };
     }catch{return fallback}
   }
@@ -574,9 +577,24 @@
   function barPulse(){
     return ((Math.floor(songBeat/4)%4)+4)%4;
   }
-  function grooveEnergy(intent,arr){
+  function grooveEnergy(intent,arr,kind='verse'){
     const arrangementGain=Math.max(.6,Math.min(1.25,Number(arr?.gain)||1));
-    return Math.max(0,Math.min(1,.58*intent.energy+.22*((Number(intensity.value)||3)/5)+.20*((arrangementGain-.6)/.65)));
+    const phrase=intent?.phrase;
+    let phraseLift=0;
+    if(phrase){
+      const centered=(Number(phrase.progress)||0)-.5;
+      if(kind==='pre')phraseLift=.13*centered;
+      else if(kind==='chorus')phraseLift=.055*centered+.035*Math.max(0,(Number(phrase.occurrence)||1)-1);
+      else if(kind==='verse')phraseLift=.035*centered;
+      else if(kind==='interlude')phraseLift=.045*centered;
+      else if(kind==='outro')phraseLift=-.16*(Number(phrase.sectionProgress)||0);
+    }
+    return Math.max(0,Math.min(1,
+      .58*intent.energy+
+      .22*((Number(intensity.value)||3)/5)+
+      .20*((arrangementGain-.6)/.65)+
+      phraseLift
+    ));
   }
   function rowForBeat(b){for(let i=0;i<rows.length;i++)if(b>=rows[i].start&&b<rows[i].end)return i;return rows.length-1}
   function sectionKind(name){
@@ -610,8 +628,9 @@
   }
   function updateDrummerUI(name,rowIndex=currentRow){
     const arr=arrangementForRow(rowIndex);
+    const phrase=phraseContextAtBeat(songBeat);
     drumStyle.textContent=song.drumStyle||'Acoustic';
-    drumPattern.textContent=arr.label||name;
+    drumPattern.textContent=(arr.label||name)+(phrase?' · P'+phrase.phraseBar+'/'+phrase.phraseBars:'');
     intensityLabel.textContent=intensity.value;
   }
   function drumPower(rowIndex){
@@ -631,21 +650,68 @@
     for(let i=1;i<=rows.length;i++){
       if(i===rows.length||rows[i].s!==rows[startRow].s){
         const arr=arrangementForRow(startRow);
+        const startBeat=rows[startRow].start;
+        const endBeat=rows[i-1].end;
+        const bars=Math.max(1,Math.ceil((endBeat-startBeat)/4));
+        const kind=sectionKind(rows[startRow].s);
+        const occurrence=out.filter(x=>x.kind===kind).length+1;
         out.push({
           index:out.length,
           name:rows[startRow].s,
-          startBeat:rows[startRow].start,
-          endBeat:rows[i-1].end,
+          kind,
+          occurrence,
+          startBeat,
+          endBeat,
+          bars,
+          phraseBars:bars>=8?8:4,
           startRow,
           endRow:i-1,
           gain:Number(arr.gain||1),
-          pattern:arr.pattern||sectionKind(rows[startRow].s),
+          pattern:arr.pattern||kind,
           autoFillIn:Boolean(arr.autoFillIn)
         });
         startRow=i;
       }
     }
     return out;
+  }
+  function phraseContextAtBeat(beat=songBeat){
+    const timeline=sectionTimeline();
+    const section=timeline.find(s=>beat>=s.startBeat&&beat<s.endBeat) || timeline[timeline.length-1];
+    if(!section)return null;
+    const localBeat=Math.max(0,Math.min(Math.max(0,section.endBeat-section.startBeat-1),Number(beat)-section.startBeat));
+    const sectionBar=Math.floor(localBeat/4);
+    const beatInBar=((Math.floor(localBeat)%4)+4)%4;
+    const nominalPhraseBars=section.phraseBars||4;
+    const phraseIndex=Math.floor(sectionBar/nominalPhraseBars);
+    const phraseStartBar=phraseIndex*nominalPhraseBars;
+    const phraseBars=Math.max(1,Math.min(nominalPhraseBars,section.bars-phraseStartBar));
+    const phraseBar=Math.min(phraseBars,sectionBar-phraseStartBar+1);
+    const phraseStartBeat=section.startBeat+phraseStartBar*4;
+    const phraseEndBeat=Math.min(section.endBeat,phraseStartBeat+phraseBars*4);
+    const phraseSpan=Math.max(1,phraseEndBeat-phraseStartBeat);
+    const progress=Math.max(0,Math.min(1,(Number(beat)-phraseStartBeat)/phraseSpan));
+    const sectionSpan=Math.max(1,section.endBeat-section.startBeat);
+    const sectionProgress=Math.max(0,Math.min(1,(Number(beat)-section.startBeat)/sectionSpan));
+    return {
+      sectionIndex:section.index,
+      sectionName:section.name,
+      kind:section.kind,
+      occurrence:section.occurrence,
+      sectionBars:section.bars,
+      sectionBar:sectionBar+1,
+      sectionProgress,
+      phraseIndex:phraseIndex+1,
+      phraseBars,
+      phraseBar,
+      beatInBar,
+      progress,
+      phraseStartBeat,
+      phraseEndBeat,
+      beatsToPhraseEnd:Math.max(0,phraseEndBeat-Number(beat)),
+      lastBar:phraseBar===phraseBars,
+      lastBeat:phraseBar===phraseBars&&beatInBar===3
+    };
   }
   function requestSectionTransition(targetSectionIndex,plan={}){
     if(!playing||paused||countIn>0||followHeld||pendingFollowHold||pendingSectionTransition||pendingHarmonicAnchor)return false;
