@@ -76,6 +76,7 @@ Mỗi bài có các thuộc tính chính:
 - `defaultBpm`
 - optional `preferFlats`
 - optional `drumStyle`
+- optional `drumArrangement`
 - `rows`
 
 Mỗi row hiện có dạng khái niệm:
@@ -95,6 +96,13 @@ Ví dụ:
 ```
 
 Chord tokens được nhận diện riêng để transpose và render thành chip hợp âm.
+
+`drumArrangement` là map theo exact section name. Mỗi entry có thể chứa:
+
+- `pattern`: groove variant như `air`, `pocket`, `build`, `open`, `openPlus`, `ride`, `halftime`, `outro`, `finale`;
+- `gain`: hệ số lực riêng của section;
+- `label`: mô tả ngắn hiển thị trong Drummer UI;
+- `autoFillIn`: nếu true, scheduler tự chơi fill 4 beat ngay trước khi section bắt đầu.
 
 ## 3. Chord transposition
 
@@ -128,16 +136,17 @@ Scheduler:
 - 4 beat count-in trước playback;
 - row duration được xác định bởi `beatCount` của từng row;
 - `songBeat` được map sang row để đổi highlight;
-- section name được classify thành Intro / Verse / Pre / Chorus / Bridge / Interlude / Outro để chọn groove;
-- `Intensity` 1–5 scale dynamics của groove và được lưu per-song;
+- ưu tiên exact section config trong `drumArrangement`; nếu không có thì section name được classify thành Intro / Verse / Pre / Chorus / Bridge / Interlude / Outro để lấy fallback groove;
+- `Intensity` 1–5 được nhân với per-section `gain` và lưu per-song;
 - Fill thủ công được queue tới đầu ô nhịp 4/4 kế tiếp;
-- khi đổi loại section, engine thêm transition accent ngắn.
+- auto-fill tìm section target bắt đầu sau đúng 4 beat; nếu target có `autoFillIn`, fill chạy xuyên 4 beat trước đó và kết thúc ngay lúc vào section;
+- khi đổi section không có fill, engine thêm transition accent ngắn.
 
 ### Giới hạn hiện tại
 
 - Timing của từng dòng là dữ liệu thủ công, không được suy ra từ audio thật.
 - Nhịp hiện tại được thiết kế chủ yếu cho 4/4.
-- Drum đã section-aware nhưng vẫn là rule-based accompaniment, chưa mô phỏng arrangement gốc của bài và chưa nghe guitar để follow tempo/section.
+- Drum đã có arrangement riêng cho 3 bài nhưng vẫn là arrangement thủ công/rule-based, chưa được suy ra từ bản thu gốc và chưa nghe guitar để follow tempo/section.
 
 ## 5. State persistence
 
