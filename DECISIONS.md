@@ -91,3 +91,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** Section Follow v1 chỉ xét section kế tiếp trong known song timeline, ưu tiên target cao trào (`autoFillIn` hoặc arrangement gain tăng), và chỉ được arm transition khi energy trend + bar/tempo confidence + proximity cùng vượt ngưỡng. Transition AI luôn là fill 1 bar → anchor đúng đầu section kế tiếp → crash; manual jump/Fill hủy pending transition.
 
 **Reason:** energy alone chưa đủ để xác định vị trí bài hát tùy ý. Giới hạn search space vào section kế tiếp cho trải nghiệm phản ứng có ích mà vẫn tránh nhảy sai cấu trúc. Chord/harmonic-position matching sẽ là lớp xác nhận tiếp theo.
+
+
+## D015 — Harmonic re-anchor phải fail-safe khi progression lặp
+
+**Decision:** harmonic-position matching dùng chord/chroma sequence của đúng bài và sounding key hiện tại, nhưng chỉ được auto re-anchor khi có ít nhất 3 stable chord events, best sequence match đủ cao và margin đủ xa ứng viên thứ hai. Nếu progression lặp ở nhiều vị trí, trạng thái phải là ambiguous và không được nhảy. Re-anchor chỉ áp dụng ở beat 1 kế tiếp; manual jump/Fill luôn override.
+
+**Reason:** nhiều bài pop/ballad lặp cùng progression ở nhiều verse/chorus. Chord recognition có ích để xác nhận vị trí nhưng không đủ để phân biệt mọi đoạn; margin gate + bar sync giữ quyền kiểm soát cho người chơi và tránh nhảy sai.
