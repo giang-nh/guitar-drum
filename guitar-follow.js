@@ -1,6 +1,7 @@
 (function GuitarFollowModule() {
   const api = window.GuitarDrumAPI;
-  if (!api) return;
+  const core = window.GuitarDrumCore;
+  if (!api || !core) return;
 
   const intensity = document.querySelector('#intensity');
   const intensityLabel = document.querySelector('#intensityLabel');
@@ -1232,19 +1233,7 @@
   }
 
   function samplePassEstimate(sample,t) {
-    const m=sample?.mic||{};
-    const guitar=Number(m.guitarEvidence)||0;
-    const energy=Number(m.energy)||0;
-    const drum=Number(m.drumPenalty)||0;
-    const voice=Number(m.voiceLike)||0;
-    const transient=Number.isFinite(Number(m.transient))?Number(m.transient):.20;
-    const rejectedByDrum=drum>t.drumReject&&guitar<Math.max(t.guitarEvidenceMin+.20,.48);
-    const rejectedByVoice=voice>t.voiceReject&&transient<t.voiceTransientMax;
-    const spectralOk=guitar>=t.guitarEvidenceMin||(drum<Math.max(.26,t.drumReject-.23)&&(Number(m.flux)||0)>=.08);
-    const rise=Number(m.onsetRise);
-    const requiredRise=t.onsetRiseBase+drum*.075+voice*.040;
-    const onsetOk=Number.isFinite(rise)?rise>requiredRise:true;
-    return energy>t.minEnergy&&onsetOk&&spectralOk&&!rejectedByDrum&&!rejectedByVoice;
+    return core.samplePassEstimate(sample,t);
   }
 
   function observedSessionContext(session) {
@@ -1575,27 +1564,15 @@
     const markAfter=markReplayScore(session,after);
     const actionBefore=actionRiskProxy(session,before);
     const actionAfter=actionRiskProxy(session,after);
-    const guitarLoss=
-      compare.guitarRetentionBefore!=null&&compare.guitarRetentionAfter!=null
-        ? compare.guitarRetentionBefore-compare.guitarRetentionAfter
-        : 0;
-    const contaminationWorse=
-      compare.contaminationPassBefore!=null&&compare.contaminationPassAfter!=null
-        ? compare.contaminationPassAfter-compare.contaminationPassBefore
-        : 0;
-    const markWorse=
-      markBefore.score!=null&&markAfter.score!=null
-        ? markBefore.score-markAfter.score
-        : 0;
-    const actionWorse=
-      actionBefore!=null&&actionAfter!=null
-        ? actionAfter-actionBefore
-        : 0;
-    const blockers=[];
-    if(compare.guitarSamples>=10&&guitarLoss>REGRESSION_GUITAR_LOSS_BLOCK)blockers.push('guitar retention -'+Math.round(guitarLoss*100)+'pt');
-    if(compare.contaminatedSamples>=10&&contaminationWorse>REGRESSION_CONTAM_WORSE_BLOCK)blockers.push('contamination +'+Math.round(contaminationWorse*100)+'pt');
-    if(markBefore.directional>=1&&markWorse>REGRESSION_MARK_WORSE_BLOCK)blockers.push('marked cases -'+Math.round(markWorse*100)+'pt');
-    if(actionBefore!=null&&actionWorse>.06)blockers.push('action-risk proxy +'+Math.round(actionWorse*100)+'pt');
+    const blockers=core.regressionBlockers(
+      {compare,markBefore,markAfter,actionBefore,actionAfter},
+      {
+        guitarLoss:REGRESSION_GUITAR_LOSS_BLOCK,
+        contaminationWorse:REGRESSION_CONTAM_WORSE_BLOCK,
+        markWorse:REGRESSION_MARK_WORSE_BLOCK,
+        actionWorse:.06
+      }
+    );
     return {
       label,
       samples:(session?.samples||[]).length,
@@ -2958,19 +2935,11 @@
   }
 
   function healthPermissions() {
-    if(followHealth.level==='green'){
-      return {intensity:true,tempo:true,barSync:true,reposition:true,transition:true,bigFill:true,hold:true,rejoin:true};
-    }
-    if(followHealth.level==='yellow'){
-      return {intensity:true,tempo:true,barSync:true,reposition:false,transition:true,bigFill:false,hold:true,rejoin:true};
-    }
-    return {intensity:false,tempo:false,barSync:false,reposition:false,transition:false,bigFill:false,hold:true,rejoin:false};
+    return core.healthPermissions(followHealth.level);
   }
 
   function healthLevelForScore(score) {
-    if(score>=HEALTH_GREEN_MIN)return 'green';
-    if(score<HEALTH_RED_MAX)return 'red';
-    return 'yellow';
+    return core.healthLevelForScore(score,HEALTH_GREEN_MIN,HEALTH_RED_MAX);
   }
 
   function updateFollowHealth(now) {
