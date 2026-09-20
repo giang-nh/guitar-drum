@@ -20,8 +20,9 @@
   const TEMPO_STABLE_MS = 2400;
   const TEMPO_APPLY_MS = 850;
   const BAR_WINDOW_MS = 12000;
-  const BAR_CONFIDENCE_MIN = 0.70;
+  const BAR_CONFIDENCE_MIN = 0.66;
   const BAR_MIN_ALIGNED = 10;
+  const BAR_STABLE_MS = 2600;
   const BAR_SYNC_COOLDOWN_MS = 7000;
 
   let audioCtx = null;
@@ -54,6 +55,8 @@
   let lastTempoApplyAt = 0;
   let barEstimate = null;
   let barConfidence = 0;
+  let barCandidateBase = null;
+  let barCandidateSince = 0;
   let lastBarSyncAt = 0;
 
   injectStyles();
@@ -367,6 +370,8 @@
     lastTempoApplyAt = 0;
     barEstimate = null;
     barConfidence = 0;
+    barCandidateBase = null;
+    barCandidateSince = 0;
     lastBarSyncAt = 0;
   }
 
@@ -528,10 +533,11 @@
     const best = means[bestResidue], second = means[secondResidue];
     if (best <= 0) return null;
 
-    const contrast = clamp((best - second) / Math.max(0.15, best), 0, 1);
-    const pulseCoverage = clamp(aligned / Math.max(1, recent.length), 0, 1);
+    const otherMean = order.slice(1).reduce((sum, index) => sum + means[index], 0) / 3;
+    const contrast = clamp((best - otherMean) / Math.max(0.15, best), 0, 1);
+    const contrastScore = clamp(contrast / 0.30, 0, 1);
     const sampleScore = clamp(aligned / 16, 0, 1);
-    const confidence = clamp(0.55 * contrast + 0.20 * pulseCoverage + 0.25 * sampleScore, 0, 1);
+    const confidence = clamp(0.70 * contrastScore + 0.30 * sampleScore, 0, 1);
     const baseDownbeat = bestAnchor + bestResidue * beatMs;
 
     return {beatMs, baseDownbeat, confidence, aligned, contrast};
@@ -549,7 +555,19 @@
     barConfidence = estimate?.confidence ?? 0;
 
     if (!ui.barToggle.checked || !ui.tempoToggle.checked) return;
-    if (!estimate || estimate.confidence < BAR_CONFIDENCE_MIN || estimate.aligned < BAR_MIN_ALIGNED) return;
+    if (!estimate || estimate.confidence < BAR_CONFIDENCE_MIN || estimate.aligned < BAR_MIN_ALIGNED) {
+      barCandidateBase = null;
+      barCandidateSince = 0;
+      return;
+    }
+
+    const barMs = estimate.beatMs * 4;
+    if (barCandidateBase == null || Math.abs(phaseError(estimate.baseDownbeat, barCandidateBase, barMs)) > estimate.beatMs * 0.14) {
+      barCandidateBase = estimate.baseDownbeat;
+      barCandidateSince = now;
+      return;
+    }
+    if (now - barCandidateSince < BAR_STABLE_MS) return;
     if (now - lastBarSyncAt < BAR_SYNC_COOLDOWN_MS) return;
     if (typeof api.getTransport !== 'function' || typeof api.syncNextBeat !== 'function') return;
 
@@ -586,7 +604,8 @@
     }
     ui.barState.textContent = 'Beat 1';
     const justSynced = performance.now() - lastBarSyncAt < 2400;
-    ui.barConfidence.textContent = Math.round(barConfidence * 100) + '% ' + (justSynced ? '· synced' : 'confidence');
+    const stable = barCandidateSince && performance.now() - barCandidateSince >= BAR_STABLE_MS;
+    ui.barConfidence.textContent = Math.round(barConfidence * 100) + '% ' + (justSynced ? '· synced' : stable ? '· stable' : '· learning');
   }
 
   function stateForEnergy(energy, now) {
