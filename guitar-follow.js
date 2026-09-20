@@ -617,6 +617,234 @@
     window.addEventListener('pagehide', cleanupAudio);
   }
 
+  function currentValidationStep(){
+    return VALIDATION_STEPS[Math.max(0,Math.min(VALIDATION_STEPS.length-1,validationStepIndex))]||null;
+  }
+
+  function validationSessionSnapshot(){
+    return {
+      schema:'guitar-drum-debug-v1',
+      appCache:'v32',
+      samples:telemetrySamples.slice(),
+      events:telemetryEvents.slice(),
+      settings:{calibrationProfile:deepClone(calibrationProfile)}
+    };
+  }
+
+  function formatValidationLock(ms){
+    return ms==null?'—':(Number(ms)/1000).toFixed(1)+'s';
+  }
+
+  function renderValidation(){
+    if(!ui.validationPanel)return;
+    ui.validationPanel.classList.toggle('on',validationActive||Boolean(validationReport));
+    const step=currentValidationStep();
+    if(validationActive&&step){
+      ui.validationStep.textContent=step.label;
+      ui.validationInstruction.textContent=step.instruction;
+      const elapsed=validationStepRunning?performance.now()-validationStepStartedAt:0;
+      ui.validationProgress.style.width=Math.round(clamp(elapsed/step.ms,0,1)*100)+'%';
+      ui.validationStartStep.disabled=validationStepRunning;
+      ui.validationStartStep.textContent=validationStepRunning?'Measuring…':'Start step';
+      ui.validationSkip.disabled=validationStepRunning;
+      ui.validationCancel.disabled=false;
+      ui.validationStatus.textContent='Step '+(validationStepIndex+1)+'/'+VALIDATION_STEPS.length+(validationStepRunning?' · REC':' · ready');
+    }else{
+      ui.validationProgress.style.width=validationReport?'100%':'0%';
+      ui.validationStartStep.disabled=true;
+      ui.validationSkip.disabled=true;
+      ui.validationCancel.disabled=true;
+      ui.validationStatus.textContent=validationReport
+        ? 'Report · '+validationReport.completedSteps+'/'+VALIDATION_STEPS.length+' step'
+        : '10 bước · guided telemetry · không ghi audio';
+    }
+    ui.validationRegression.disabled=!validationReport||validationAddedToRegression;
+    ui.validationAnalyze.disabled=!validationReport||!manualMarks(validationSessionSnapshot()).length;
+    if(!validationReport){
+      if(validationActive){
+        const done=validationRuns.filter(x=>Number.isFinite(Number(x.endT))).length;
+        ui.validationReport.textContent='Completed '+done+'/'+VALIDATION_STEPS.length+' step. Mỗi step tự ghi label + telemetry window.';
+      }
+      return;
+    }
+    const r=validationReport;
+    const statusText=s=>String(s||'review').toUpperCase();
+    const lines=[
+      'VALIDATION · '+r.passSteps+' PASS · '+r.reviewSteps+' REVIEW · '+r.failSteps+' FAIL',
+      'Mic separation: '+statusText(r.micSeparation),
+      'Tempo lock median: '+formatValidationLock(r.tempoLockMedianMs),
+      'Beat-1 lock median: '+formatValidationLock(r.barLockMedianMs),
+      'False drum onsets: '+(r.falseDrumOnsets==null?'—':r.falseDrumOnsets),
+      'Voice false triggers: '+(r.voiceFalseTriggers==null?'—':r.voiceFalseTriggers),
+      'HOLD → REJOIN: '+statusText(r.holdRejoin),
+      'Transition: '+statusText(r.transition),
+      'Health RED time: '+(r.healthRedFraction==null?'—':Math.round(r.healthRedFraction*100)+'%'),
+      ''
+    ];
+    r.steps.forEach(s=>{
+      lines.push((s.status==='pass'?'✓ ':s.status==='fail'?'✕ ':'△ ')+s.label+' · '+s.status.toUpperCase()+' · '+s.reason);
+    });
+    ui.validationReport.textContent=lines.join('\n');
+  }
+
+  async function startValidationSession(){
+    if(validationActive)return;
+    if(calibrationActive)cancelCalibration('',true);
+    validationStepIndex=0;
+    validationStepRunning=false;
+    validationRuns=[];
+    validationReport=null;
+    validationAddedToRegression=false;
+    clearInterval(validationTimer);
+    validationTimer=0;
+    if(!running)await startListening();
+    if(!running){
+      ui.validationPanel.classList.add('on');
+      ui.validationReport.textContent='Không mở được mic. Kiểm tra quyền microphone rồi thử lại.';
+      return;
+    }
+    if(telemetryRecording)stopTelemetryRecording();
+    startTelemetryRecording();
+    validationOwnTelemetry=true;
+    validationActive=true;
+    recordTelemetryEvent('validation-start',{
+      version:VALIDATION_VERSION,
+      steps:VALIDATION_STEPS.map(s=>({id:s.id,label:s.label,ms:s.ms}))
+    });
+    ui.validationOpen.textContent='Validation running';
+    ui.validationOpen.disabled=true;
+    renderValidation();
+    api.setStatus?.('🎯 Validation ready · bắt đầu Step 1.');
+  }
+
+  function startValidationStep(){
+    if(!validationActive||validationStepRunning)return;
+    const step=currentValidationStep();
+    if(!step)return;
+    validationStepRunning=true;
+    validationStepStartedAt=performance.now();
+    validationStepStartT=Math.max(0,Math.round(validationStepStartedAt-telemetryStartedAt));
+    recordTelemetryEvent('validation-step-start',{id:step.id,label:step.label,ms:step.ms,instruction:step.instruction});
+    clearInterval(validationTimer);
+    validationTimer=setInterval(()=>{
+      renderValidation();
+      if(performance.now()-validationStepStartedAt>=step.ms)finishValidationStep();
+    },120);
+    renderValidation();
+  }
+
+  function finishValidationStep(){
+    if(!validationActive||!validationStepRunning)return;
+    const step=currentValidationStep();
+    clearInterval(validationTimer);
+    validationTimer=0;
+    const endT=Math.max(validationStepStartT+1,Math.round(performance.now()-telemetryStartedAt));
+    validationStepRunning=false;
+    const run={id:step.id,label:step.label,startT:validationStepStartT,endT};
+    const session=validationSessionSnapshot();
+    const metrics=core.validationWindowMetrics(session,run.startT,run.endT);
+    const verdict=core.validationStepStatus(step.id,metrics);
+    validationRuns.push({...run,metrics,status:verdict.status,reason:verdict.reason});
+    recordTelemetryEvent('validation-step-end',{
+      id:step.id,label:step.label,status:verdict.status,reason:verdict.reason,metrics
+    });
+    if(verdict.status==='fail'&&['drum','guitar','voice','guitar-voice','full-mix'].includes(step.id)){
+      recordTelemetryEvent('manual-mark',{
+        label:'validation:'+step.id,
+        validation:true,
+        reason:verdict.reason
+      });
+    }
+    validationStepIndex++;
+    if(validationStepIndex>=VALIDATION_STEPS.length){
+      completeValidationSession();
+      return;
+    }
+    renderValidation();
+    api.setStatus?.('🎯 '+step.label+' · '+verdict.status.toUpperCase()+' · chuẩn bị bước tiếp theo.');
+  }
+
+  function skipValidationStep(){
+    if(!validationActive||validationStepRunning)return;
+    const step=currentValidationStep();
+    if(!step)return;
+    validationRuns.push({id:step.id,label:step.label,skipped:true});
+    recordTelemetryEvent('validation-step-skip',{id:step.id,label:step.label});
+    validationStepIndex++;
+    if(validationStepIndex>=VALIDATION_STEPS.length){
+      completeValidationSession();
+      return;
+    }
+    renderValidation();
+  }
+
+  function completeValidationSession(){
+    clearInterval(validationTimer);
+    validationTimer=0;
+    validationStepRunning=false;
+    validationActive=false;
+    validationReport=core.buildValidationReport(validationSessionSnapshot(),validationRuns);
+    recordTelemetryEvent('validation-complete',{
+      version:VALIDATION_VERSION,
+      summary:{
+        completedSteps:validationReport.completedSteps,
+        passSteps:validationReport.passSteps,
+        reviewSteps:validationReport.reviewSteps,
+        failSteps:validationReport.failSteps,
+        micSeparation:validationReport.micSeparation,
+        holdRejoin:validationReport.holdRejoin,
+        transition:validationReport.transition
+      }
+    });
+    if(validationOwnTelemetry&&telemetryRecording)stopTelemetryRecording();
+    validationOwnTelemetry=false;
+    ui.validationOpen.textContent='Run again';
+    ui.validationOpen.disabled=false;
+    renderValidation();
+    api.setStatus?.('🎯 Validation complete · xem report trong Developer Mode.');
+  }
+
+  function cancelValidationSession(message='',silent=false){
+    if(!validationActive&&!validationStepRunning)return;
+    clearInterval(validationTimer);
+    validationTimer=0;
+    if(validationStepRunning){
+      const step=currentValidationStep();
+      recordTelemetryEvent('validation-step-cancel',{id:step?.id||'',label:step?.label||''});
+    }
+    validationStepRunning=false;
+    validationActive=false;
+    if(validationRuns.some(x=>Number.isFinite(Number(x.endT)))){
+      validationReport=core.buildValidationReport(validationSessionSnapshot(),validationRuns);
+    }
+    recordTelemetryEvent('validation-cancel',{completed:validationRuns.length});
+    if(validationOwnTelemetry&&telemetryRecording)stopTelemetryRecording();
+    validationOwnTelemetry=false;
+    ui.validationOpen.textContent='Start validation';
+    ui.validationOpen.disabled=false;
+    renderValidation();
+    if(message&&!silent)api.setStatus?.('🎯 '+message);
+  }
+
+  function addValidationToRegression(){
+    if(!validationReport)return;
+    const song=api.getCurrentSong?.()||{};
+    regressionSessions.push({
+      label:'Validation · '+(song.title||song.id||'song')+' · '+new Date().toISOString().slice(0,16).replace('T',' '),
+      session:validationSessionSnapshot()
+    });
+    regressionSessions=regressionSessions.slice(-REGRESSION_MAX_SESSIONS);
+    validationAddedToRegression=true;
+    regressionReport=null;
+    if(autoTuneSuggestion?.changes?.length){
+      regressionReport=buildRegressionReport(autoTuneSuggestion.before,autoTuneSuggestion.proposed);
+    }
+    renderRegressionReport();
+    renderAutoTuneSuggestion();
+    renderValidation();
+    api.setStatus?.('🎯 Validation session đã thêm vào Regression suite.');
+  }
+
   function restoreSettings() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
