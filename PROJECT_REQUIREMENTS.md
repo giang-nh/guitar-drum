@@ -78,7 +78,10 @@ Các bài mới sẽ tiếp tục được thêm vào cùng cấu trúc này.
 - Auto Follow có **Section Follow (POC)**: app đọc section timeline đã build sẵn cho bài, kết hợp proximity tới section kế tiếp, arrangement gain/`autoFillIn`, bar/tempo confidence và xu hướng energy guitar để dự đoán chuyển vào section cao trào.
 - Khi section candidate đủ tin cậy và ổn định, app được phép queue một transition giới hạn: fill 1 bar ở đầu ô nhịp kế tiếp → anchor tới đúng đầu section kế tiếp → crash. Chỉ được xét section kế tiếp; không được nhảy tùy ý sang section xa.
 - Manual jump hoặc Fill của user luôn override/hủy pending AI section transition.
-- Section Follow v1 chưa nhận chord/harmonic position trực tiếp từ microphone; đây là cue bổ sung cho bước sau.
+- Auto Follow có **Harmonic Position Matching (POC)**: ưu tiên spectral/chroma analysis ngay sau strum onset, so với chord vocabulary của đúng bài trong sounding key hiện tại (kể cả capo), và chỉ ghi chord khi candidate ổn định qua nhiều frame.
+- Chuỗi 3–5 chord gần nhất được so với chord timeline derive từ row data để tìm song position candidate. Nếu nhiều đoạn dùng cùng progression, phải coi là ambiguous và không auto-reposition.
+- Auto harmonic re-anchor chỉ được phép khi sequence score + margin đủ cao, tempo/bar confidence ổn định, target cách vị trí hiện tại đủ xa và user không có pending/manual transition. Re-anchor chỉ áp dụng ở beat 1 kế tiếp.
+- Manual jump/Fill luôn override harmonic anchor.
 
 ## 7. Điều khiển khi tập
 
