@@ -52,6 +52,9 @@
   const PLAN_STABLE_MS = 1200;
   const PLAN_ARM_MIN = 0.74;
   const PLAN_HARMONIC_SUPPORT_MIN = 0.68;
+  const SELF_HIT_HISTORY_MS = 900;
+  const SELF_HIT_PRE_MS = 35;
+  const INPUT_CLASS_HOLD_MS = 420;
   const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const NOTES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
   const NOTE_MAP = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
@@ -117,6 +120,13 @@
   let planCandidateSince = 0;
   let fillVariantCursor = 0;
   let lastFillVariant = null;
+  let selfHits = [];
+  let previousSpectrum = null;
+  let spectralFrame = {flux:0,flatness:0,lowRatio:0,midRatio:0,highRatio:0,drumPenalty:0,voiceLike:0,guitarEvidence:0};
+  let inputClass = 'unknown';
+  let inputClassSince = 0;
+  let acceptedOnsets = 0;
+  let rejectedOnsets = 0;
 
   injectStyles();
   const ui = buildUi();
@@ -128,6 +138,7 @@
   renderHarmonic();
   renderFusion();
   renderPlan();
+  renderInput();
   attachListeners();
 
   function injectStyles() {
@@ -183,6 +194,7 @@
         <div class="gd-follow-stat"><span>Chord</span><strong id="gdFollowChord">—</strong><span id="gdFollowHarmonic">chưa đủ chord</span></div>
         <div class="gd-follow-stat"><span>Follow</span><strong id="gdFollowFusion">ACQUIRE</strong><span id="gdFollowFusionDetail">đang gom tín hiệu</span></div>
         <div class="gd-follow-stat"><span>Plan</span><strong id="gdFollowPlan">STAY</strong><span id="gdFollowPlanDetail">chưa có transition</span></div>
+        <div class="gd-follow-stat"><span>Input</span><strong id="gdFollowInput">RAW</strong><span id="gdFollowInputDetail">chưa phân loại</span></div>
       </div>
       <div class="gd-follow-controls">
         <button type="button" id="gdFollowToggle">🎙 Bật Auto Follow</button>
@@ -194,8 +206,9 @@
         <label class="gd-follow-tempo-option" for="gdBarFollow"><input id="gdBarFollow" type="checkbox" checked /> Sync beat 1</label>
         <label class="gd-follow-tempo-option" for="gdSectionFollow"><input id="gdSectionFollow" type="checkbox" checked /> Follow section</label>
         <label class="gd-follow-tempo-option" for="gdHarmonicFollow"><input id="gdHarmonicFollow" type="checkbox" checked /> Follow chords</label>
+        <label class="gd-follow-tempo-option" for="gdCleanInput"><input id="gdCleanInput" type="checkbox" checked /> Clean mic</label>
       </div>
-      <div id="gdFollowHint" class="gd-follow-hint">POC: Sensor Fusion gom dynamics + BPM + beat 1 + section + chord position thành một Follow state duy nhất. Chỉ bộ fusion được quyền fill/re-position; detector riêng chỉ cung cấp evidence.</div>
+      <div id="gdFollowHint" class="gd-follow-hint">POC: Clean mic dùng self-drum timing + spectral transient gate để giảm tiếng drum từ loa và giọng hát kích nhầm onset/chord. Nếu guitar bị bỏ sót, có thể tắt Clean mic để A/B.</div>
     `;
     const hint = drummer.querySelector('.drumHint');
     if (hint) hint.insertAdjacentElement('afterend', host);
@@ -221,12 +234,15 @@
       fusionDetail: host.querySelector('#gdFollowFusionDetail'),
       plan: host.querySelector('#gdFollowPlan'),
       planDetail: host.querySelector('#gdFollowPlanDetail'),
+      input: host.querySelector('#gdFollowInput'),
+      inputDetail: host.querySelector('#gdFollowInputDetail'),
       toggle: host.querySelector('#gdFollowToggle'),
       sensitivity: host.querySelector('#gdFollowSensitivity'),
       tempoToggle: host.querySelector('#gdTempoFollow'),
       barToggle: host.querySelector('#gdBarFollow'),
       sectionToggle: host.querySelector('#gdSectionFollow'),
       harmonicToggle: host.querySelector('#gdHarmonicFollow'),
+      cleanInputToggle: host.querySelector('#gdCleanInput'),
       hint: host.querySelector('#gdFollowHint')
     };
   }
@@ -285,6 +301,13 @@
       renderFusion();
       renderPlan();
     });
+    ui.cleanInputToggle.addEventListener('change', () => {
+      saveSettings();
+      resetInputTracking();
+      resetTempoTracking();
+      resetHarmonicTracking();
+      renderInput();
+    });
 
     document.querySelector('#songSelect')?.addEventListener('change', () => {
       smoothedEnergy = 0;
@@ -310,6 +333,7 @@
       if (running) stopListening('Auto Follow tạm tắt để dùng mic tìm tone.');
     });
 
+    window.addEventListener('guitar-drum-self-hit', handleSelfDrumHit);
     window.addEventListener('pagehide', cleanupAudio);
   }
 
@@ -321,6 +345,7 @@
       if (saved.barFollow != null) ui.barToggle.checked = Boolean(saved.barFollow);
       if (saved.sectionFollow != null) ui.sectionToggle.checked = Boolean(saved.sectionFollow);
       if (saved.harmonicFollow != null) ui.harmonicToggle.checked = Boolean(saved.harmonicFollow);
+      if (saved.cleanInput != null) ui.cleanInputToggle.checked = Boolean(saved.cleanInput);
     } catch {}
   }
 
@@ -331,7 +356,8 @@
         tempoFollow:Boolean(ui.tempoToggle.checked),
         barFollow:Boolean(ui.barToggle.checked),
         sectionFollow:Boolean(ui.sectionToggle.checked),
-        harmonicFollow:Boolean(ui.harmonicToggle.checked)
+        harmonicFollow:Boolean(ui.harmonicToggle.checked),
+        cleanInput:Boolean(ui.cleanInputToggle.checked)
       }));
     } catch {}
   }
@@ -384,6 +410,7 @@
       resetFusionTracking();
       resetIntentTracking();
       resetPlannerTracking();
+      resetInputTracking();
       ui.toggle.textContent = '■ Tắt Auto Follow';
       ui.pill.textContent = 'LISTENING';
       setHint(ui.tempoToggle.checked
@@ -416,6 +443,7 @@
     resetFusionTracking();
     resetIntentTracking();
     resetPlannerTracking();
+    resetInputTracking();
     renderState('silent', 0, -80, 0);
     renderTempo();
     renderBar();
@@ -423,6 +451,7 @@
     renderHarmonic();
     renderFusion();
     renderPlan();
+    renderInput();
     if (message) setHint(message + ' Intensity, BPM, bar sync, section và harmonic follow trở lại điều khiển tay.');
   }
 
