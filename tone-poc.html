@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f7f8" />
+  <title>Vocal Tone PoC · Guitar Drum</title>
+  <style>
+    :root{
+      color-scheme:light;
+      --bg:#f5f6f7;--card:#fff;--panel:#f8f9fa;--text:#151719;--muted:#6e7379;
+      --border:#dfe2e5;--accent:#0a84ff;--accent-bg:#eaf4ff;--ok:#198754;--warn:#b26a00;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+    button,select{font:inherit}
+    .app{width:min(760px,100%);margin:0 auto;padding:18px 14px 40px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:14px}
+    h1{font-size:27px;line-height:1.12;margin:0 0 6px}
+    h2{font-size:18px;margin:0 0 12px}
+    .sub,.muted{color:var(--muted)}
+    .back{display:inline-block;margin-bottom:12px;color:var(--accent);text-decoration:none;font-weight:700}
+    .hero{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start}
+    .badge{background:var(--accent-bg);color:var(--accent);font-weight:800;border-radius:999px;padding:7px 10px;font-size:12px;white-space:nowrap}
+    .instruction{margin:15px 0 0;line-height:1.5}
+    .meter{margin-top:16px;padding:16px;border-radius:16px;background:var(--panel);text-align:center}
+    .note{font-size:58px;font-weight:850;letter-spacing:-.04em;line-height:1}
+    .hz{font-size:14px;color:var(--muted);margin-top:7px}
+    .cents{height:10px;border-radius:999px;background:#e5e7ea;position:relative;margin:18px 14px 2px;overflow:hidden}
+    .cents::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;background:#8d9298}
+    .needle{position:absolute;left:50%;top:0;bottom:0;width:8px;border-radius:999px;background:var(--accent);transform:translateX(-50%);transition:left .08s linear}
+    .statusLine{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-top:15px;font-size:14px;color:var(--muted)}
+    .progress{height:8px;border-radius:999px;background:#e5e7ea;overflow:hidden;margin-top:10px}
+    .progress>div{height:100%;width:0;background:var(--accent);transition:width .1s linear}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+    button{min-height:48px;border-radius:12px;border:1px solid var(--border);background:var(--card);padding:0 18px;font-weight:800;cursor:pointer}
+    button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    button.secondary{background:var(--accent-bg);color:var(--accent);border-color:transparent}
+    button:disabled{opacity:.45;cursor:default}
+    .result{display:none}
+    .result.show{display:block}
+    .resultGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .stat{background:var(--panel);border-radius:14px;padding:14px}
+    .stat span{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:4px}
+    .stat strong{font-size:25px}
+    .keyRow{display:flex;align-items:center;gap:10px;margin:14px 0}
+    .keyRow label{font-weight:800}
+    select{height:44px;border:1px solid var(--border);border-radius:10px;background:var(--card);padding:0 12px;font-weight:750}
+    .chords{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .chord{border:1px solid var(--border);background:var(--card);border-radius:8px;padding:7px 9px;font-weight:850}
+    .candidates{font-size:13px;color:var(--muted);margin-top:12px;line-height:1.5}
+    .ok{color:var(--ok)}
+    .warn{color:var(--warn)}
+    .debug{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;background:var(--panel);padding:12px;border-radius:12px;margin-top:12px;display:none}
+    .debug.show{display:block}
+    @media(max-width:560px){
+      .app{padding:10px 8px 30px}.card{padding:14px;border-radius:14px}.hero{grid-template-columns:1fr}.badge{justify-self:start}
+      .note{font-size:52px}.resultGrid{grid-template-columns:1fr}.actions button{flex:1 1 auto}
+    }
+  </style>
+</head>
+<body>
+<main class="app">
+  <a class="back" href="./index.html">← Guitar Drum</a>
+
+  <section class="card">
+    <div class="hero">
+      <div>
+        <h1>Tìm tone giọng · PoC</h1>
+        <div class="sub">Nàng Thơ · Hoàng Dũng · tone gốc C</div>
+      </div>
+      <div class="badge">Song-aware tuner v0</div>
+    </div>
+    <p class="instruction">Bấm <strong>Bắt đầu nghe</strong>, rồi hát khoảng 8 giây của <strong>điệp khúc đầu</strong> theo tone tự nhiên của bạn (không dùng đoạn lên tone cuối bài). PoC gom nhiều nốt thay vì kết luận từ một nốt đơn.</p>
+
+    <div class="meter">
+      <div id="note" class="note">—</div>
+      <div id="hz" class="hz">Chưa mở microphone</div>
+      <div class="cents" aria-label="Độ lệch cents"><div id="needle" class="needle"></div></div>
+    </div>
+
+    <div class="statusLine">
+      <span id="status">Sẵn sàng.</span>
+      <span id="sampleCount">0 mẫu giọng</span>
+    </div>
+    <div class="progress"><div id="progress"></div></div>
+
+    <div class="actions">
+      <button id="start" class="primary">🎙 Bắt đầu nghe</button>
+      <button id="stop" disabled>Phân tích ngay</button>
+      <button id="reset">Làm lại</button>
+    </div>
+  </section>
+
+  <section id="result" class="card result">
+    <h2>Kết quả thử nghiệm</h2>
+    <div class="resultGrid">
+      <div class="stat"><span>Tone đề xuất</span><strong id="detectedKey">—</strong></div>
+      <div class="stat"><span>So với tone gốc C</span><strong id="shiftLabel">—</strong></div>
+      <div class="stat"><span>Độ tin cậy</span><strong id="confidence">—</strong></div>
+      <div class="stat"><span>Pitch hợp lệ</span><strong id="voiced">—</strong></div>
+    </div>
+
+    <div class="keyRow">
+      <label for="keySelect">Chỉnh lại nếu cần:</label>
+      <select id="keySelect"></select>
+    </div>
+
+    <div class="muted">Một đoạn hợp âm của bài sau khi transpose:</div>
+    <div id="chords" class="chords"></div>
+    <div id="candidates" class="candidates"></div>
+
+    <div class="actions">
+      <button id="apply" class="primary">Dùng tone này trong Guitar Drum</button>
+      <button id="debugToggle">Xem debug</button>
+    </div>
+    <div id="debug" class="debug"></div>
+  </section>
+
+  <section class="card muted" style="font-size:13px;line-height:1.5">
+    PoC này chưa có melody-reference riêng cho từng câu. Nó ước lượng tone từ phân bố pitch của giọng hát rồi giới hạn kết quả vào 12 phép transpose của bài đã biết. Bước tiếp theo nếu PoC hữu ích là lưu melody-reference cho từng đoạn để tăng độ chắc chắn.
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const NOTES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+  const NOTE_MAP = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
+  const MAJOR_PROFILE = [6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
+  const SONG = {
+    id:'nang-tho', title:'Nàng Thơ', artist:'Hoàng Dũng', baseKey:0, preferFlats:true,
+    demoChords:['C','G','E7','Am7','Dm7','G','C','Em7','Am7','Gm7','C','F','Dm7','G']
+  };
+  const STORAGE_PREFIX = 'guitar-drum-state-v3';
+  const CAPTURE_MS = 8000;
+  const ANALYSIS_INTERVAL_MS = 75;
+
+  const noteEl=$('#note'), hzEl=$('#hz'), needle=$('#needle'), statusEl=$('#status'), sampleCountEl=$('#sampleCount');
+  const progressEl=$('#progress'), startBtn=$('#start'), stopBtn=$('#stop'), resetBtn=$('#reset');
+  const resultEl=$('#result'), detectedKeyEl=$('#detectedKey'), shiftLabelEl=$('#shiftLabel'), confidenceEl=$('#confidence');
+  const voicedEl=$('#voiced'), keySel=$('#keySelect'), chordsEl=$('#chords'), candidatesEl=$('#candidates');
+  const applyBtn=$('#apply'), debugBtn=$('#debugToggle'), debugEl=$('#debug');
+
+  let audioCtx=null, stream=null, source=null, analyser=null, buffer=null;
+  let running=false, raf=0, lastAnalysisAt=0, startedAt=0;
+  let histogram=new Array(12).fill(0), voicedFrames=0, totalFrames=0, recentMidis=[];
+  let latestResult=null;
+
+  function displayNotes(){ return SONG.preferFlats ? NOTES_FLAT : NOTES_SHARP; }
+  function noteName(pc){ return displayNotes()[(pc+12)%12]; }
+  function signedShift(shift){ const s=((shift+6)%12)-6; return s; }
+  function formatShift(shift){
+    const s=signedShift(shift);
+    if(s===0) return '0 semitone';
+    return (s>0?'+':'')+s+' semitone';
+  }
+
+  function populateKeySelect(){
+    keySel.innerHTML='';
+    displayNotes().forEach((n,i)=>{
+      const o=document.createElement('option');o.value=String(i);o.textContent=n+(i===SONG.baseKey?' · tone gốc':'');keySel.appendChild(o);
+    });
+  }
+
+  function transposeChord(ch,targetKey){
+    const shift=(targetKey-SONG.baseKey+12)%12;
+    const m=ch.match(/^([A-G])([#b]?)(.*)$/); if(!m) return ch;
+    const root=NOTE_MAP[m[1]+m[2]]; if(root==null) return ch;
+    return noteName(root+shift)+m[3];
+  }
+
+  function renderChords(targetKey){
+    chordsEl.innerHTML='';
+    SONG.demoChords.forEach(ch=>{
+      const span=document.createElement('span');span.className='chord';span.textContent=transposeChord(ch,targetKey);chordsEl.appendChild(span);
+    });
+    shiftLabelEl.textContent=formatShift((targetKey-SONG.baseKey+12)%12);
+    detectedKeyEl.textContent=noteName(targetKey);
+  }
+
+  function rmsOf(buf){
+    let sum=0;
+    for(let i=0;i<buf.length;i++) sum+=buf[i]*buf[i];
+    return Math.sqrt(sum/buf.length);
+  }
+
+  function autoCorrelate(buf,sampleRate){
+    const rms=rmsOf(buf);
+    if(rms<0.012) return null;
+
+    let mean=0;
+    for(let i=0;i<buf.length;i++) mean+=buf[i];
+    mean/=buf.length;
+
+    const minFreq=80, maxFreq=1000;
+    const minLag=Math.max(2,Math.floor(sampleRate/maxFreq));
+    const maxLag=Math.min(Math.floor(sampleRate/minFreq),Math.floor(buf.length/2));
+    let bestLag=-1,bestCorr=0;
+
+    for(let lag=minLag;lag<=maxLag;lag++){
+      let sum=0,normA=0,normB=0;
+      const limit=buf.length-lag;
+      for(let i=0;i<limit;i++){
+        const a=buf[i]-mean,b=buf[i+lag]-mean;
+        sum+=a*b;normA+=a*a;normB+=b*b;
+      }
+      const corr=sum/Math.sqrt((normA*normB)||1);
+      if(corr>bestCorr){bestCorr=corr;bestLag=lag;}
+    }
+    if(bestLag<0 || bestCorr<0.62) return null;
+
+    const freq=sampleRate/bestLag;
+    if(!Number.isFinite(freq)||freq<minFreq||freq>maxFreq) return null;
+    return {freq,confidence:bestCorr,rms};
+  }
+
+  function freqToMidi(freq){ return 69+12*Math.log2(freq/440); }
+
+  function pushPitch(freq,quality){
+    const midi=freqToMidi(freq);
+    const rounded=Math.round(midi);
+    const cents=(midi-rounded)*100;
+    const pc=((rounded%12)+12)%12;
+    const weight=Math.max(.1,quality.confidence)*Math.max(.2,Math.min(1,quality.rms/.08));
+    histogram[pc]+=weight;
+    voicedFrames++;
+    recentMidis.push(midi);
+    if(recentMidis.length>80) recentMidis.shift();
+
+    noteEl.textContent=noteName(pc)+Math.floor(rounded/12-1);
+    hzEl.textContent=freq.toFixed(1)+' Hz · '+(cents>=0?'+':'')+cents.toFixed(0)+' cents';
+    const pct=Math.max(0,Math.min(100,50+cents));
+    needle.style.left=pct+'%';
+    sampleCountEl.textContent=voicedFrames+' mẫu giọng';
+  }
+
+  function resetCapture(){
+    histogram=new Array(12).fill(0);voicedFrames=0;totalFrames=0;recentMidis=[];latestResult=null;
+    noteEl.textContent='—';hzEl.textContent='Chưa mở microphone';needle.style.left='50%';sampleCountEl.textContent='0 mẫu giọng';
+    progressEl.style.width='0%';statusEl.textContent='Sẵn sàng.';resultEl.classList.remove('show');debugEl.classList.remove('show');
+    debugBtn.textContent='Xem debug';
+  }
+
+  function pearsonObservedForTonic(obs,tonic){
+    let meanO=0,meanP=0;
+    for(let pc=0;pc<12;pc++){meanO+=obs[pc];meanP+=MAJOR_PROFILE[(pc-tonic+12)%12];}
+    meanO/=12;meanP/=12;
+    let num=0,denO=0,denP=0;
+    for(let pc=0;pc<12;pc++){
+      const a=obs[pc]-meanO,b=MAJOR_PROFILE[(pc-tonic+12)%12]-meanP;
+      num+=a*b;denO+=a*a;denP+=b*b;
+    }
+    return num/Math.sqrt((denO*denP)||1);
+  }
+
+  function analyzeCapture(){
+    if(voicedFrames<18){
+      statusEl.innerHTML='<span class="warn">Chưa đủ giọng rõ. Hãy hát to và liền câu hơn.</span>';
+      return null;
+    }
+    const total=histogram.reduce((a,b)=>a+b,0)||1;
+    const obs=histogram.map(v=>v/total);
+    const ranked=[];
+    for(let tonic=0;tonic<12;tonic++) ranked.push({tonic,score:pearsonObservedForTonic(obs,tonic)});
+    ranked.sort((a,b)=>b.score-a.score);
+    const best=ranked[0],second=ranked[1];
+    const coverage=Math.min(1,voicedFrames/55);
+    const margin=Math.max(0,Math.min(1,(best.score-second.score)*2.2));
+    const absolute=Math.max(0,Math.min(1,(best.score+.2)/1.2));
+    const confidence=Math.round(100*(.35*coverage+.45*margin+.20*absolute));
+    return {best,ranked,confidence,obs};
+  }
+
+  function showResult(result){
+    latestResult=result;
+    const key=result.best.tonic;
+    keySel.value=String(key);
+    renderChords(key);
+    confidenceEl.textContent=result.confidence+'%';
+    confidenceEl.className=result.confidence>=65?'ok':result.confidence<45?'warn':'';
+    voicedEl.textContent=voicedFrames+' frames';
+    candidatesEl.textContent='Ứng viên gần nhất: '+result.ranked.slice(0,3).map(x=>noteName(x.tonic)+' '+x.score.toFixed(2)).join(' · ');
+    debugEl.textContent=[
+      'Histogram pitch class:',
+      displayNotes().map((n,i)=>n+': '+result.obs[i].toFixed(3)).join(' | '),
+      '',
+      'Top candidates:',
+      result.ranked.slice(0,6).map(x=>noteName(x.tonic)+': '+x.score.toFixed(4)).join('\n'),
+      '',
+      'Voiced frames: '+voicedFrames,
+      'Total analysis frames: '+totalFrames
+    ].join('\n');
+    resultEl.classList.add('show');
+    resultEl.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
+  function frame(ts){
+    if(!running) return;
+    raf=requestAnimationFrame(frame);
+    const elapsed=performance.now()-startedAt;
+    progressEl.style.width=Math.min(100,elapsed/CAPTURE_MS*100)+'%';
+    statusEl.textContent='Đang nghe… '+Math.max(0,Math.ceil((CAPTURE_MS-elapsed)/1000))+'s';
+
+    if(ts-lastAnalysisAt>=ANALYSIS_INTERVAL_MS){
+      lastAnalysisAt=ts;totalFrames++;
+      analyser.getFloatTimeDomainData(buffer);
+      const pitch=autoCorrelate(buffer,audioCtx.sampleRate);
+      if(pitch) pushPitch(pitch.freq,pitch);
+    }
+    if(elapsed>=CAPTURE_MS) finish();
+  }
+
+  async function start(){
+    resetCapture();
+    if(!navigator.mediaDevices?.getUserMedia){
+      statusEl.innerHTML='<span class="warn">Trình duyệt này không hỗ trợ microphone API.</span>';return;
+    }
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
+      const AC=window.AudioContext||window.webkitAudioContext;
+      audioCtx=new AC();
+      if(audioCtx.state==='suspended') await audioCtx.resume();
+      source=audioCtx.createMediaStreamSource(stream);
+      analyser=audioCtx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=0;
+      buffer=new Float32Array(analyser.fftSize);source.connect(analyser);
+      running=true;startedAt=performance.now();lastAnalysisAt=0;
+      startBtn.disabled=true;stopBtn.disabled=false;statusEl.textContent='Đang nghe…';hzEl.textContent='Hãy bắt đầu hát';
+      raf=requestAnimationFrame(frame);
+    }catch(err){
+      statusEl.innerHTML='<span class="warn">Không mở được microphone. Kiểm tra quyền mic trong Safari.</span>';
+      hzEl.textContent=err?.message||String(err);
+      cleanupAudio();
+    }
+  }
+
+  function cleanupAudio(){
+    running=false;if(raf)cancelAnimationFrame(raf);raf=0;
+    if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+    if(audioCtx){audioCtx.close().catch(()=>{});audioCtx=null;}
+    source=null;analyser=null;buffer=null;
+    startBtn.disabled=false;stopBtn.disabled=true;
+  }
+
+  function finish(){
+    if(!running) return;
+    cleanupAudio();progressEl.style.width='100%';
+    const result=analyzeCapture();
+    if(result){statusEl.innerHTML='<span class="ok">Đã phân tích xong.</span>';showResult(result);}
+  }
+
+  function applyKey(){
+    const targetKey=Number(keySel.value);
+    let state={};
+    try{state=JSON.parse(localStorage.getItem(STORAGE_PREFIX+'-'+SONG.id)||'{}')}catch{}
+    state.key=String(targetKey);
+    try{
+      localStorage.setItem(STORAGE_PREFIX+'-'+SONG.id,JSON.stringify(state));
+      localStorage.setItem(STORAGE_PREFIX+'-last-song',SONG.id);
+    }catch{}
+    location.href='./index.html';
+  }
+
+  startBtn.addEventListener('click',start);
+  stopBtn.addEventListener('click',finish);
+  resetBtn.addEventListener('click',()=>{cleanupAudio();resetCapture();});
+  keySel.addEventListener('change',()=>renderChords(Number(keySel.value)));
+  applyBtn.addEventListener('click',applyKey);
+  debugBtn.addEventListener('click',()=>{
+    const show=!debugEl.classList.contains('show');debugEl.classList.toggle('show',show);debugBtn.textContent=show?'Ẩn debug':'Xem debug';
+  });
+  window.addEventListener('pagehide',cleanupAudio);
+
+  populateKeySelect();
+  keySel.value=String(SONG.baseKey);
+  renderChords(SONG.baseKey);
+})();
+</script>
+</body>
+</html>
