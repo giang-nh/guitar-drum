@@ -49,6 +49,9 @@
   const RESUME_BAR_STABLE_MS = 1500;
   const RESUME_TEMPO_MIN = 0.58;
   const RESUME_BAR_MIN = 0.60;
+  const PLAN_STABLE_MS = 1200;
+  const PLAN_ARM_MIN = 0.78;
+  const PLAN_HARMONIC_SUPPORT_MIN = 0.68;
   const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const NOTES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
   const NOTE_MAP = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
@@ -109,6 +112,11 @@
   let lastMusicalActivityAt = performance.now();
   let intentStage = 'active';
   let intentActionAt = 0;
+  let transitionPlan = {mode:'stay',confidence:0,reason:'waiting'};
+  let planCandidateKey = null;
+  let planCandidateSince = 0;
+  let fillVariantCursor = 0;
+  let lastFillVariant = null;
 
   injectStyles();
   const ui = buildUi();
@@ -119,6 +127,7 @@
   renderSection();
   renderHarmonic();
   renderFusion();
+  renderPlan();
   attachListeners();
 
   function injectStyles() {
@@ -173,6 +182,7 @@
         <div class="gd-follow-stat"><span>Section</span><strong id="gdFollowSectionState">—</strong><span id="gdFollowSectionConfidence">theo song map</span></div>
         <div class="gd-follow-stat"><span>Chord</span><strong id="gdFollowChord">—</strong><span id="gdFollowHarmonic">chưa đủ chord</span></div>
         <div class="gd-follow-stat"><span>Follow</span><strong id="gdFollowFusion">ACQUIRE</strong><span id="gdFollowFusionDetail">đang gom tín hiệu</span></div>
+        <div class="gd-follow-stat"><span>Plan</span><strong id="gdFollowPlan">STAY</strong><span id="gdFollowPlanDetail">chưa có transition</span></div>
       </div>
       <div class="gd-follow-controls">
         <button type="button" id="gdFollowToggle">🎙 Bật Auto Follow</button>
@@ -209,6 +219,8 @@
       harmonic: host.querySelector('#gdFollowHarmonic'),
       fusion: host.querySelector('#gdFollowFusion'),
       fusionDetail: host.querySelector('#gdFollowFusionDetail'),
+      plan: host.querySelector('#gdFollowPlan'),
+      planDetail: host.querySelector('#gdFollowPlanDetail'),
       toggle: host.querySelector('#gdFollowToggle'),
       sensitivity: host.querySelector('#gdFollowSensitivity'),
       tempoToggle: host.querySelector('#gdTempoFollow'),
@@ -236,7 +248,9 @@
       renderHarmonic();
       resetFusionTracking();
       resetIntentTracking();
+      resetPlannerTracking();
       renderFusion();
+      renderPlan();
     });
     ui.barToggle.addEventListener('change', () => {
       saveSettings();
@@ -247,7 +261,9 @@
       renderSection();
       resetFusionTracking();
       resetIntentTracking();
+      resetPlannerTracking();
       renderFusion();
+      renderPlan();
     });
     ui.sectionToggle.addEventListener('change', () => {
       saveSettings();
@@ -255,7 +271,9 @@
       renderSection();
       resetFusionTracking();
       resetIntentTracking();
+      resetPlannerTracking();
       renderFusion();
+      renderPlan();
     });
     ui.harmonicToggle.addEventListener('change', () => {
       saveSettings();
@@ -263,7 +281,9 @@
       renderHarmonic();
       resetFusionTracking();
       resetIntentTracking();
+      resetPlannerTracking();
       renderFusion();
+      renderPlan();
     });
 
     document.querySelector('#songSelect')?.addEventListener('change', () => {
@@ -281,7 +301,9 @@
       renderHarmonic();
       resetFusionTracking();
       resetIntentTracking();
+      resetPlannerTracking();
       renderFusion();
+      renderPlan();
     });
 
     document.querySelector('#gdToneMic')?.addEventListener('click', () => {
@@ -361,6 +383,7 @@
       resetHarmonicTracking();
       resetFusionTracking();
       resetIntentTracking();
+      resetPlannerTracking();
       ui.toggle.textContent = '■ Tắt Auto Follow';
       ui.pill.textContent = 'LISTENING';
       setHint(ui.tempoToggle.checked
@@ -392,12 +415,14 @@
     resetHarmonicTracking();
     resetFusionTracking();
     resetIntentTracking();
+    resetPlannerTracking();
     renderState('silent', 0, -80, 0);
     renderTempo();
     renderBar();
     renderSection();
     renderHarmonic();
     renderFusion();
+    renderPlan();
     if (message) setHint(message + ' Intensity, BPM, bar sync, section và harmonic follow trở lại điều khiển tay.');
   }
 
@@ -450,6 +475,7 @@
     renderSection();
     renderHarmonic();
     renderFusion();
+    renderPlan();
   }
 
   function rmsOf(data) {
@@ -1188,6 +1214,130 @@
     };
   }
 
+  function resetPlannerTracking() {
+    transitionPlan={mode:'stay',confidence:0,reason:'waiting'};
+    planCandidateKey=null;
+    planCandidateSince=0;
+  }
+
+  function updatePlanCandidate(key,now) {
+    if (!key) {
+      planCandidateKey=null;
+      planCandidateSince=0;
+      return false;
+    }
+    if (planCandidateKey!==key) {
+      planCandidateKey=key;
+      planCandidateSince=now;
+      return false;
+    }
+    return now-planCandidateSince>=PLAN_STABLE_MS;
+  }
+
+  function chooseFillVariant(style) {
+    const options=[0,1,2];
+    let variant=options[fillVariantCursor++%options.length];
+    if (lastFillVariant===style+':'+variant) variant=(variant+1)%3;
+    lastFillVariant=style+':'+variant;
+    return variant;
+  }
+
+  function buildTransitionPlan(now,transport,harmonicStrong) {
+    if (
+      !ui.sectionToggle.checked ||
+      !sectionPrediction?.ready ||
+      !sectionPrediction.next ||
+      sectionPrediction.confidence<SECTION_CONFIDENCE_MIN
+    ) {
+      updatePlanCandidate(null,now);
+      return {mode:'stay',confidence:0,reason:'no stable section target'};
+    }
+
+    const next=sectionPrediction.next;
+    const current=sectionPrediction.current;
+    const beatsAway=Number(next.startBeat)-Number(transport.songBeat);
+    if (beatsAway<5 || beatsAway>16) {
+      updatePlanCandidate(null,now);
+      return {mode:'stay',confidence:0,reason:'outside transition window'};
+    }
+
+    const harmonicSupports=
+      !harmonicStrong ||
+      harmonicMatch?.target?.section===next.name;
+    if (!harmonicSupports) {
+      updatePlanCandidate(null,now);
+      return {
+        mode:'stay',
+        confidence:clamp(sectionPrediction.confidence*0.55,0,1),
+        reason:'chord evidence disagrees',
+        target:next
+      };
+    }
+
+    const trendScore=clamp((Number(sectionPrediction.trend||0)-0.025)/0.17,0,1);
+    const gainDelta=Number(next.gain||1)-Number(current?.gain||1);
+    const gainScore=clamp((gainDelta+0.02)/0.28,0,1);
+    const intensityScore=currentState==='big'?1:currentState==='medium'?0.68:currentState==='soft'?0.32:0;
+    const harmonicScore=harmonicStrong
+      ? clamp(harmonicMatch?.confidence||0,0,1)
+      : 0.72;
+    const proximityScore=beatsAway<=8?1:clamp(1-(beatsAway-8)/8,0,1);
+    const confidence=clamp(
+      0.34*sectionPrediction.confidence+
+      0.17*trendScore+
+      0.12*gainScore+
+      0.10*intensityScore+
+      0.10*barConfidence+
+      0.07*tempoConfidence+
+      0.06*harmonicScore+
+      0.04*proximityScore,
+      0,1
+    );
+
+    let fillStyle='small';
+    if (confidence>=0.88 && trendScore>=0.62 && intensityScore>=0.68) fillStyle='big';
+    else if (confidence>=0.81 || trendScore>=0.48 || gainScore>=0.58) fillStyle='medium';
+
+    const mode=beatsAway>8?'build':'fill-'+fillStyle;
+    const key='plan:'+next.index+':'+fillStyle;
+    const stable=updatePlanCandidate(key,now);
+    return {
+      mode,
+      confidence,
+      reason:stable?'stable target':'learning target',
+      target:next,
+      beatsAway,
+      fillStyle,
+      stable,
+      harmonicSupports,
+      trendScore,
+      gainScore
+    };
+  }
+
+  function renderPlan() {
+    if (!ui.plan) return;
+    const labels={
+      stay:'STAY',
+      build:'BUILD',
+      'fill-small':'FILL S',
+      'fill-medium':'FILL M',
+      'fill-big':'FILL L',
+      armed:'ARMED',
+      drop:'DROP',
+      rejoin:'REJOIN'
+    };
+    ui.plan.textContent=labels[transitionPlan.mode]||String(transitionPlan.mode||'stay').toUpperCase();
+    const conf=Math.round(clamp(transitionPlan.confidence||0,0,1)*100);
+    const target=transitionPlan.target?.name||transitionPlan.target?.section||'';
+    const beats=Number.isFinite(transitionPlan.beatsAway)?Math.max(0,Math.round(transitionPlan.beatsAway))+'b':'';
+    ui.planDetail.textContent=
+      (conf?conf+'% · ':'')+
+      (target?target+' · ':'')+
+      (beats?beats+' · ':'')+
+      (transitionPlan.reason||'waiting');
+  }
+
   function resetFusionTracking() {
     performanceState={mode:'acquiring',confidence:0,reason:'waiting'};
     fusionCandidateKey=null;
@@ -1277,6 +1427,7 @@
     const intent=intentEvidence(now,transport);
 
     if (transport.followHeld) {
+      transitionPlan={mode:'drop',confidence:1,reason:'hold',beatsAway:0};
       if (!intent.recent) {
         intentStage='hold';
         performanceState={mode:'hold',confidence:1,reason:'guitar silent · song position frozen'};
@@ -1328,6 +1479,7 @@
     }
 
     if (intent.silenceMs>=STOP_HOLD_MS) {
+      transitionPlan={mode:'drop',confidence:1,reason:'long silence'};
       intentStage='hold';
       performanceState={mode:'hold',confidence:1,reason:'long silence · hold next beat 1'};
       updateFusionCandidate(null,now);
@@ -1351,6 +1503,7 @@
     }
 
     if (intent.silenceMs>=SILENCE_THIN_MS) {
+      transitionPlan={mode:'drop',confidence:clamp(intent.silenceMs/STOP_HOLD_MS,0,1),reason:'thin out'};
       intentStage='thin';
       performanceState={mode:'thin',confidence:clamp(intent.silenceMs/STOP_HOLD_MS,0,1),reason:'short silence · thin out'};
       updateFusionCandidate(null,now);
@@ -1374,6 +1527,7 @@
       if (accepted) {
         intentActionAt=now;
         intentStage='active';
+        transitionPlan={mode:'rejoin',confidence:0.72,reason:'guitar returned'};
         performanceState={mode:'rejoin',confidence:0.72,reason:'guitar returned before hold'};
         updateFusionCandidate(null,now);
         return;
@@ -1397,6 +1551,7 @@
         (position && position.fusionMargin < 0.055)
       )
     );
+    transitionPlan=buildTransitionPlan(now,transport,harmonicStrong);
 
     if (!tempoLocked) {
       performanceState={mode:'acquiring',confidence:tempoConfidence,reason:'tempo'};
@@ -1458,49 +1613,44 @@
       return;
     }
 
-    const sectionReady=Boolean(
-      ui.sectionToggle.checked &&
-      sectionPrediction?.ready &&
-      sectionPrediction.confidence>=SECTION_CONFIDENCE_MIN
+    const planReady=Boolean(
+      transitionPlan?.target &&
+      transitionPlan.stable &&
+      transitionPlan.harmonicSupports &&
+      transitionPlan.confidence>=PLAN_ARM_MIN
     );
-    if (sectionReady) {
-      const harmonicSupportsNext=
-        !harmonicStrong ||
-        harmonicMatch.target?.section===sectionPrediction.next?.name;
-      const confidence=clamp(
-        0.52*sectionPrediction.confidence+
-        0.18*barConfidence+
-        0.14*tempoConfidence+
-        0.10*(harmonicSupportsNext?1:0.25)+
-        0.06*(currentState==='big'?1:currentState==='medium'?0.65:0.25),
-        0,1
-      );
+    if (planReady) {
+      const target=transitionPlan.target;
       performanceState={
         mode:'following',
-        confidence,
-        reason:harmonicSupportsNext?'section build':'section/chord conflict',
-        target:sectionPrediction.next
+        confidence:transitionPlan.confidence,
+        reason:'predictive '+transitionPlan.mode,
+        target
       };
 
-      const key='section:'+sectionPrediction.next.index;
+      const key='planner:'+target.index+':'+transitionPlan.fillStyle;
       const stable=updateFusionCandidate(key,now);
       const actionable=
-        harmonicSupportsNext &&
-        confidence>=FUSION_ACTION_MIN &&
         stable &&
         now-lastFusionActionAt>=FUSION_ACTION_COOLDOWN_MS &&
         now-lastSectionActionAt>=SECTION_ACTION_COOLDOWN_MS;
 
       if (actionable && typeof api.requestSectionTransition==='function') {
-        const accepted=api.requestSectionTransition(sectionPrediction.next.index);
+        const variant=chooseFillVariant(transitionPlan.fillStyle);
+        const accepted=api.requestSectionTransition(target.index,{
+          fillStyle:transitionPlan.fillStyle,
+          variant,
+          confidence:transitionPlan.confidence
+        });
         if (accepted) {
           lastFusionActionAt=now;
           lastSectionActionAt=now;
-          sectionArmedIndex=sectionPrediction.next.index;
+          sectionArmedIndex=target.index;
           sectionPrediction.armed=true;
+          transitionPlan={...transitionPlan,mode:'armed',variant,reason:'queued · wait final bar'};
           performanceState.mode='transition';
-          performanceState.reason='build+map';
-          api.setStatus?.('🎸 Follow v2 '+Math.round(confidence*100)+'% · fill → '+sectionPrediction.next.name+'.');
+          performanceState.reason='predictive plan armed';
+          api.setStatus?.('🥁 Plan '+transitionPlan.fillStyle+' '+Math.round(transitionPlan.confidence*100)+'% → '+target.name+' · chờ bar cuối.');
         }
       }
       return;
@@ -1634,6 +1784,7 @@
       harmonicMatch,
       chordEvents:chordEvents.slice(),
       performanceState:{...performanceState},
+      transitionPlan:{...transitionPlan},
       intentStage,
       lastMusicalActivityAt
     })
