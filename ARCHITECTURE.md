@@ -42,6 +42,22 @@ Hiện chứa cả:
 
 Đây là kiến trúc intentionally simple cho prototype. Agent không nên tự tách framework/build system nếu chưa có yêu cầu rõ.
 
+### Guitar Follow POC
+
+`guitar-follow.js` bổ sung một vertical slice realtime để drummer phản ứng theo lực đàn acoustic qua microphone.
+
+Runtime flow hiện tại:
+
+1. user bật **Auto Follow** trong Drummer UI;
+2. module xin microphone qua `getUserMedia` với echo cancellation để giảm việc mic nghe lại drum từ loa iPad;
+3. Web Audio `AnalyserNode` đo RMS mỗi ~80 ms và chuyển sang dB;
+4. adaptive noise floor + rolling peak chuẩn hóa tín hiệu thành guitar energy 0–1;
+5. smoothing + hysteresis + hold time phân loại thành `silent / soft / medium / big`;
+6. các state ổn định được map sang Intensity `1 / 2 / 3 / 5` và phát event input để dùng lại drum engine hiện có;
+7. UI hiển thị energy meter, mic dB và onset/strum-rate thô để debug.
+
+POC này **chưa** thay BPM hoặc tự suy ra section. BPM và song position vẫn do song map/manual timing hiện tại kiểm soát. Mục đích là chứng minh trải nghiệm “app nghe lực đàn rồi drummer phản ứng” trước khi thêm beat/tempo/section following.
+
 ### Tone detection + Capo
 
 Tone/capo đã được tích hợp vào UI chính qua `tone.js`.
@@ -146,7 +162,7 @@ Scheduler:
 
 - Timing của từng dòng là dữ liệu thủ công, không được suy ra từ audio thật.
 - Nhịp hiện tại được thiết kế chủ yếu cho 4/4.
-- Drum đã có arrangement riêng cho 3 bài nhưng vẫn là arrangement thủ công/rule-based, chưa được suy ra từ bản thu gốc và chưa nghe guitar để follow tempo/section.
+- Drum đã có arrangement riêng cho 3 bài và có POC nghe **guitar intensity** qua mic, nhưng arrangement vẫn thủ công/rule-based; chưa follow tempo, downbeat, chord change hoặc section trực tiếp từ guitar.
 
 ## 5. State persistence
 
