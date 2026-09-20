@@ -54,6 +54,7 @@ Prototype hiện đã có:
 - **Auto-Tune Engine / Profile Suggestions**: current or imported debug JSON + user Marks → directional failure classification → bounded Mic Profile suggestions → estimated before/after guitar retention and contamination pass → explicit Apply/Undo. Harmonic ambiguity is not mis-treated as a mic-threshold problem; unsafe comparisons disable Apply;
 - **Replay / Regression Test Harness**: import up to 12 historical debug sessions, replay current vs proposed mic thresholds on stored telemetry, compare guitar retention / contamination leakage / marked-case score / action-risk proxy, and block Auto-Tune Apply when any old session regresses. v27 adds onset decision telemetry for higher-fidelity future replay;
 - **Performance Polish v2**: contextual deterministic groove rendering from section + Intensity + Human feel + guitar energy + Health; new ride/bell + rim voices, contextual kick/hat/ghost density, destination-aware fills and section-turn flourishes. Clean Mic knows the new voices; slow-tempo HOLD re-entry now supports up to 5.2 s alignment;
+- **Phrase-aware Drummer v1**: section maps are automatically segmented into 4/8-bar phrases; renderer gets phrase position/progress/section occurrence, builds density gradually through a phrase, lifts later Chorus passes modestly, decays Outro, and adds deterministic mini-turns only at safe phrase endings. Predictive Planner now uses phrase-end alignment as additional evidence and exposes `P x/y` diagnostics;
 
 ## Current data model
 
@@ -134,3 +135,6 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 
 - test **Performance Polish v2** A/B with Human feel 0% / 55% / 85% across Verse, build/Pre, Chorus, Interlude and Outro. Listen for clear section character without audible timing drift or over-busy ghost/extra-kick behavior.
 - test Clean Mic with ride/rim-heavy sections and verify the new self-hit voices do not inflate Strum/onset evidence. Also test HOLD→REJOIN at 50 BPM from awkward bar phases to validate the 5.2 s alignment ceiling.
+
+- test **Phrase-aware Drummer** on sections of 4, 8, 12+ bars: `P x/y` should reset at phrase boundaries, later bars should build subtly rather than jump, and mini-turns must not fire on top of predictive/full fills or actual section-turn flourishes.
+- compare Chorus occurrence 1 vs 2 and an Outro from start→end; the repeat lift/decay should be audible but modest. Verify Plan diagnostics show phrase position and that phrase alignment only nudges confidence rather than forcing a transition.
