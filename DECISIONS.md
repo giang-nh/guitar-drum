@@ -49,3 +49,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** repository phải chứa product context, architecture, status và decisions để agent khác có thể tiếp tục mà không phụ thuộc vào lịch sử chat.
 
 **Reason:** project sẽ được dùng qua nhiều agent/tool khác nhau như ChatGPT, Claude hoặc Gemini.
+
+
+## D009 — Section-aware drummer trước AI follow
+
+**Decision:** POC drummer dùng rule-based 4/4 groove theo section, có per-song style, Intensity 1–5 và queued Fill; chưa nghe guitar để tự bám tempo/section.
+
+**Reason:** cho phép kiểm tra trải nghiệm cốt lõi “vừa đàn acoustic + hát, app làm tay trống” với Web Audio hiện có trước khi tăng complexity sang realtime audio-following.
