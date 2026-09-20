@@ -813,6 +813,135 @@
     status.textContent='Fill đã xếp hàng · vào đầu ô nhịp kế tiếp.';
   }
 
+  function schedulePerformanceGroove(t,q,beat,p,pattern,kind,intent,arr){
+    const energy=grooveEnergy(intent,arr);
+    const healthScale=intent.health==='green'?1:intent.health==='yellow'?.72:.38;
+    const feel=humanAmount();
+    const expression=feel*healthScale;
+    const pulse=barPulse();
+    const level=Math.max(1,Math.min(5,Number(intensity.value)||3));
+    humanContext.energy=energy;
+    humanContext.health=intent.health;
+
+    if(pattern==='halftime'){
+      const useRide=energy>.68&&level>=4;
+      if(useRide)ride(t,.66*p,beat===0&&pulse%2===0);
+      else hat(t,.68*p);
+      if((level>=4||energy>.62)&&beat%2===0)hat(t+q/2,.30*p);
+      if(beat===0)kick(t,.90*p);
+      if(beat===2)snare(t,.88*p);
+      if(beat===3&&energy>.72&&performanceChance(.34*expression,211))kick(t+q*.55,.28*p);
+      return;
+    }
+
+    if(pattern==='air'){
+      const airyRide=kind==='interlude'&&energy>.55;
+      if(airyRide)ride(t,.42*p,beat===0&&pulse===0);
+      else hat(t,.54*p);
+      if(beat===0)kick(t,.80*p);
+      if(beat===3){
+        if(level<=2&&energy<.46)rim(t,.46*p);
+        else snare(t,.43*p);
+      }
+      if(level>=4&&energy>.62&&beat===2)hat(t+q/2,.28*p);
+      return;
+    }
+
+    if(pattern==='outro'){
+      if(beat===0&&pulse===0)ride(t,.40*p,false);else hat(t,.46*p);
+      if(beat===0)kick(t,.68*p);
+      if(beat===1||beat===3){
+        if(energy<.48||level<=2)rim(t,.48*p);
+        else snare(t,.46*p);
+      }
+      if(beat===2&&energy>.58&&performanceChance(.22*expression,223))kick(t+q*.52,.22*p);
+      return;
+    }
+
+    const more=pattern==='pocketPlus'||pattern==='openPlus'||pattern==='finale';
+    const openPattern=pattern==='open'||pattern==='openPlus'||pattern==='finale';
+    const ridePattern=pattern==='ride';
+    const buildPattern=pattern==='build';
+
+    if(ridePattern){
+      ride(t,(beat===0?.84:.72)*p,beat===0&&(pulse%2===0||energy>.78));
+      if(level>=3)ride(t+q/2,.38*p,false);
+    }else{
+      const openChance=clamp((energy-.48)*1.15+.18*(more?1:0)+.18*(buildPattern?1:0),0,.82)*expression;
+      const openNow=(openPattern||buildPattern)&&beat===3&&performanceChance(openChance,227);
+      if(openNow)openHat(t,(.62+.18*energy)*p);
+      else hat(t,(.80+.08*energy)*p);
+      const offbeatBase=pattern==='pocket'?.38:more?.62:.50;
+      const offbeatChance=clamp(offbeatBase+.26*energy,0,1)*(0.62+.38*expression);
+      if(level>=3&&performanceChance(offbeatChance,229+beat))hat(t+q/2,(more?.48:.38)*p);
+    }
+
+    if(beat===0)kick(t,(.92+.08*energy)*p);
+    if(beat===2){
+      const beat2Power=more?.72:.54;
+      kick(t,(beat2Power+.10*energy)*p);
+    }
+
+    const extraKickBase=
+      pattern==='finale'?.58:
+      pattern==='openPlus'?.46:
+      pattern==='pocketPlus'?.38:
+      buildPattern?.32:
+      ridePattern?.30:
+      kind==='chorus'?.28:.14;
+    if((beat===0||beat===2)&&energy>.48&&performanceChance(extraKickBase*expression*(.55+.65*energy),241+beat)){
+      const offset=beat===0?(pulse%2===0?.52:.72):.52;
+      kick(t+q*offset,(.20+.18*energy)*p);
+    }
+
+    if(beat===1||beat===3){
+      const backbeat=openPattern||ridePattern?.88:.70;
+      snare(t,(backbeat+.08*energy)*p);
+    }
+
+    if(buildPattern&&beat===3&&energy>.56)openHat(t+q*.52,.34*p);
+    if((pattern==='openPlus'||pattern==='finale')&&beat===0&&songBeat%8===0)crash(t,(.42+.10*energy)*p);
+    if(song.drumStyle==='Acoustic Pop'&&pattern!=='pocket'&&beat===2&&energy>.54&&performanceChance(.42*expression,257)){
+      kick(t+q*.5,.22*p);
+    }
+  }
+
+  function scheduleContextGhost(t,q,beat,p,pattern,intent){
+    if(followSilenceMode!=='normal'||humanAmount()<.15||intent.health==='red')return;
+    const eligible=['pocket','pocketPlus','build','open','openPlus','ride'].includes(pattern);
+    if(!eligible||(beat!==0&&beat!==2))return;
+    const energy=Math.max(0,Math.min(1,humanContext.energy||intent.energy||.5));
+    const healthScale=intent.health==='green'?1:.58;
+    const base=pattern==='build'?.48:pattern.includes('Plus')?.38:pattern==='ride'?.24:.28;
+    const chance=base*humanAmount()*healthScale*(.58+.72*energy);
+    if(!performanceChance(chance,271+beat))return;
+    const offset=beat===0?(barPulse()%2===0?.72:.58):.74;
+    ghostSnare(t+q*offset,(.34+.16*energy)*p);
+  }
+
+  function scheduleSectionTurn(t,q,p,nextSectionName){
+    const nextKind=sectionKind(nextSectionName);
+    const seed=283+barPulse();
+    if(nextKind==='outro'){
+      rim(t+q*.58,.32*p);
+      tom(t+q*.78,.38*p,128);
+      return;
+    }
+    if(nextKind==='chorus'){
+      tom(t+q*.48,.44*p,154);
+      snare(t+q*.74,.48*p);
+      if(performanceChance(.58,seed))kick(t+q*.84,.24*p);
+      return;
+    }
+    if(nextKind==='bridge'){
+      tom(t+q*.58,.40*p,142);
+      rim(t+q*.78,.34*p);
+      return;
+    }
+    tom(t+q*.54,.38*p,150);
+    snare(t+q*.78,.38*p);
+  }
+
   function visualBeat(beat,t,isCount){
     const delay=Math.max(0,(t-ctx.currentTime)*1000);
     visualTimers.push(setTimeout(()=>{
@@ -831,7 +960,7 @@
     const beat=quarter%4;
     if(countIn>0){click(t,beat===0);visualBeat(beat,t,true);countIn--;quarter++;return}
     const q=60/Number(bpm.value);
-    humanContext={songBeat,quarter,beat,pattern:'',fill:false};
+    humanContext={songBeat,quarter,beat,pattern:'',fill:false,energy:.5,health:'yellow'};
     humanHitSerial=0;
 
     if(pendingFollowHold&&beat===0&&!followHeld){
@@ -924,45 +1053,15 @@
           fillBtn.textContent='AI → '+pendingSectionTransition.targetName;
         }else fillBtn.textContent='🥁 Fill';
       }
-    }else if(pattern==='halftime'){
-      hat(t,.72*p);
-      if(beat===0)kick(t,.9*p);
-      if(beat===2)snare(t,.88*p);
-      if(Number(intensity.value)>=4)hat(t+q/2,.38*p);
-    }else if(pattern==='air'){
-      hat(t,.58*p);
-      if(beat===0)kick(t,.82*p);
-      if(beat===3)snare(t,.44*p);
-      if(Number(intensity.value)>=4&&beat===2)hat(t+q/2,.3*p);
-    }else if(pattern==='outro'){
-      hat(t,.5*p);
-      if(beat===0)kick(t,.72*p);
-      if(beat===1||beat===3)snare(t,.48*p);
     }else{
-      const more=pattern==='pocketPlus'||pattern==='openPlus'||pattern==='finale';
-      const opened=pattern==='open'||pattern==='openPlus'||pattern==='ride'||pattern==='finale';
-      if(opened&&beat===3)openHat(t,.74*p);else hat(t,.86*p);
-      if(pattern!=='pocket'||Number(intensity.value)>=3)hat(t+q/2,(more?.5:.4)*p);
-      if(beat===0)kick(t,.96*p);
-      if(beat===2)kick(t,(more?.76:.56)*p);
-      if(more&&beat===2)kick(t+q*.5,.3*p);
-      if(beat===1||beat===3)snare(t,(opened?.9:.72)*p);
-      if(pattern==='build'&&beat===3)openHat(t,.52*p);
-      if((pattern==='openPlus'||pattern==='finale')&&beat===0&&songBeat%8===0)crash(t,.48*p);
-      if(pattern==='finale'&&beat===0)kick(t+q*.5,.26*p);
-      if(song.drumStyle==='Acoustic Pop'&&pattern!=='air'&&beat===2)kick(t+q*.5,.24*p);
-    }
-    if(!didFill&&followSilenceMode==='normal'&&humanAmount()>=.15){
-      const ghostEligible=pattern==='pocket'||pattern==='pocketPlus'||pattern==='build'||pattern==='open'||pattern==='openPlus';
-      if(ghostEligible&&(beat===0||beat===2)){
-        const seed=(songBeat+1)*101+(beat+1)*37+(pattern.length*19);
-        const chance=(pattern==='build'?.56:pattern.includes('Plus')?.44:.30)*humanAmount();
-        if(humanHash(seed)<chance)ghostSnare(t+q*.74,.72*p);
-      }
+      const intent=performanceIntent();
+      humanContext.energy=intent.energy;
+      humanContext.health=intent.health;
+      schedulePerformanceGroove(t,q,beat,p,pattern,kind,intent,arr);
+      scheduleContextGhost(t,q,beat,p,pattern,intent);
     }
     if(autoTurn&&!didFill&&fillRemaining===0){
-      tom(t+q*.52,.42*p,150);
-      snare(t+q*.76,.42*p);
+      scheduleSectionTurn(t,q,p,rows[nextIndex].s);
     }
     visualBeat(beat,t,false);quarter++;
   }
