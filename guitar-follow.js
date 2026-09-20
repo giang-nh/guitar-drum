@@ -963,7 +963,13 @@
           marks:autoTuneSuggestion.marks,
           changes:autoTuneSuggestion.changes,
           compare:autoTuneSuggestion.compare,
-          safetyBlocked:autoTuneSuggestion.safetyBlocked
+          safetyBlocked:autoTuneSuggestion.safetyBlocked,
+          regressionReport:regressionReport?{
+            sessions:regressionReport.sessions,
+            blockedSessions:regressionReport.blockedSessions,
+            blocked:regressionReport.blocked,
+            results:regressionReport.results
+          }:null
         }:null
       },
       summary:{
@@ -1304,12 +1310,27 @@
       ui.tuneResult.textContent+=
         '\n⚠ Safety block: '+s.safetyReason+'. Suggestion chỉ để xem, không Apply.';
     }
-    ui.tuneApply.disabled=s.confidence<.55||s.safetyBlocked;
+    if(regressionSessions.length&&!regressionReport){
+      ui.tuneResult.textContent+='\nRegression suite chưa replay suggestion này.';
+    }else if(regressionReport?.blocked){
+      ui.tuneResult.textContent+='\n⚠ Regression block: '+regressionReport.blockedSessions+'/'+regressionReport.sessions+' session xấu đi.';
+    }else if(regressionReport&&regressionReport.sessions){
+      ui.tuneResult.textContent+='\n✓ Regression suite PASS '+regressionReport.sessions+' session.';
+    }
+    ui.tuneApply.disabled=
+      s.confidence<.55||
+      s.safetyBlocked||
+      (regressionSessions.length&&(!regressionReport||regressionReport.blocked));
   }
 
   function analyzeSessionForTune(session,label) {
     autoTuneSuggestion=buildAutoTuneSuggestion(session,label);
     autoTuneSourceLabel=label;
+    regressionReport=null;
+    if(regressionSessions.length&&autoTuneSuggestion.changes.length){
+      regressionReport=buildRegressionReport(autoTuneSuggestion.before,autoTuneSuggestion.proposed);
+    }
+    renderRegressionReport();
     renderAutoTuneSuggestion();
     recordTelemetryEvent('autotune-analysis',{
       source:label,
@@ -1352,7 +1373,12 @@
 
   function applyAutoTuneSuggestion() {
     const s=autoTuneSuggestion;
-    if(!s?.changes?.length||s.confidence<.55||s.safetyBlocked)return;
+    if(
+      !s?.changes?.length||
+      s.confidence<.55||
+      s.safetyBlocked||
+      (regressionSessions.length&&(!regressionReport||regressionReport.blocked))
+    )return;
     autoTuneBackupProfile=calibrationProfile
       ? deepClone(calibrationProfile)
       : {__defaultProfile:true};
@@ -3604,6 +3630,14 @@
         durationMs:Math.round(telemetryDurationMs())
       },
       healthPermissions:healthPermissions(),
+      regression:{
+        sessions:regressionSessions.length,
+        report:regressionReport?{
+          sessions:regressionReport.sessions,
+          blockedSessions:regressionReport.blockedSessions,
+          blocked:regressionReport.blocked
+        }:null
+      },
       autoTune:{
         suggestion:autoTuneSuggestion?{
           sourceLabel:autoTuneSuggestion.sourceLabel,
