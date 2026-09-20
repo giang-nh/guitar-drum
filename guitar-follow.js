@@ -1586,31 +1586,32 @@
         margin:position.fusionMargin
       };
 
-      const key='pos:'+target.rowIndex+':'+target.beat;
-      const stable=updateFusionCandidate(key,now);
-      const actionable=
-        !sameArea &&
-        position.fusionScore>=FUSION_ACTION_MIN &&
-        position.fusionMargin>=0.07 &&
-        harmonicMatch.score>=HARMONIC_MATCH_MIN &&
-        harmonicMatch.margin>=HARMONIC_MARGIN_MIN &&
-        position.target?.beat===harmonicMatch.target?.beat &&
-        position.target?.rowIndex===harmonicMatch.target?.rowIndex &&
-        stable &&
-        now-lastFusionActionAt>=FUSION_ACTION_COOLDOWN_MS &&
-        now-lastHarmonicAnchorAt>=HARMONIC_ANCHOR_COOLDOWN_MS;
+      if (!sameArea) {
+        const key='pos:'+target.rowIndex+':'+target.beat;
+        const stable=updateFusionCandidate(key,now);
+        const actionable=
+          position.fusionScore>=FUSION_ACTION_MIN &&
+          position.fusionMargin>=0.07 &&
+          harmonicMatch.score>=HARMONIC_MATCH_MIN &&
+          harmonicMatch.margin>=HARMONIC_MARGIN_MIN &&
+          position.target?.beat===harmonicMatch.target?.beat &&
+          position.target?.rowIndex===harmonicMatch.target?.rowIndex &&
+          stable &&
+          now-lastFusionActionAt>=FUSION_ACTION_COOLDOWN_MS &&
+          now-lastHarmonicAnchorAt>=HARMONIC_ANCHOR_COOLDOWN_MS;
 
-      if (actionable && typeof api.requestHarmonicAnchor==='function') {
-        const accepted=api.requestHarmonicAnchor(target.beat,target.rowIndex,position.fusionScore);
-        if (accepted) {
-          lastFusionActionAt=now;
-          lastHarmonicAnchorAt=now;
-          performanceState.mode='reposition';
-          performanceState.reason='sequence lock';
-          api.setStatus?.('🎸 Follow v2 '+Math.round(position.fusionScore*100)+'% → '+target.section+' · Line '+(target.rowIndex+1)+'.');
+        if (actionable && typeof api.requestHarmonicAnchor==='function') {
+          const accepted=api.requestHarmonicAnchor(target.beat,target.rowIndex,position.fusionScore);
+          if (accepted) {
+            lastFusionActionAt=now;
+            lastHarmonicAnchorAt=now;
+            performanceState.mode='reposition';
+            performanceState.reason='sequence lock';
+            api.setStatus?.('🎸 Follow v2 '+Math.round(position.fusionScore*100)+'% → '+target.section+' · Line '+(target.rowIndex+1)+'.');
+          }
         }
+        return;
       }
-      return;
     }
 
     const planReady=Boolean(
