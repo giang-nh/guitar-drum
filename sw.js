@@ -1,4 +1,4 @@
-const CACHE = "guitar-drum-v23";
+const CACHE = "guitar-drum-v24";
 const ASSETS = ["./", "./index.html", "./tone.js", "./guitar-follow.js", "./tone-references.json", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", event => {
