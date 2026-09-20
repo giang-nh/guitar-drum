@@ -70,3 +70,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** vertical slice realtime đầu tiên dùng microphone để đo guitar energy và tự điều khiển drummer Intensity qua các state `silent / soft / medium / big`. Giữ BPM, beat grid và section progression theo song map hiện tại; chưa cho mic trực tiếp kéo tempo hoặc đoán section.
 
 **Reason:** dynamics là tín hiệu dễ kiểm chứng nhất để chứng minh trải nghiệm “drummer nghe người chơi”. Tách intensity follow khỏi tempo/section inference giúp test latency, mic bleed từ loa iPad, smoothing và musical response trước khi thêm beat tracking phức tạp hơn.
+
+
+## D012 — Tempo follow phải bảo thủ và glide
+
+**Decision:** Tempo Follow dùng onset timestamps trong một cửa sổ ngắn để ước lượng BPM, nhưng chỉ được điều khiển drummer khi có đủ mẫu, confidence vượt ngưỡng và candidate BPM giữ ổn định trong nhiều giây. Khi áp dụng, BPM chỉ dịch từng bước nhỏ (hiện 1 BPM mỗi khoảng 850 ms). User có thể tắt Tempo Follow riêng mà vẫn giữ dynamics follow.
+
+**Reason:** acoustic strumming có 8th notes, syncopation và mic bleed từ drum speaker nên tempo estimate có thể alias hoặc nhiễu. Một drummer nghe tự nhiên nên giữ pocket và điều chỉnh dần thay vì nhảy theo từng estimate tức thời.
