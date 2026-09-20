@@ -54,9 +54,11 @@ Runtime flow hiện tại:
 4. adaptive noise floor + rolling peak chuẩn hóa tín hiệu thành guitar energy 0–1;
 5. smoothing + hysteresis + hold time phân loại thành `silent / soft / medium / big`;
 6. các state ổn định được map sang Intensity `1 / 2 / 3 / 5` và phát event input để dùng lại drum engine hiện có;
-7. UI hiển thị energy meter, mic dB và onset/strum-rate thô để debug.
+7. onset timestamps gần đây được gom trong cửa sổ ~8 giây; các inter-onset interval được normalize theo octave tempo vào range BPM hiện tại để tạo tempo estimate;
+8. Tempo Follow chỉ kích hoạt khi có đủ onset, confidence vượt ngưỡng và candidate BPM giữ ổn định khoảng 2.4 giây; sau đó BPM chỉ dịch 1 BPM mỗi ~850 ms về target;
+9. UI hiển thị energy meter, mic dB, strum-rate, tempo estimate và confidence để debug.
 
-POC này **chưa** thay BPM hoặc tự suy ra section. BPM và song position vẫn do song map/manual timing hiện tại kiểm soát. Mục đích là chứng minh trải nghiệm “app nghe lực đàn rồi drummer phản ứng” trước khi thêm beat/tempo/section following.
+POC hiện follow **dynamics + tempo**, nhưng **chưa xác định downbeat/beat 1 hoặc tự suy ra section**. Song position/section vẫn do song map/manual timing kiểm soát. Tempo estimator cố ý bảo thủ để tránh mic bleed hoặc pattern syncopated kéo drummer sai nhịp.
 
 ### Tone detection + Capo
 
@@ -162,7 +164,7 @@ Scheduler:
 
 - Timing của từng dòng là dữ liệu thủ công, không được suy ra từ audio thật.
 - Nhịp hiện tại được thiết kế chủ yếu cho 4/4.
-- Drum đã có arrangement riêng cho 3 bài và có POC nghe **guitar intensity** qua mic, nhưng arrangement vẫn thủ công/rule-based; chưa follow tempo, downbeat, chord change hoặc section trực tiếp từ guitar.
+- Drum đã có arrangement riêng cho 3 bài và POC nghe **guitar intensity + tempo** qua mic, nhưng arrangement vẫn thủ công/rule-based; chưa xác định downbeat, chord change hoặc section trực tiếp từ guitar.
 
 ## 5. State persistence
 
