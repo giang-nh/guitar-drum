@@ -84,3 +84,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** downbeat/bar sync dùng accent pattern của onset guitar trên lưới 4/4. Candidate beat 1 phải có confidence cao và giữ cùng phase trong nhiều giây; chỉ khi predicted downbeat nằm rất gần next unscheduled drummer beat mới được nudge timing và re-index quarter counter về beat 1. Không thay đổi `songBeat` hoặc nhảy dòng lời.
 
 **Reason:** xác định beat 1 từ acoustic strumming khó hơn BPM, đặc biệt với quạt 8th/syncopated và mic bleed. Re-phase nhỏ giữ cảm giác pocket trong khi tránh phá song position nếu detector sai.
+
+
+## D014 — Section Follow chỉ được dự đoán section kế tiếp
+
+**Decision:** Section Follow v1 chỉ xét section kế tiếp trong known song timeline, ưu tiên target cao trào (`autoFillIn` hoặc arrangement gain tăng), và chỉ được arm transition khi energy trend + bar/tempo confidence + proximity cùng vượt ngưỡng. Transition AI luôn là fill 1 bar → anchor đúng đầu section kế tiếp → crash; manual jump/Fill hủy pending transition.
+
+**Reason:** energy alone chưa đủ để xác định vị trí bài hát tùy ý. Giới hạn search space vào section kế tiếp cho trải nghiệm phản ứng có ích mà vẫn tránh nhảy sai cấu trúc. Chord/harmonic-position matching sẽ là lớp xác nhận tiếp theo.
