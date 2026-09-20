@@ -55,7 +55,7 @@ Prototype hiện đã có:
 - **Auto-Tune Engine / Profile Suggestions**: current or imported debug JSON + user Marks → directional failure classification → bounded Mic Profile suggestions → estimated before/after guitar retention and contamination pass → explicit Apply/Undo. Harmonic ambiguity is not mis-treated as a mic-threshold problem; unsafe comparisons disable Apply;
 - **Replay / Regression Test Harness**: import up to 12 historical debug sessions, replay current vs proposed mic thresholds on stored telemetry, compare guitar retention / contamination leakage / marked-case score / action-risk proxy, and block Auto-Tune Apply when any old session regresses. v27 adds onset decision telemetry for higher-fidelity future replay;
 - **Performance Polish v2**: contextual deterministic groove rendering from section + Intensity + Human feel + guitar energy + Health; new ride/bell + rim voices, contextual kick/hat/ghost density, destination-aware fills and section-turn flourishes. Clean Mic knows the new voices; slow-tempo HOLD re-entry now supports up to 5.2 s alignment;
-- **Phrase-aware Drummer v1**: section maps are automatically segmented into 4/8-bar phrases; renderer gets phrase position/progress/section occurrence, builds density gradually through a phrase, lifts later Chorus passes modestly, decays Outro, and adds deterministic mini-turns only at safe phrase endings. Predictive Planner now uses phrase-end alignment as additional evidence and exposes `P x/y` diagnostics;
+- **Phrase-aware Drummer v1**: section maps are automatically segmented into 4/8-bar phrases; renderer gets phrase position/progress/section occurrence, builds density gradually through a phrase, lifts later Chorus passes modestly, decays Outro, and adds deterministic mini-turns only at safe phrase endings. Predictive Planner now uses phrase-end alignment as additional evidence and exposes `P x/y` diagnostics;\n- **Automated logic tests**: dependency-free Node harness in `tests/run-tests.cjs` extracts and executes production helper functions from `tone.js`, `guitar-follow.js`, and `index.html`. Initial suite: **105 cases / 105 PASS / 0 FAIL** covering tone/chord transposition, capo ranking invariants, tempo normalization, phase math, harmonic chord classification, threshold bounds, Follow Health states, chord parsing, and section classification. `.github/workflows/tests.yml` runs the suite on every push to `main` and pull request;
 
 ## Current data model
 
@@ -100,7 +100,7 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 
 ## Known limitations
 
-- chưa có automated tests;
+- automated logic tests now cover deterministic/pure logic; current baseline is **105/105 PASS**. Real microphone/audio/iPad behavior still requires device tests;
 - song data và app logic cùng nằm trong `index.html`;
 - beat timing là thủ công;
 - drummer hiện có arrangement thủ công riêng cho 3 bài; mic follow đã có **Intensity + Tempo + Beat-1 + Section Follow v1 + Harmonic Position POC**. Chord recognition vẫn là heuristic chroma/template matching và cần tune trên guitar/iPad thật;
