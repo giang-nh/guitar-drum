@@ -16,7 +16,11 @@ Prototype hiện đã có:
 - key selector;
 - BPM slider;
 - 4-beat visual indicator;
-- Web Audio kick/snare/hi-hat;
+- section-aware Web Audio drummer với kick/snare/closed-open hi-hat/tom/crash;
+- per-song drum style cho 3 bài hiện tại;
+- Intensity 1–5;
+- queued Fill ở đầu ô nhịp kế tiếp;
+- transition accent khi đổi loại section;
 - 4-beat count-in;
 - Play/Pause/Stop;
 - click/tap row to jump;
@@ -65,6 +69,7 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 - nhập thêm bài hát từ nguồn của người dùng;
 - kiểm tra độ chính xác lời/hợp âm;
 - tinh chỉnh beat count cho playback;
+- test cảm giác drummer trên iPad khi vừa đàn acoustic vừa hát, đặc biệt mức Intensity và thời điểm Fill;
 - cải thiện workflow import OneNote khi connector phù hợp có sẵn;
 - chỉ refactor code khi complexity thực sự cản trở việc thêm/chỉnh bài.
 
@@ -73,7 +78,7 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 - chưa có automated tests;
 - song data và app logic cùng nằm trong `index.html`;
 - beat timing là thủ công;
-- drum pattern là generic 4/4;
+- drummer hiện dùng rule-based section patterns, chưa bám arrangement gốc và chưa follow tempo trực tiếp từ guitar;
 - không có cloud sync;
 - không có in-app editor;
 - không có in-app OneNote integration;
