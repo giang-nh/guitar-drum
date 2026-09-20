@@ -560,7 +560,9 @@
     const autoTurn=nextIndex!==rowIndex && rows[nextIndex].s!==current.s;
     if(fillRequested && beat===0){fillRequested=false;fillRemaining=4;fillBtn.textContent='🥁 Fill'}
     else maybeStartAutoFill();
+    let didFill=false;
     if(fillRemaining>0){
+      didFill=true;
       scheduleFillBeat(t,q,4-fillRemaining,p);
       fillRemaining--;
       if(fillRemaining===0)fillBtn.textContent='🥁 Fill';
@@ -592,7 +594,7 @@
       if(pattern==='finale'&&beat===0)kick(t+q*.5,.26*p);
       if(song.drumStyle==='Acoustic Pop'&&pattern!=='air'&&beat===2)kick(t+q*.5,.24*p);
     }
-    if(autoTurn&&fillRemaining===0&&!arr.autoFillIn){
+    if(autoTurn&&!didFill&&fillRemaining===0){
       tom(t+q*.52,.42*p,150);
       snare(t+q*.76,.42*p);
     }
