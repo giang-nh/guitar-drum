@@ -15,7 +15,7 @@ File này là **điểm bắt đầu cho bất kỳ coding/research agent nào**
 
 ## One-line product scope
 
-**PWA ưu tiên iPad cho việc tập guitar: hiển thị lời+hợp âm, transpose tone, chỉnh BPM, chạy drummer 4/4 theo section với intensity/fill đồng bộ từng dòng, có POC microphone follow lực đàn + tempo để tự đổi Intensity và glide BPM, và hỗ trợ quy trình nhập bài hát từ ảnh/OneNote qua agent — không cần backend ở giai đoạn hiện tại.**
+**PWA ưu tiên iPad cho việc tập guitar: hiển thị lời+hợp âm, transpose tone, chỉnh BPM, chạy drummer 4/4 theo section với intensity/fill đồng bộ từng dòng, có POC microphone follow lực đàn + tempo + beat-1/bar phase để tự đổi Intensity, glide BPM và sync ô nhịp bảo thủ, và hỗ trợ quy trình nhập bài hát từ ảnh/OneNote qua agent — không cần backend ở giai đoạn hiện tại.**
 
 ## Non-negotiable interaction rule
 
