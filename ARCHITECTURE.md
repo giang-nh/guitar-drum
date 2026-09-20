@@ -344,3 +344,18 @@ For each historical session, replay compares the active profile (`before`) again
 Regression blockers are per-session: >8 percentage points estimated guitar-retention loss, >3.5 points contamination leakage increase, >10 points worse directional marked-case score, or >6 points increase in action-risk proxy. If any loaded session blocks, Auto-Tune Apply is disabled. If a regression suite is loaded but the current suggestion has not been replayed, Apply is also disabled. New suggestions automatically rerun the suite.
 
 Debug schema v27 records `onsetRise`, `requiredRise`, `spectralOk`, and per-frame onset accepted/rejected flags to improve replay fidelity going forward. Replay remains explicitly a threshold/derived-feature regression tool, not a substitute for end-to-end audio replay.
+
+
+### Performance Polish v2
+
+The drum renderer now has a contextual performance layer above the existing transport scheduler. `performanceIntent()` reads the current local performance state: guitar energy, dynamics state, Follow Health, transition-plan mode/confidence, Intensity and Human feel. When Auto Follow is off it falls back to arrangement + Intensity, so richer performance does not depend on the microphone pipeline.
+
+`Human feel` still controls deterministic variation strength; the beat clock, `songBeat`, bar boundaries and transition anchors are untouched. New articulation voices include `ride` (with bell option) and `rim`/side-stick. The main groove renderer chooses closed/open hat vs ride, offbeat subdivision density, extra kick probability, backbeat strength and ghost-note density from section pattern + energy + Health. Extra variation is deterministic from song position and is reduced in YELLOW Health and strongly constrained in RED.
+
+Section character is more explicit: airy/low-energy passages can use rim instead of full snare, Interlude/ride patterns use ride articulation, build/open patterns can open the hat as energy rises, Chorus/finale patterns can add deterministic kick support, and Outro becomes sparse with rim/tom texture. Section-turn flourishes also vary by the destination section.
+
+Fill rendering now receives the destination section kind. Chorus-target fills can lean forward with stronger kick/tom motion; Bridge-target fills are more spacious/ride-led; Outro-target fills deliberately thin out instead of using the same rising tom phrase. Existing small/medium/big size and rotating variants remain.
+
+Because the renderer introduced `ride` and `rim` playback, Clean Mic self-hit modeling was extended with separate windows/weights for both voices so the new drum timbres do not create avoidable false guitar onsets.
+
+`GuitarDrumAPI.getPerformanceIntent()` exposes the renderer context and debug telemetry records it for later replay/tuning. The HOLD re-entry alignment ceiling was also raised from 2.8 s to 5.2 s so 50 BPM playback can still wait for the next full 4/4 downbeat without failing the alignment guard.
