@@ -39,6 +39,7 @@ Prototype hiện đã có:
 - integrated **Tone & Capo** tools in the main UI for all 3 current songs: microphone pitch tracking, per-song prebuilt reference profiles, detected singing key, and easy guitar-shape + capo recommendations;
 - standalone `tone-poc.html` remains as an earlier experiment.
 - **Auto Follow guitar POC** in `guitar-follow.js`: microphone RMS/energy tracking, adaptive calibration, smoothing/hysteresis, `silent / soft / medium / big` states, live debug meter and automatic drummer Intensity mapping;
+- **Tempo Follow POC**: recent strum onsets → robust tempo estimate + confidence → stable-candidate gate → gradual 1-BPM steering of the existing tempo control; can be disabled independently while keeping dynamics follow;
 
 ## Current data model
 
@@ -86,7 +87,7 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 - chưa có automated tests;
 - song data và app logic cùng nằm trong `index.html`;
 - beat timing là thủ công;
-- drummer hiện có arrangement thủ công riêng cho 3 bài; mic follow mới chỉ tự đổi **Intensity**, chưa follow BPM/downbeat/chord/section trực tiếp từ guitar;
+- drummer hiện có arrangement thủ công riêng cho 3 bài; mic follow đã tự đổi **Intensity** và có Tempo Follow bảo thủ, nhưng chưa xác định downbeat/beat 1, chord hoặc section trực tiếp từ guitar;
 - không có cloud sync;
 - không có in-app editor;
 - không có in-app OneNote integration;
