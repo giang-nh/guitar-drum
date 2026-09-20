@@ -140,3 +140,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** real-device tuning uses a bounded local telemetry recorder rather than recording microphone audio. The session samples detector/fusion metrics at ~4 Hz, logs state changes and explicit user marks, and exports a versioned JSON file only when the user asks.
 
 **Reason:** most POC failures are threshold/timing/state-machine problems that can be diagnosed from confidence, spectral, transport and decision traces. Numeric telemetry is smaller, easier to inspect across agents, and avoids collecting unnecessary audio while still preserving enough evidence to tune the system on the actual iPad hardware.
+
+
+## D022 — Calibration chỉ tune threshold, không học audio
+
+**Decision:** the current PWA calibrates the existing heuristic detector thresholds from five short local sound conditions and never records or trains on raw audio. Learned values are quality-weighted against known-safe defaults, and sensitivity changes are capped to ±6 dB.
+
+**Reason:** the dominant variation right now is device placement, speaker bleed, room level and singer/guitar balance. A lightweight per-device profile can improve every existing detector immediately without introducing a server/model pipeline or making the static PWA dependent on opaque learned behavior.
