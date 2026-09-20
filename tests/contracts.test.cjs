@@ -131,3 +131,17 @@ test('validation core is shared with runtime rather than duplicated report scori
     assert.ok(follow.includes('core.'+token),token);
   }
 });
+
+
+test('input classification uses a persistent candidate hold',()=>{
+  assert.ok(follow.includes("let inputCandidate = 'unknown'"));
+  assert.ok(follow.includes('inputCandidateSince = 0'));
+  assert.ok(follow.includes('nextClass!==inputCandidate'));
+  assert.ok(follow.includes('now-inputCandidateSince>=INPUT_CLASS_HOLD_MS'));
+});
+
+test('guided validation defines all ten intended scenarios',()=>{
+  for(const id of ['quiet','drum','guitar','voice','guitar-voice','full-mix','stop-resume','transition','soft-big','free']){
+    assert.ok(follow.includes("id:'"+id+"'"),id);
+  }
+});
