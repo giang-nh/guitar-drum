@@ -89,6 +89,7 @@
   let currentChord = null;
   let chordEvents = [];
   let harmonicMatch = null;
+  let lastHarmonicShift = null;
   let lastHarmonicAnchorAt = 0;
 
   injectStyles();
@@ -242,6 +243,8 @@
       renderBar();
       resetSectionTracking();
       renderSection();
+      resetHarmonicTracking();
+      renderHarmonic();
     });
 
     document.querySelector('#gdToneMic')?.addEventListener('click', () => {
@@ -843,6 +846,7 @@
     currentChord = null;
     chordEvents = [];
     harmonicMatch = null;
+    lastHarmonicShift = soundingShift();
     lastHarmonicAnchorAt = 0;
   }
 
@@ -973,11 +977,7 @@
   }
 
   function updateChordCandidate(now, detected) {
-    if (!detected) {
-      chordCandidate = null;
-      chordCandidateSince = 0;
-      return;
-    }
+    if (!detected) return;
     if (!chordCandidate || chordCandidate.id !== detected.id) {
       chordCandidate = detected;
       chordCandidateSince = now;
@@ -1069,6 +1069,17 @@
 
   function updateHarmonicFollow(now) {
     if (!running || !frequencyBuffer) return;
+    const shift=soundingShift();
+    if (lastHarmonicShift == null) lastHarmonicShift=shift;
+    if (shift !== lastHarmonicShift) {
+      chromaEma=new Array(12).fill(0);
+      chordCandidate=null;
+      chordCandidateSince=0;
+      currentChord=null;
+      chordEvents=[];
+      harmonicMatch=null;
+      lastHarmonicShift=shift;
+    }
     const sinceOnset=now-lastOnsetAt;
     if (smoothedEnergy < 0.14 || sinceOnset < 40 || sinceOnset > 720) return;
     if (now-lastChromaAt < CHROMA_ANALYSIS_MS) return;
