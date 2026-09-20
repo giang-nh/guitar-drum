@@ -986,6 +986,7 @@
   }
 
   function stopListening(message) {
+    if(validationActive)cancelValidationSession('Auto Follow tắt · validation đã dừng.',true);
     if(calibrationActive)cancelCalibration('',true);
     const transport=api.getTransport?.();
     if (
@@ -1373,6 +1374,11 @@
         rejectedOnsets,
         inputClass
       },
+      validation:validationReport?{
+        version:VALIDATION_VERSION,
+        runs:validationRuns,
+        report:validationReport
+      }:null,
       events:telemetryEvents,
       samples:telemetrySamples
     };
@@ -4021,6 +4027,25 @@
         samples:telemetrySamples.length,
         events:telemetryEvents.length,
         durationMs:Math.round(telemetryDurationMs())
+      },
+      validation:{
+        active:validationActive,
+        stepIndex:validationStepIndex,
+        step:currentValidationStep()?.id||null,
+        stepRunning:validationStepRunning,
+        runs:validationRuns.slice(),
+        report:validationReport?{
+          completedSteps:validationReport.completedSteps,
+          passSteps:validationReport.passSteps,
+          reviewSteps:validationReport.reviewSteps,
+          failSteps:validationReport.failSteps,
+          micSeparation:validationReport.micSeparation,
+          tempoLockMedianMs:validationReport.tempoLockMedianMs,
+          barLockMedianMs:validationReport.barLockMedianMs,
+          holdRejoin:validationReport.holdRejoin,
+          transition:validationReport.transition,
+          healthRedFraction:validationReport.healthRedFraction
+        }:null
       },
       healthPermissions:healthPermissions(),
       regression:{
