@@ -299,3 +299,16 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - Fill motifs must consider destination section in addition to size/variant. Chorus, Bridge and Outro should not all receive the same fill contour.
 - Any new synthesized drum voice must be added to Clean Mic self-hit modeling.
 - HOLD re-entry alignment must support a full 4/4 bar at the minimum supported tempo (50 BPM).
+
+
+## Phrase-aware Drummer v1
+
+- Phrase position should be derived from the existing song/section beat map, not require new per-song phrase data for the initial version.
+- Sections of at least 8 bars should default to 8-bar phrasing; shorter sections should default to 4-bar phrasing, including sensible handling of partial final phrases.
+- Phrase state must expose section/phrase bar numbers, progress, section occurrence and beats-to-phrase-end.
+- Phrase progress may influence expressive density, articulation and fill phrasing, but must never modify the transport clock, song position or beat-1 alignment.
+- Later Chorus occurrences may receive a subtle performance lift; Outro should be able to decay progressively across the section.
+- Internal phrase-end fills must remain short sub-beat turns. Full one-bar section-transition fills remain owned by the Predictive Transition Planner.
+- Phrase turns must be suppressed during active/pending full fills, predictive transitions, RED Health, and actual section-turn beats.
+- The transition planner may use phrase-end alignment as additional confidence evidence, but phrase alignment alone must never authorize a section jump.
+- Phrase context must be available through the main API and included in diagnostics/telemetry.
