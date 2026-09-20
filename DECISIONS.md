@@ -168,3 +168,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** once historical debug sessions are loaded, an Auto-Tune suggestion cannot be applied until it passes replay across the entire suite. Any material regression in guitar retention, contamination leakage, marked-case behavior or contaminated action-risk blocks Apply. Replay is explicitly derived-telemetry replay, not full audio reconstruction.
 
 **Reason:** optimizing one marked session can overfit that room/song/device condition. Multi-session guards turn telemetry into a regression test set and prevent local improvements from silently breaking previously working scenarios, while keeping the current static/local architecture.
+
+
+## D026 — Performance variation theo ngữ cảnh nhưng không đụng transport
+
+**Decision:** Performance Polish v2 moves groove choice into a contextual, deterministic renderer driven by section pattern, Intensity, Human feel, live energy and Health. It can change articulation, extra kick/ghost density and fill phrasing, but never the scheduler clock or song-position anchors. Destination section is now part of fill phrasing.
+
+**Reason:** the drummer needs audible musical character without weakening the Follow architecture. Keeping expression downstream of transport preserves sync/debuggability, while context-aware ride/rim/hat/kick/fill decisions make repeated patterns sound less mechanical and more appropriate to Verse/Chorus/Interlude/Outro roles.
