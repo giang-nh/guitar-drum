@@ -1095,6 +1095,7 @@
       resetFusionTracking();
       resetIntentTracking();
       resetPlannerTracking();
+      resetHealthTracking();
       ui.calOpen.textContent='Recalibrate';
       ui.calCapture.disabled=true;
       ui.calCancel.textContent='Close';
@@ -1131,6 +1132,7 @@
     resetInputTracking();
     resetTempoTracking();
     resetHarmonicTracking();
+    resetHealthTracking();
     ui.calOpen.textContent='Calibrate';
     ui.calCapture.disabled=false;
     ui.calCancel.textContent='Cancel';
@@ -2278,8 +2280,19 @@
 
     if(level!==previousLevel){
       recordTelemetryEvent('health-change',{from:previousLevel,to:level,score:round(smoothed),reason:followHealth.reason});
-      if(level==='red'&&typeof api.cancelFollowAutomation==='function'){
-        api.cancelFollowAutomation('Follow Health RED · Manual Safe');
+      if(
+        (level==='red'||(previousLevel==='green'&&level==='yellow')) &&
+        typeof api.cancelFollowAutomation==='function'
+      ){
+        api.cancelFollowAutomation(
+          level==='red'
+            ? 'Follow Health RED · Manual Safe'
+            : 'Follow Health YELLOW · hủy pending Full Auto'
+        );
+      }
+      if(previousLevel==='red'&&level!=='red'&&!calibrationActive){
+        const restoredLevel={silent:1,soft:2,medium:3,big:5}[currentState]||3;
+        applyIntensity(restoredLevel,currentState);
       }
       lastHealthLevel=level;
     }
