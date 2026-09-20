@@ -13,7 +13,7 @@ Một yêu cầu vận hành quan trọng được chốt sau đó:
 
 ## 2. Product scope — một dòng
 
-**PWA ưu tiên iPad cho việc tập guitar: hiển thị lời+hợp âm, transpose tone, chỉnh BPM, chạy drum 4/4 đồng bộ theo từng dòng, và hỗ trợ quy trình nhập bài hát từ ảnh/OneNote qua agent — không cần backend ở giai đoạn hiện tại.**
+**PWA ưu tiên iPad cho việc tập guitar: hiển thị lời+hợp âm, transpose tone, chỉnh BPM, chạy drummer 4/4 theo section với intensity/fill đồng bộ từng dòng, và hỗ trợ quy trình nhập bài hát từ ảnh/OneNote qua agent — không cần backend ở giai đoạn hiện tại.**
 
 ## 3. Vấn đề cần giải quyết
 
@@ -48,7 +48,10 @@ Người tập guitar dùng iPad trong lúc chơi đàn, cần thao tác ít, n�
 - Play / Pause / Stop.
 - Count-in 4 beat.
 - Visual beat 1–2–3–4.
-- Drum 4/4 cơ bản.
+- Drummer 4/4 tự đổi groove theo section (Intro / Verse / Pre-chorus / Chorus / Bridge / Interlude / Outro).
+- Chỉnh **Intensity 1–5** để thay đổi độ mạnh của phần đệm.
+- Có nút **Fill** để xếp một fill vào đầu ô nhịp kế tiếp.
+- Mỗi bài có drum style mặc định phù hợp với POC hiện tại.
 - Chỉnh BPM.
 - Transpose toàn bộ hợp âm.
 - Ghi nhớ bài/dòng/tone/BPM/chế độ xem bằng local storage.
@@ -86,7 +89,7 @@ Các mục dưới đây **không phải yêu cầu hiện tại**, trừ khi ng
 
 ## 7. Success criteria
 
-Sản phẩm đạt mục tiêu hiện tại khi người dùng có thể mở iPad, chọn một bài, chọn tone/BPM, chọn dòng muốn tập, bấm Play và tập guitar theo drum + highlight mà không cần thao tác phụ.
+Sản phẩm đạt mục tiêu hiện tại khi người dùng có thể mở iPad, chọn một bài, chọn tone/BPM, chọn dòng muốn tập, bấm Play và tập guitar theo drummer tự đổi groove theo section + highlight mà không cần thao tác phụ.
 
 Một bài mới được xem là nhập thành công khi:
 
