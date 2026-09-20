@@ -359,3 +359,14 @@ Fill rendering now receives the destination section kind. Chorus-target fills ca
 Because the renderer introduced `ride` and `rim` playback, Clean Mic self-hit modeling was extended with separate windows/weights for both voices so the new drum timbres do not create avoidable false guitar onsets.
 
 `GuitarDrumAPI.getPerformanceIntent()` exposes the renderer context and debug telemetry records it for later replay/tuning. The HOLD re-entry alignment ceiling was also raised from 2.8 s to 5.2 s so 50 BPM playback can still wait for the next full 4/4 downbeat without failing the alignment guard.
+
+
+### Phrase-aware Drummer v1
+
+Phrase awareness is derived from the existing manual beat/section map; it does not add a new authoring format. `sectionTimeline()` now annotates each section with section kind, occurrence count, bar count and a default phrase size: sections of 8+ bars use 8-bar phrases, shorter sections use 4-bar phrases. `phraseContextAtBeat()` exposes section bar, phrase index, phrase bar, phrase length, phrase/section progress, beats to phrase end and `lastBar/lastBeat` flags.
+
+`performanceIntent()` includes the current phrase context whether Auto Follow is running or not. The contextual renderer uses phrase progress as a slow musical arc rather than a timing source: Pre/build sections open subdivisions and hat articulation toward the phrase end, Verse density rises only slightly, later Chorus occurrences can gain a modest lift, and Outro energy decays as the section progresses. Human feel and Health still scale the amount of expression, and all deterministic choices remain seeded by song position.
+
+Phrase endings may trigger a short deterministic `schedulePhraseTurn()` pickup on the final beat of a phrase. This is deliberately a sub-beat flourish, not a transport action or full one-bar fill. It is suppressed during RED Health, predictive section transitions, active fills, and the actual section-turn beat so it cannot double-trigger the existing planner/transition machinery. Destination-aware full fills remain owned by the Predictive Transition Planner.
+
+The planner now queries `GuitarDrumAPI.getPhraseContext()`. Phrase progress/alignment contributes a small part of transition confidence and fill-size choice: a section target that coincides with the current phrase ending gains support, while a big fill requires the phrase to be reasonably mature. Plan diagnostics expose `P x/y` plus phrase-alignment metadata, and telemetry captures the phrase context through both performance intent and transition-plan snapshots.
