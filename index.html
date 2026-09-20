@@ -350,6 +350,27 @@
   }
   function isChord(v){return /^[A-G](?:#|b)?(?:m|maj|dim|aug|sus|add)?\d*(?:b5|#5|b9|#9|11|13)?(?:\/[A-G](?:#|b)?)?$/.test(v)}
   function renderParts(parts){return parts.map(v=>isChord(v)?'<span class="chord">'+transposeChord(v)+'</span>':v).join('')}
+  function harmonicTimeline(){
+    const out=[];
+    rows.forEach((row,rowIndex)=>{
+      const chords=row.parts.filter(isChord);
+      if(!chords.length)return;
+      chords.forEach((symbol,chordIndex)=>{
+        const fraction=chords.length===1?0:chordIndex/chords.length;
+        out.push({
+          symbol,
+          rowIndex,
+          section:row.s,
+          beat:Math.round(row.start+row.b*fraction),
+          rowStart:row.start,
+          rowEnd:row.end,
+          chordIndex,
+          chordCount:chords.length
+        });
+      });
+    });
+    return out;
+  }
 
   function renderSheet(){
     sheet.innerHTML='';
@@ -398,9 +419,9 @@
 
   function updateTime(){const sec=Math.round(songBeat*60/Number(bpm.value));position.textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}
   function updateRow(i){currentRow=Math.max(0,Math.min(rows.length-1,i));sectionLabel.textContent=rows[currentRow].s;renderSheet();saveState()}
-  function jumpToRow(i){fillRequested=false;fillRemaining=0;pendingSectionTransition=null;fillBtn.textContent='🥁 Fill';songBeat=rows[i].start;updateRow(i);updateTime();status.textContent=playing&&!paused?'Đã nhảy tới Line '+(i+1)+'.':'Sẵn sàng từ Line '+(i+1)+'.';if(playing&&!paused){nextTime=ctx.currentTime+.08;quarter=songBeat%4}}
+  function jumpToRow(i){fillRequested=false;fillRemaining=0;pendingSectionTransition=null;pendingHarmonicAnchor=null;fillBtn.textContent='🥁 Fill';songBeat=rows[i].start;updateRow(i);updateTime();status.textContent=playing&&!paused?'Đã nhảy tới Line '+(i+1)+'.':'Sẵn sàng từ Line '+(i+1)+'.';if(playing&&!paused){nextTime=ctx.currentTime+.08;quarter=songBeat%4}}
   async function playFromRow(i){
-    fillRequested=false;fillRemaining=0;pendingSectionTransition=null;fillBtn.textContent='🥁 Fill';
+    fillRequested=false;fillRemaining=0;pendingSectionTransition=null;pendingHarmonicAnchor=null;fillBtn.textContent='🥁 Fill';
     songBeat=rows[i].start;
     updateRow(i);
     updateTime();
@@ -451,7 +472,7 @@
   }
 
   let ctx=null,master=null,noise=null,timer=null,playing=false,paused=false,nextTime=0,quarter=0,countIn=4,songBeat=0,visualTimers=[];
-  let fillRequested=false,fillRemaining=0,pendingSectionTransition=null;
+  let fillRequested=false,fillRemaining=0,pendingSectionTransition=null,pendingHarmonicAnchor=null;
 
   function setup(){
     if(!ctx){
@@ -537,7 +558,7 @@
     return out;
   }
   function requestSectionTransition(targetSectionIndex){
-    if(!playing||paused||countIn>0||pendingSectionTransition)return false;
+    if(!playing||paused||countIn>0||pendingSectionTransition||pendingHarmonicAnchor)return false;
     const timeline=sectionTimeline();
     const currentIndex=timeline.findIndex(s=>songBeat>=s.startBeat&&songBeat<s.endBeat);
     const target=timeline[targetSectionIndex];
@@ -553,6 +574,16 @@
     };
     fillBtn.textContent='AI → '+target.name;
     status.textContent='AI drummer đoán sắp vào '+target.name+' · chờ đầu ô nhịp để fill.';
+    return true;
+  }
+  function requestHarmonicAnchor(targetBeat,targetRowIndex,confidence=0){
+    if(!playing||paused||countIn>0||pendingSectionTransition||pendingHarmonicAnchor)return false;
+    const beat=Math.max(0,Math.min(total-1,Math.round(Number(targetBeat))));
+    const rowIndex=Math.max(0,Math.min(rows.length-1,Math.round(Number(targetRowIndex))));
+    if(!Number.isFinite(beat)||!Number.isFinite(rowIndex))return false;
+    if(Math.abs(beat-songBeat)<4)return false;
+    pendingHarmonicAnchor={targetBeat:beat,targetRowIndex:rowIndex,confidence:Number(confidence)||0};
+    status.textContent='🎸 Harmonic match '+Math.round((Number(confidence)||0)*100)+'% · sẽ re-anchor ở beat 1 kế tiếp.';
     return true;
   }
   function maybeStartAutoFill(){
@@ -574,6 +605,7 @@
   function queueFill(){
     if(!playing||paused){status.textContent='Bấm Play rồi dùng Fill để vào ô nhịp kế tiếp.';return}
     pendingSectionTransition=null;
+    pendingHarmonicAnchor=null;
     fillRequested=true;
     fillBtn.textContent='✓ Fill queued';
     status.textContent='Fill đã xếp hàng · vào đầu ô nhịp kế tiếp.';
@@ -597,6 +629,13 @@
     const beat=quarter%4;
     if(countIn>0){click(t,beat===0);visualBeat(beat,t,true);countIn--;quarter++;return}
     const q=60/Number(bpm.value);
+
+    if(pendingHarmonicAnchor&&beat===0){
+      const anchor=pendingHarmonicAnchor;
+      songBeat=anchor.targetBeat;
+      pendingHarmonicAnchor=null;
+      status.textContent='🎸 Harmonic position → Line '+(anchor.targetRowIndex+1)+'.';
+    }
 
     if(pendingSectionTransition&&pendingSectionTransition.stage==='anchor'&&beat===0){
       const targetRowIndex=pendingSectionTransition.targetRowIndex;
@@ -683,7 +722,7 @@
 
   function stopPlaybackOnly(){
     playing=false;paused=false;if(timer)clearInterval(timer);timer=null;visualTimers.forEach(clearTimeout);visualTimers=[];
-    fillRequested=false;fillRemaining=0;pendingSectionTransition=null;fillBtn.textContent='🥁 Fill';
+    fillRequested=false;fillRemaining=0;pendingSectionTransition=null;pendingHarmonicAnchor=null;fillBtn.textContent='🥁 Fill';
     toggleBtn.textContent='▶ Play';stopBtn.disabled=true;fillBtn.disabled=true;beatEls.forEach(el=>el.classList.remove('on'));
   }
 
@@ -712,7 +751,9 @@
       currentSection:rows[currentRow]?.s||''
     }),
     getSectionTimeline:()=>sectionTimeline(),
+    getHarmonicTimeline:()=>harmonicTimeline(),
     requestSectionTransition:index=>requestSectionTransition(Number(index)),
+    requestHarmonicAnchor:(beat,rowIndex,confidence)=>requestHarmonicAnchor(beat,rowIndex,confidence),
     syncNextBeat:(targetPerformanceMs,beatIndex=0)=>{
       if(!ctx||!playing||paused||countIn>0||!Number.isFinite(targetPerformanceMs))return false;
       const nowPerf=performance.now();
