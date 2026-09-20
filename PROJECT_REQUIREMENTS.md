@@ -259,3 +259,17 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - `RED / Manual Safe`: automated intensity changes, BPM steering, bar re-sync, harmonic re-position and predictive section transitions are forbidden. Silence-driven THIN/HOLD may still protect song position, while automatic rejoin requires recovery above RED.
 - Downgrading Health must cancel pending high-risk AI transport actions so decisions made under a previous confidence level cannot execute later.
 - Health score, mode, reasons, component scores and current permission set must be available in debug/API state and telemetry.
+
+
+## Auto-Tune Engine / Profile Suggestions
+
+- Auto-Tune must analyze both the current local debug session and imported exported JSON sessions.
+- Manual `Mark` events are the primary error anchors; the engine may infer a failure category only when the surrounding evidence is directional enough.
+- Harmonic/song-position ambiguity without contamination evidence must not modify mic thresholds.
+- Suggested threshold changes must be bounded per parameter and clamped to safe ranges.
+- The UI must show before→proposed changes and an estimated before/after comparison for guitar retention and contamination pass.
+- Apply must never be automatic. It requires explicit user action and minimum suggestion confidence.
+- Apply must be disabled when the offline comparison predicts material guitar-retention loss or worse contamination leakage.
+- The previous Mic Profile must be persisted for one-step Undo across page reloads.
+- Recalibration or explicit profile reset invalidates stale Auto-Tune rollback state.
+- Debug exports must include active profile and current Auto-Tune suggestion metadata when present.
