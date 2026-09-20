@@ -47,6 +47,7 @@ Prototype hiện đã có:
 - **Stop / Resume Intent POC**: no reliable strum activity for ~1.7 s → `THIN`; ~3.8 s → queue `HOLD` on beat 1 and freeze song position; new playing → clear/study fresh tempo+bar evidence, align the silent clock to detected downbeat, then `REJOIN` on beat 1;
 - **Predictive Transition Planner POC**: stable section/chord/bar evidence can arm a transition before the final bar; the engine keeps playing the current groove until the last 4 beats, then selects `small/medium/big` fill intensity plus one of three non-repeating variants and lands on the next section beat 1;
 - **Humanization / Performance Layer**: per-hit deterministic microtiming + velocity variation, protected beat-1 timing, snare layback, hi-hat articulation, subtle timbre variation, context-aware ghost notes, and reduced humanization strength inside fills. `Human feel` slider (0–100%, default 55%) persists per song;
+- **Clean Mic / Bleed Rejection POC**: drum engine publishes scheduled self-hit metadata; mic analysis computes spectral flux/flatness/band ratios, estimates per-frame self-drum contamination and voice-like input, adaptively gates onsets/dynamics/chord frames, and exposes `GUITAR / VOICE / DRUM / MIX` debug plus accepted/rejected onset counts. This is heuristic rejection, not source separation;
 
 ## Current data model
 
@@ -108,3 +109,6 @@ Mục tiêu là để agent dùng connector Microsoft/OneNote nếu môi trườ
 
 - test **Human feel** A/B at 0%, 55%, and ~85% on iPad speakers/headphones: groove should loosen audibly while beat 1, tempo follow and section landings remain stable;
 - listen specifically for ghost-snare overload or hi-hat timing feeling sloppy at high Human feel; tune ranges before enabling more performance complexity.
+
+- test **Clean mic** with three scenarios on the actual iPad: (1) drum playing with no guitar, (2) singing only, (3) guitar + vocal + drum together. Drum-only should stop creating steady strum/onset evidence; singing-only should rarely create stable chord events; real guitar strums on kick/snare beats must still pass often enough to keep tempo lock.
+- A/B `Clean mic` ON/OFF and record `Input` class plus accepted/rejected counts; tune penalty/voice thresholds only from real-device behavior because speaker/mic latency and frequency response are device-specific.
