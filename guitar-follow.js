@@ -679,6 +679,12 @@
     return baseDownbeat + n * barMs;
   }
 
+  function nextBarTime(baseDownbeat, beatMs, afterTime) {
+    const barMs=beatMs*4;
+    const n=Math.max(0,Math.ceil((afterTime-baseDownbeat)/barMs));
+    return baseDownbeat+n*barMs;
+  }
+
   function updateBarFollow(now) {
     const estimate = estimateBar();
     barEstimate = estimate;
@@ -1296,14 +1302,19 @@
         now-intentActionAt>900 &&
         typeof api.requestFollowResume==='function'
       ) {
-        const accepted=api.requestFollowResume();
+        let aligned=true;
+        if (typeof api.alignHeldBeatOne==='function' && barEstimate) {
+          const targetDownbeat=nextBarTime(barEstimate.baseDownbeat,barEstimate.beatMs,now+80);
+          aligned=api.alignHeldBeatOne(targetDownbeat);
+        }
+        const accepted=aligned && api.requestFollowResume();
         if (accepted) {
           intentActionAt=now;
           intentStage='rejoin';
           performanceState.mode='rejoin';
-          performanceState.reason='re-entry queued';
+          performanceState.reason='beat 1 aligned · re-entry queued';
           lastFusionActionAt=now;
-          api.setStatus?.('🎸 Re-entry ready · drummer vào lại ở beat 1.');
+          api.setStatus?.('🎸 Re-entry ready · clock đã align beat 1, drummer vào lại cùng bạn.');
         }
       }
       updateFusionCandidate(null,now);
