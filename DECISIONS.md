@@ -105,3 +105,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** từ Follow v2, dynamics/tempo/bar/section/harmonic detectors là các evidence providers. Chỉ `PerformanceState`/Sensor Fusion được quyền request section transition hoặc harmonic re-anchor. Harmonic reposition yêu cầu raw-best và fused-best trùng cùng row/beat; strong harmonic disagreement chặn section transition; mọi transport action dùng shared cooldown.
 
 **Reason:** khi nhiều detector cùng tự hành động, chúng có thể đúng riêng lẻ nhưng xung đột trong cùng một musical moment. Một authority duy nhất giúp hệ thống fail-safe, giải thích được (`LOCKED/FOLLOW/AMBIG/RE-POS`) và dễ tune trên iPad thật.
+
+
+## D017 — Dừng đàn phải freeze song position
+
+**Decision:** Follow v2 uses a two-stage silence response: a short gap requests a sparse `THIN` groove; a longer gap queues `HOLD` at the next beat 1, freezes `songBeat`, and discards old timing/harmonic evidence. Re-entry requires fresh tempo/downbeat evidence, aligns the silent transport to the detected guitar downbeat, then resumes on beat 1.
+
+**Reason:** letting the backing continue through an unplanned guitarist stop makes song position drift and makes later harmonic matching harder. Freezing position preserves musical intent, while a short thin-out prevents every small breath/rest from feeling like a hard stop.
