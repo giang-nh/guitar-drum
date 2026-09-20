@@ -189,3 +189,10 @@ Các quyết định dưới đây nên được xem là durable cho tới khi r
 **Decision:** the app defaults to a compact Playing Mode while keeping the full detector/tuning surface behind a persistent Developer toggle. UI mode changes visibility only and does not reset or reconfigure the Follow engine. A compact Health/section/phrase/Plan summary is kept live from transport events even when Auto Follow is off.
 
 **Reason:** the diagnostic surface has grown substantially through calibration, Health, Auto-Tune and regression work. Keeping those tools always visible makes the iPad performance workflow harder without adding musical value. Separating presentation from runtime preserves all engineering tools while making the product usable as an instrument companion.
+
+
+## D029 — Test cùng core runtime, deploy chỉ sau khi xanh
+
+**Decision:** deterministic safety/music rules that can be pure are centralized in `core-logic.js`, consumed by the browser and tested directly with Node's built-in test runner. GitHub Pages deploy has a hard dependency on that test suite. A separate push/PR workflow runs the same suite, and the previous function-extraction runner is removed.
+
+**Reason:** syntax checks and duplicated test implementations can both pass while runtime behavior drifts. Sharing the same pure functions between production and tests gives stronger regression protection without introducing a build system or framework, and gating deployment stops known-bad commits from replacing the live iPad app.
