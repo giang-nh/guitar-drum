@@ -59,6 +59,14 @@
   const TELEMETRY_SAMPLE_MS = 250;
   const TELEMETRY_MAX_SAMPLES = 7200;
   const TELEMETRY_MAX_EVENTS = 1200;
+  const CALIBRATION_PROFILE_VERSION = 1;
+  const CALIBRATION_STEPS = [
+    {id:'quiet',label:'1/5 · Quiet',ms:5000,instruction:'Để phòng yên · không drum · không đàn · không hát.'},
+    {id:'drum',label:'2/5 · Drum only',ms:5000,instruction:'Bật Play drum · không đàn · không hát.'},
+    {id:'guitar',label:'3/5 · Guitar only',ms:6000,instruction:'Tắt/giảm drum · quạt guitar đều như lúc hát · không hát.'},
+    {id:'voice',label:'4/5 · Voice only',ms:5000,instruction:'Không đàn · không drum · hát/nói ở mức âm lượng thật.'},
+    {id:'mix',label:'5/5 · Full mix',ms:7000,instruction:'Đàn + hát + drum như lúc sử dụng thật.'}
+  ];
   const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const NOTES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
   const NOTE_MAP = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
@@ -138,6 +146,13 @@
   let telemetryEvents = [];
   let telemetryLastSampleAt = 0;
   let telemetryLastSignature = '';
+  let calibrationProfile = null;
+  let calibrationActive = false;
+  let calibrationStepIndex = 0;
+  let calibrationCapturing = false;
+  let calibrationCaptureStartedAt = 0;
+  let calibrationSamples = {};
+  let calibrationCurrentSamples = [];
 
   injectStyles();
   const ui = buildUi();
@@ -150,6 +165,7 @@
   renderFusion();
   renderPlan();
   renderInput();
+  renderCalibration();
   attachListeners();
 
   function injectStyles() {
@@ -179,6 +195,19 @@
       .gd-debug-row button{min-height:36px;padding:0 10px;font-size:11px}
       .gd-debug-status{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
       .gd-debug-note{margin-top:6px;font-size:10px;color:var(--muted);line-height:1.35}
+      .gd-cal{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+      .gd-cal-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
+      .gd-cal-title{font-size:11px;font-weight:800}
+      .gd-cal-profile{font-size:10px;color:var(--muted)}
+      .gd-cal-panel{display:none;margin-top:8px;padding:9px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+      .gd-cal-panel.on{display:block}
+      .gd-cal-step{font-size:12px;font-weight:800}
+      .gd-cal-instruction{margin-top:4px;color:var(--muted);font-size:11px;line-height:1.35}
+      .gd-cal-progress{height:7px;margin-top:8px;border-radius:999px;background:#e5e7ea;overflow:hidden}
+      .gd-cal-progress>div{height:100%;width:0;background:var(--accent);transition:width .08s linear}
+      .gd-cal-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+      .gd-cal-actions button{min-height:36px;padding:0 10px;font-size:11px}
+      .gd-cal-result{margin-top:7px;color:var(--muted);font-size:10px;line-height:1.4}
       @media(max-width:560px){
         .gd-follow-stats{grid-template-columns:repeat(2,1fr)}
         .gd-follow-controls{grid-template-columns:1fr}
@@ -234,6 +263,26 @@
         </div>
         <div class="gd-debug-note">Chỉ ghi telemetry/state; không ghi hoặc lưu audio. Dữ liệu ở local cho tới khi bạn chủ động Export.</div>
       </div>
+      <div class="gd-cal">
+        <div class="gd-cal-head">
+          <div>
+            <div class="gd-cal-title">🧪 Mic Calibration</div>
+            <div id="gdCalProfile" class="gd-cal-profile">Default thresholds</div>
+          </div>
+          <button type="button" id="gdCalOpen">Calibrate</button>
+        </div>
+        <div id="gdCalPanel" class="gd-cal-panel">
+          <div id="gdCalStep" class="gd-cal-step">1/5 · Quiet</div>
+          <div id="gdCalInstruction" class="gd-cal-instruction"></div>
+          <div class="gd-cal-progress"><div id="gdCalProgress"></div></div>
+          <div class="gd-cal-actions">
+            <button type="button" id="gdCalCapture">Start sample</button>
+            <button type="button" id="gdCalCancel">Cancel</button>
+            <button type="button" id="gdCalReset">Reset profile</button>
+          </div>
+          <div id="gdCalResult" class="gd-cal-result"></div>
+        </div>
+      </div>
     `;
     const hint = drummer.querySelector('.drumHint');
     if (hint) hint.insertAdjacentElement('afterend', host);
@@ -272,6 +321,16 @@
       debugMark: host.querySelector('#gdDebugMark'),
       debugExport: host.querySelector('#gdDebugExport'),
       debugStatus: host.querySelector('#gdDebugStatus'),
+      calOpen: host.querySelector('#gdCalOpen'),
+      calPanel: host.querySelector('#gdCalPanel'),
+      calProfile: host.querySelector('#gdCalProfile'),
+      calStep: host.querySelector('#gdCalStep'),
+      calInstruction: host.querySelector('#gdCalInstruction'),
+      calProgress: host.querySelector('#gdCalProgress'),
+      calCapture: host.querySelector('#gdCalCapture'),
+      calCancel: host.querySelector('#gdCalCancel'),
+      calReset: host.querySelector('#gdCalReset'),
+      calResult: host.querySelector('#gdCalResult'),
       hint: host.querySelector('#gdFollowHint')
     };
   }
@@ -285,6 +344,10 @@
     ui.debugRecord.addEventListener('click', toggleTelemetryRecording);
     ui.debugMark.addEventListener('click', () => recordTelemetryEvent('manual-mark',{label:'user-mark'}));
     ui.debugExport.addEventListener('click', exportTelemetry);
+    ui.calOpen.addEventListener('click', startCalibrationWizard);
+    ui.calCapture.addEventListener('click', startCalibrationCapture);
+    ui.calCancel.addEventListener('click', () => cancelCalibration('Calibration đã hủy.'));
+    ui.calReset.addEventListener('click', resetCalibrationProfile);
     ui.tempoToggle.addEventListener('change', () => {
       saveSettings();
       resetTempoTracking();
@@ -380,6 +443,7 @@
       if (saved.sectionFollow != null) ui.sectionToggle.checked = Boolean(saved.sectionFollow);
       if (saved.harmonicFollow != null) ui.harmonicToggle.checked = Boolean(saved.harmonicFollow);
       if (saved.cleanInput != null) ui.cleanInputToggle.checked = Boolean(saved.cleanInput);
+      if (saved.calibrationProfile?.version === CALIBRATION_PROFILE_VERSION) calibrationProfile = saved.calibrationProfile;
     } catch {}
   }
 
@@ -391,7 +455,8 @@
         barFollow:Boolean(ui.barToggle.checked),
         sectionFollow:Boolean(ui.sectionToggle.checked),
         harmonicFollow:Boolean(ui.harmonicToggle.checked),
-        cleanInput:Boolean(ui.cleanInputToggle.checked)
+        cleanInput:Boolean(ui.cleanInputToggle.checked),
+        calibrationProfile
       }));
     } catch {}
   }
