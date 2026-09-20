@@ -324,3 +324,13 @@ Phần tiếp tục phát triển chủ yếu là **thêm bài hát chính xác 
 - Compact section/phrase state must remain synchronized during playback even when Auto Follow/microphone analysis is off.
 - Calibration, Debug Recorder, Auto-Tune and Regression Replay must remain accessible in Developer Mode.
 - UI mode should be exposed in API/debug telemetry so a recorded session can be interpreted with the display state that was active.
+
+
+## Automated Test Harness
+
+- Critical deterministic behavior must live in a pure shared module that can execute in both the browser and Node tests; tests must not maintain copied versions of runtime rules.
+- Unit coverage must include phrase segmentation/position, Health permissions/threshold bands, transition eligibility, minimum-tempo HOLD rejoin range, chord transpose/capo invariants, replay pass/reject logic and Auto-Tune regression blockers.
+- Integration/source-contract tests must at minimum parse all runtime JS, validate current song/reference data, confirm shared-core runtime delegation, verify PWA precache assets and prevent debug/cache version drift.
+- GitHub Pages deployment must depend on a successful automated test job. A test failure must prevent deployment of that commit.
+- Tests should remain dependency-free unless a browser-level capability genuinely requires an external test framework.
+- Browser/WebAudio/microphone tests are a separate device-validation layer; CI must not imply that synthetic unit tests validate acoustic behavior.
