@@ -1,5 +1,5 @@
-const CACHE = "guitar-drum-v31";
-const ASSETS = ["./", "./index.html", "./tone.js", "./guitar-follow.js", "./tone-references.json", "./manifest.json", "./icon.svg"];
+const CACHE = "guitar-drum-v32";
+const ASSETS = ["./", "./index.html", "./core-logic.js", "./tone.js", "./guitar-follow.js", "./tone-references.json", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
