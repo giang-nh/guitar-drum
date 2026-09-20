@@ -75,6 +75,7 @@ Mỗi bài có các thuộc tính chính:
 - `baseKey`
 - `defaultBpm`
 - optional `preferFlats`
+- optional `drumStyle`
 - `rows`
 
 Mỗi row hiện có dạng khái niệm:
@@ -114,7 +115,9 @@ Drum được synthesize bằng Web Audio API:
 
 - kick;
 - snare;
-- hi-hat;
+- closed/open hi-hat;
+- tom;
+- crash/noise accent;
 - click dùng cho count-in.
 
 Scheduler:
@@ -124,13 +127,17 @@ Scheduler:
 - BPM quyết định quarter-note duration;
 - 4 beat count-in trước playback;
 - row duration được xác định bởi `beatCount` của từng row;
-- `songBeat` được map sang row để đổi highlight.
+- `songBeat` được map sang row để đổi highlight;
+- section name được classify thành Intro / Verse / Pre / Chorus / Bridge / Interlude / Outro để chọn groove;
+- `Intensity` 1–5 scale dynamics của groove và được lưu per-song;
+- Fill thủ công được queue tới đầu ô nhịp 4/4 kế tiếp;
+- khi đổi loại section, engine thêm transition accent ngắn.
 
 ### Giới hạn hiện tại
 
 - Timing của từng dòng là dữ liệu thủ công, không được suy ra từ audio thật.
 - Nhịp hiện tại được thiết kế chủ yếu cho 4/4.
-- Drum là accompaniment đơn giản, không mô phỏng arrangement gốc của bài.
+- Drum đã section-aware nhưng vẫn là rule-based accompaniment, chưa mô phỏng arrangement gốc của bài và chưa nghe guitar để follow tempo/section.
 
 ## 5. State persistence
 
@@ -141,6 +148,7 @@ Theo từng bài, app lưu:
 - current row;
 - selected key;
 - BPM;
+- drummer intensity;
 - Show all / focus mode.
 
 Ngoài ra lưu bài hát mở gần nhất.
