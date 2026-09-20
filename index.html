@@ -32,7 +32,6 @@
     input[type=range]{width:100%;margin-top:10px}
     .playerTop{display:flex;justify-content:space-between;align-items:center;gap:10px}
     .section{font-weight:700}.time{color:var(--muted);font-size:14px;margin-left:6px}
-    .lineBadge{font-size:13px;font-weight:700;border:1px solid var(--border);border-radius:8px;padding:5px 9px;background:var(--card)}
     .beats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
     .beat{height:46px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:10px;background:var(--card);font-weight:750}
     .beat.on{border-color:var(--accent);background:var(--accent-bg)}
@@ -48,10 +47,10 @@
     .sectionLabel{margin:13px 0 5px 40px;color:var(--muted);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
     .lineWrap{display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:5px}
     .num{text-align:right;padding-right:4px;color:var(--muted);font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
-    .row{width:100%;display:block;text-align:left;border:1px solid transparent;background:transparent;border-radius:9px;padding:9px 10px;font-size:17px;line-height:1.65}
+    .row{width:100%;display:block;text-align:left;background:transparent;border-radius:8px;padding:9px 10px;font-size:17px;line-height:1.65;color:var(--text);cursor:pointer;-webkit-tap-highlight-color:transparent}
     .row:hover{background:var(--panel)}
-    .row.active{background:var(--accent-bg);border-color:var(--accent)}
-    .lineWrap.active .num{color:var(--text)}
+    .row.active{background:var(--accent-bg);box-shadow:inset 4px 0 0 var(--accent)}
+    .lineWrap.active .num{color:var(--accent)}
     .chord{display:inline-block;padding:0 .26em;margin:0 .05em;border:1px solid var(--border);border-radius:5px;background:var(--card);font-size:.9em;line-height:1.35;font-weight:800;white-space:nowrap}
     .viewBottom{display:flex;justify-content:flex-end;margin-top:14px}
     .hint{color:var(--muted);font-size:12px;margin:0 0 8px 40px}
@@ -102,7 +101,6 @@
   <section class="card">
     <div class="playerTop">
       <div><span id="section" class="section">Intro</span><span id="position" class="time">0:00</span></div>
-      <div id="lineLabel" class="lineBadge">Line 1</div>
     </div>
     <div class="beats">
       <div class="beat">1</div><div class="beat">2</div><div class="beat">3</div><div class="beat">4</div>
@@ -127,12 +125,26 @@
 (() => {
   const $ = s => document.querySelector(s);
   const keySel=$('#keySelect'), bpm=$('#bpm'), bpmLabel=$('#bpmLabel'), toggleBtn=$('#toggle'), stopBtn=$('#stop');
-  const status=$('#status'), sectionLabel=$('#section'), lineLabel=$('#lineLabel'), position=$('#position'), sheet=$('#sheet');
+  const status=$('#status'), sectionLabel=$('#section'), position=$('#position'), sheet=$('#sheet');
   const viewBtn=$('#viewToggle'), topCollapse=$('#topCollapse'), topCollapseWrap=$('#topCollapseWrap');
   const beatEls=[...document.querySelectorAll('.beat')];
   const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const noteMap={C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
+  const STORAGE_KEY='guitar-drum-state-v2';
   let shift=0,currentRow=0,showAll=false;
+  function loadState(){
+    try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')}catch{return {}}
+  }
+  function saveState(){
+    try{
+      localStorage.setItem(STORAGE_KEY,JSON.stringify({
+        row:currentRow,
+        key:keySel.value,
+        bpm:bpm.value,
+        showAll
+      }));
+    }catch{}
+  }
 
   const raw=[
     ['Intro',24,['C',' · ','F',' · ','G',' · ','C',' · ','F',' · ','Cm',' · ','Dm',' · ','G']],
@@ -204,17 +216,20 @@
       if(r.s!==prev){const h=document.createElement('div');h.className='sectionLabel';h.textContent=r.s;sheet.appendChild(h);prev=r.s}
       const wrap=document.createElement('div');wrap.className='lineWrap'+(i===currentRow?' active':'');
       const num=document.createElement('div');num.className='num';num.textContent=(i+1)+'.';
-      const b=document.createElement('button');b.type='button';b.className='row'+(i===currentRow?' active':'');b.innerHTML=renderParts(r.parts);
-      b.addEventListener('click',()=>jumpToRow(i)); wrap.append(num,b); sheet.appendChild(wrap);
+      const row=document.createElement('div');row.className='row'+(i===currentRow?' active':'');row.innerHTML=renderParts(r.parts);
+      row.setAttribute('role','button');row.setAttribute('tabindex','0');row.setAttribute('aria-label','Nhảy tới dòng '+(i+1));
+      row.addEventListener('click',()=>jumpToRow(i));
+      row.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();jumpToRow(i)}});
+      wrap.append(num,row); sheet.appendChild(wrap);
     });
     viewBtn.textContent=showAll?'↑ Show 5 lines':'↓ Show all';
     topCollapseWrap.classList.toggle('show',showAll);
   }
 
-  function updateRow(i){currentRow=Math.max(0,Math.min(rows.length-1,i));sectionLabel.textContent=rows[currentRow].s;lineLabel.textContent='Line '+(currentRow+1);renderSheet()}
+  function updateRow(i){currentRow=Math.max(0,Math.min(rows.length-1,i));sectionLabel.textContent=rows[currentRow].s;renderSheet();saveState()}
   function updateTime(){const sec=Math.round(songBeat*60/Number(bpm.value));position.textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}
   function jumpToRow(i){songBeat=rows[i].start;updateRow(i);updateTime();status.textContent=playing&&!paused?'Đã nhảy tới Line '+(i+1)+'.':'Sẵn sàng từ Line '+(i+1)+'.';if(playing&&!paused){nextTime=ctx.currentTime+.08;quarter=songBeat%4}}
-  function changeKey(){shift=(Number(keySel.value)+12)%12;renderSheet()}
+  function changeKey(){shift=(Number(keySel.value)+12)%12;renderSheet();saveState()}
 
   let ctx=null,master=null,noise=null,timer=null,playing=false,paused=false,nextTime=0,quarter=0,countIn=4,songBeat=0,visualTimers=[];
   function setup(){
@@ -257,17 +272,29 @@
   }
   function stopToBeginning(){
     playing=false;paused=false;if(timer)clearInterval(timer);timer=null;visualTimers.forEach(clearTimeout);visualTimers=[];
-    songBeat=0;quarter=0;countIn=4;currentRow=0;position.textContent='0:00';sectionLabel.textContent='Intro';lineLabel.textContent='Line 1';
-    toggleBtn.textContent='▶ Play';stopBtn.disabled=true;beatEls.forEach(el=>el.classList.remove('on'));status.textContent='Đã dừng · trở về đầu bài.';renderSheet();
+    songBeat=0;quarter=0;countIn=4;currentRow=0;position.textContent='0:00';sectionLabel.textContent='Intro';
+    toggleBtn.textContent='▶ Play';stopBtn.disabled=true;beatEls.forEach(el=>el.classList.remove('on'));status.textContent='Đã dừng · trở về đầu bài.';renderSheet();saveState();
   }
 
-  viewBtn.addEventListener('click',()=>{showAll=!showAll;renderSheet()});
-  topCollapse.addEventListener('click',()=>{showAll=false;renderSheet()});
+  viewBtn.addEventListener('click',()=>{showAll=!showAll;renderSheet();saveState()});
+  topCollapse.addEventListener('click',()=>{showAll=false;renderSheet();saveState()});
   keySel.addEventListener('change',changeKey);
-  bpm.addEventListener('input',()=>bpmLabel.textContent=bpm.value);
+  bpm.addEventListener('input',()=>{bpmLabel.textContent=bpm.value;saveState()});
   toggleBtn.addEventListener('click',toggle);
   stopBtn.addEventListener('click',stopToBeginning);
-  changeKey();updateRow(0);
+
+  const saved=loadState();
+  if(saved.key!=null) keySel.value=String(saved.key);
+  if(saved.bpm!=null) bpm.value=String(saved.bpm);
+  bpmLabel.textContent=bpm.value;
+  showAll=Boolean(saved.showAll);
+  shift=(Number(keySel.value)+12)%12;
+  currentRow=Math.max(0,Math.min(rows.length-1,Number(saved.row)||0));
+  songBeat=rows[currentRow].start;
+  sectionLabel.textContent=rows[currentRow].s;
+  updateTime();
+  status.textContent=currentRow===0?'Sẵn sàng.':'Sẵn sàng từ Line '+(currentRow+1)+'.';
+  renderSheet();
 
   if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 })();
