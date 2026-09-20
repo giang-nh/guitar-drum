@@ -40,6 +40,41 @@ The repository is intended to contain enough context that a new agent can contin
 - Tone + Capo recommendations that favor common guitar chord shapes
 - Microphone **Follow guitar** POC: listens to acoustic-guitar energy, follows tempo/bar phase, predicts sections, matches chord sequences to song position, uses a central **Sensor Fusion / PerformanceState**, handles stop/resume intent, includes a **Predictive Transition Planner**, renders through a **Humanization / Performance Layer**, and now adds **Clean mic** rejection using self-drum timing + spectral/transient evidence to reduce drum-speaker bleed and vocal-triggered false onsets/chords
 
+## Cách sử dụng app
+
+### Chơi nhanh
+
+1. Chọn bài hát.
+2. Chọn **Tone**; nếu chưa biết tone phù hợp, dùng **🎙 Tìm tone giọng**. Dùng **🎸 Tone + Capo** để chọn chord shape dễ bấm và capo phù hợp.
+3. Chạm vào dòng lời/hợp âm muốn bắt đầu. Dùng **Show all** khi muốn xem toàn bài.
+4. Chỉnh **Tempo**, **Intensity 1–5** và **Human feel** nếu muốn.
+5. Nếu muốn drummer nghe cách bạn đang đàn, bật **🎙 Auto Follow** và cho phép microphone.
+6. Bấm **▶ Play**, nghe count-in 1–2–3–4 rồi chơi. Pause giữ vị trí; Stop đưa bài về đầu.
+
+### Auto Follow
+
+Ở **Playing Mode**, app giữ giao diện gọn và chỉ hiện summary quan trọng. Khi Auto Follow chạy, drummer có thể phản ứng theo dynamics và, khi evidence đủ ổn định, follow BPM, beat 1, section và chuỗi hợp âm. Phrase-aware drummer dùng vị trí P x/y để build/relax theo phrase. Khi người chơi ngừng, hệ thống có thể chuyển qua THIN → HOLD và chờ REJOIN ở beat 1.
+
+Bấm **Developer** để mở các tùy chọn nâng cao:
+
+- **Follow BPM** — kéo tempo dần theo strum ổn định.
+- **Sync beat 1** — re-phase bar khi downbeat đủ chắc.
+- **Follow section** — dự đoán section kế tiếp và chuẩn bị transition/fill.
+- **Follow chords** — dùng chord sequence để xác nhận/re-anchor vị trí; progression mơ hồ không tự nhảy.
+- **Clean mic** — giảm drum-speaker bleed và voice-triggered false positives.
+- **Follow Health** — GREEN = Full Auto, YELLOW = Safe Follow, RED = Manual Safe; Health tự chặn action rủi ro khi tín hiệu kém.
+
+### Tuning microphone / diagnostics
+
+Trong Developer Mode:
+
+- **Mic Calibration**: Quiet → Drum only → Guitar only → Voice only → Full mix.
+- **Record debug → Mark → Export JSON** để ghi telemetry/state của một buổi test; không ghi audio.
+- **Analyze marks / Import JSON** để tạo Auto‑Tune suggestion. Chỉ **Apply suggestion** khi muốn áp dụng; có **Undo tune**.
+- **Load regression sessions → Replay suite** để kiểm tra suggestion trên các session cũ; Apply có thể bị block nếu có regression đáng kể.
+
+Nếu Auto Follow chưa ổn, giữ **Clean mic** ON, đặt iPad để mic nghe guitar rõ nhưng không quá sát loa, chạy Calibration, và nhìn Health. Nếu app xác định sai vị trí bài, chạm vào đúng dòng — thao tác tay ưu tiên hơn pending AI transition. Khi dùng **Tìm tone giọng**, Auto Follow sẽ tạm dừng vì hai tính năng cùng cần microphone.
+
 ## Architecture summary
 
 - Static HTML/CSS/JavaScript
