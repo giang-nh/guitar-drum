@@ -42,8 +42,7 @@
     button.primary{background:var(--accent-bg);border-color:transparent}
     button:disabled{opacity:.45;cursor:default}
     .sheet{padding:12px 10px}
-    .topCollapse{display:none;justify-content:flex-end;margin-bottom:8px}
-    .topCollapse.show{display:flex}
+    .sheetToolbar{display:flex;justify-content:flex-end;margin-bottom:8px}
     .sectionLabel{margin:13px 0 5px 40px;color:var(--muted);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
     .lineWrap{display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:5px}
     .num{text-align:right;padding-right:4px;color:var(--muted);font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
@@ -52,7 +51,6 @@
     .row.active{background:var(--accent-bg);box-shadow:inset 4px 0 0 var(--accent)}
     .lineWrap.active .num{color:var(--accent)}
     .chord{display:inline-block;padding:0 .26em;margin:0 .05em;border:1px solid var(--border);border-radius:5px;background:var(--card);font-size:.9em;line-height:1.35;font-weight:800;white-space:nowrap}
-    .viewBottom{display:flex;justify-content:flex-end;margin-top:14px}
     .hint{color:var(--muted);font-size:12px;margin:0 0 8px 40px}
     @media(max-width:700px){
       .app{padding:10px 8px 28px}.card{border-radius:14px;padding:14px}
@@ -115,9 +113,8 @@
   </section>
 
   <section class="card sheet">
-    <div id="topCollapseWrap" class="topCollapse"><button id="topCollapse">↑ Show 5 lines</button></div>
+    <div class="sheetToolbar"><button id="viewToggle">↓ Show all</button></div>
     <div id="sheet"></div>
-    <div class="viewBottom"><button id="viewToggle">↓ Show all</button></div>
   </section>
 </main>
 
@@ -126,7 +123,7 @@
   const $ = s => document.querySelector(s);
   const keySel=$('#keySelect'), bpm=$('#bpm'), bpmLabel=$('#bpmLabel'), toggleBtn=$('#toggle'), stopBtn=$('#stop');
   const status=$('#status'), sectionLabel=$('#section'), position=$('#position'), sheet=$('#sheet');
-  const viewBtn=$('#viewToggle'), topCollapse=$('#topCollapse'), topCollapseWrap=$('#topCollapseWrap');
+  const viewBtn=$('#viewToggle');
   const beatEls=[...document.querySelectorAll('.beat')];
   const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const noteMap={C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
@@ -223,7 +220,6 @@
       wrap.append(num,row); sheet.appendChild(wrap);
     });
     viewBtn.textContent=showAll?'↑ Show 5 lines':'↓ Show all';
-    topCollapseWrap.classList.toggle('show',showAll);
   }
 
   function updateRow(i){currentRow=Math.max(0,Math.min(rows.length-1,i));sectionLabel.textContent=rows[currentRow].s;renderSheet();saveState()}
@@ -277,7 +273,6 @@
   }
 
   viewBtn.addEventListener('click',()=>{showAll=!showAll;renderSheet();saveState()});
-  topCollapse.addEventListener('click',()=>{showAll=false;renderSheet();saveState()});
   keySel.addEventListener('change',changeKey);
   bpm.addEventListener('input',()=>{bpmLabel.textContent=bpm.value;saveState()});
   toggleBtn.addEventListener('click',toggle);
