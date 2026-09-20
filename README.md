@@ -122,13 +122,15 @@ The main app now includes **Tìm tone giọng** and **Tone + Capo** controls. Pe
 Run the dependency-free logic suite with:
 
 ```bash
-node tests/run-tests.cjs
+node --test tests/*.test.cjs
 ```
 
-Current baseline: **105 cases / 105 PASS / 0 FAIL**. The suite exercises deterministic production helpers from `tone.js`, `guitar-follow.js`, and `index.html`. GitHub Actions also runs it automatically on pushes to `main` and pull requests.
+Current baseline: **42 automated tests** across shared core logic and integration/source contracts. The suite exercises deterministic production helpers from `tone.js`, `guitar-follow.js`, and `index.html`. GitHub Actions also runs it automatically on pushes to `main` and pull requests.
 
 This suite does not replace real-device validation for microphone input, speaker bleed, Web Audio timing, or iPad/Safari interaction.
 
 - **Playing Mode + Developer Mode**: the Follow panel now defaults to a compact performance surface with Auto Follow, Health, section/phrase and Plan summary. Detailed meter/stats, sensitivity, detector toggles, Calibration, Debug, Auto-Tune and Regression remain available behind a persistent `Developer` toggle. The compact summary stays synced even when Auto Follow is off.
 
 - **Automated Test Harness**: dependency-free Node tests exercise shared runtime core logic (phrase mapping, Health permissions, section-transition/rejoin guards, Tone/Capo transpose/scoring, replay threshold decisions and regression blockers) plus integration/source contracts for song data, PWA assets, Playing/Developer wiring and debug/cache versions. GitHub Pages deploy now requires the test job to pass first.
+
+- **Guided iPad Validation Session**: Developer Mode now includes a 10-step real-device test flow (`Quiet → Drum only → Guitar only → Voice only → Guitar+voice → Full mix → Stop/Resume → Verse→Chorus → Soft→Big → Free play`). Each step automatically labels the local telemetry window, scores the step from shared core logic, builds a Validation Report (mic separation, tempo/bar lock, false drum/voice onset counts, HOLD→REJOIN, transition, Health RED time), and can add the captured session directly to Regression or run Auto-Tune analysis on validation failures. No audio is recorded.
