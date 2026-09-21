@@ -627,7 +627,7 @@
   function validationSessionSnapshot(){
     return {
       schema:'guitar-drum-debug-v1',
-      appCache:'v37',
+      appCache:'v38',
       samples:telemetrySamples.slice(),
       events:telemetryEvents.slice(),
       settings:{calibrationProfile:deepClone(calibrationProfile)}
@@ -1340,7 +1340,7 @@
     const song=api.getCurrentSong?.()||{};
     const payload={
       schema:'guitar-drum-debug-v1',
-      appCache:'v37',
+      appCache:'v38',
       startedAt:telemetryStartedIso,
       durationMs:Math.round(telemetryDurationMs()),
       note:'Local telemetry only; no audio samples are recorded.',
@@ -1421,7 +1421,7 @@
   function sessionFromCurrentTelemetry() {
     return {
       schema:'guitar-drum-debug-v1',
-      appCache:'v37',
+      appCache:'v38',
       samples:telemetrySamples.slice(),
       events:telemetryEvents.slice(),
       settings:{calibrationProfile:deepClone(calibrationProfile)}

@@ -105,6 +105,11 @@ test('deploy workflow gates Pages deployment on logic and browser E2E',()=>{
   assert.match(workflow,/npm run test:e2e/);
 });
 
+test('main player defines clamp used by performance groove scheduling',()=>{
+  assert.match(index,/function clamp\(value,min=0,max=1\)/);
+  assert.ok(index.includes('const openChance=clamp('));
+});
+
 test('Section Follow can plan a controlled downshift into Outro',()=>{
   assert.ok(follow.includes("const isDropTarget = next.kind === 'outro' || gainDelta <= -0.10"));
   assert.ok(follow.includes("transitionType:isDropTarget?'drop':'build'"));
