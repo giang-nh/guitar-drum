@@ -1215,7 +1215,8 @@
     if(pendingSectionTransition&&pendingSectionTransition.stage==='anchor'&&beat===0){
       const targetRowIndex=pendingSectionTransition.targetRowIndex;
       songBeat=pendingSectionTransition.targetStartBeat;
-      crash(t,.72*drumPower(targetRowIndex));
+      const targetPower=drumPower(targetRowIndex);
+      if(sectionKind(pendingSectionTransition.targetName)==='outro')rim(t,.42*targetPower);else crash(t,.72*targetPower);
       status.textContent='AI → '+pendingSectionTransition.targetName;
       pendingSectionTransition=null;
       fillBtn.textContent='🥁 Fill';
@@ -1236,7 +1237,8 @@
       if(beatsToTarget<=0){
         const targetRowIndex=pendingSectionTransition.targetRowIndex;
         songBeat=pendingSectionTransition.targetStartBeat;
-        crash(t,.62*drumPower(targetRowIndex));
+        const targetPower=drumPower(targetRowIndex);
+        if(sectionKind(pendingSectionTransition.targetName)==='outro')rim(t,.36*targetPower);else crash(t,.62*targetPower);
         status.textContent='AI late-safe → '+pendingSectionTransition.targetName;
         pendingSectionTransition=null;
         fillBtn.textContent='🥁 Fill';

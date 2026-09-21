@@ -96,10 +96,20 @@ test('Clean Mic models all generated drum voices',()=>{
   }
 });
 
-test('deploy workflow gates Pages deployment on tests',()=>{
+test('deploy workflow gates Pages deployment on logic and browser E2E',()=>{
   assert.match(workflow,/jobs:\s*\n\s*test:/);
-  assert.match(workflow,/deploy:\s*\n\s*needs:\s*test/);
+  assert.match(workflow,/\n\s*e2e:\s*\n\s*needs:\s*test/);
+  assert.match(workflow,/deploy:\s*\n\s*needs:\s*\[test, e2e\]/);
   assert.match(workflow,/node --test/);
+  assert.match(workflow,/playwright install --with-deps chromium/);
+  assert.match(workflow,/npm run test:e2e/);
+});
+
+test('Section Follow can plan a controlled downshift into Outro',()=>{
+  assert.ok(follow.includes("const isDropTarget = next.kind === 'outro' || gainDelta <= -0.10"));
+  assert.ok(follow.includes("transitionType:isDropTarget?'drop':'build'"));
+  assert.ok(follow.includes("const isDropPlan=sectionPrediction.transitionType==='drop'"));
+  assert.ok(follow.includes("const mode=isDropPlan?'drop'"));
 });
 
 test('debug export cache version matches service-worker cache version',()=>{

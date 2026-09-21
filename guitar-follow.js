@@ -627,7 +627,7 @@
   function validationSessionSnapshot(){
     return {
       schema:'guitar-drum-debug-v1',
-      appCache:'v35',
+      appCache:'v36',
       samples:telemetrySamples.slice(),
       events:telemetryEvents.slice(),
       settings:{calibrationProfile:deepClone(calibrationProfile)}
@@ -1340,7 +1340,7 @@
     const song=api.getCurrentSong?.()||{};
     const payload={
       schema:'guitar-drum-debug-v1',
-      appCache:'v35',
+      appCache:'v36',
       startedAt:telemetryStartedIso,
       durationMs:Math.round(telemetryDurationMs()),
       note:'Local telemetry only; no audio samples are recorded.',
@@ -1421,7 +1421,7 @@
   function sessionFromCurrentTelemetry() {
     return {
       schema:'guitar-drum-debug-v1',
-      appCache:'v35',
+      appCache:'v36',
       samples:telemetrySamples.slice(),
       events:telemetryEvents.slice(),
       settings:{calibrationProfile:deepClone(calibrationProfile)}
@@ -2841,7 +2841,8 @@
 
     const gainDelta = Number(next.gain||1) - Number(current.gain||1);
     const isBuildTarget = Boolean(next.autoFillIn) || gainDelta >= 0.10;
-    if (!isBuildTarget) {
+    const isDropTarget = next.kind === 'outro' || gainDelta <= -0.10;
+    if (!isBuildTarget && !isDropTarget) {
       sectionCandidateIndex = null;
       sectionCandidateSince = 0;
       return;
@@ -2850,25 +2851,44 @@
     const signal = sectionSignal(now);
     if (!signal) return;
 
-    const trendScore = clamp((signal.trend - 0.035) / 0.17, 0, 1);
-    const gainScore = clamp((gainDelta + 0.04) / 0.30, 0, 1);
+    const trendScore = isDropTarget
+      ? clamp((0.05 - signal.trend) / 0.17, 0, 1)
+      : clamp((signal.trend - 0.035) / 0.17, 0, 1);
+    const gainScore = isDropTarget
+      ? clamp((-gainDelta + 0.04) / 0.30, 0, 1)
+      : clamp((gainDelta + 0.04) / 0.30, 0, 1);
     const proximityScore = clamp(1 - Math.abs(beatsAway - 8) / 7, 0, 1);
-    const stateScore = currentState === 'big' ? 1 : currentState === 'medium' ? 0.62 : currentState === 'soft' ? 0.22 : 0;
-    const confidence = clamp(
-      0.34 * trendScore +
-      0.18 * gainScore +
-      0.16 * proximityScore +
-      0.14 * stateScore +
-      0.10 * barConfidence +
-      0.08 * tempoConfidence,
-      0, 1
-    );
+    const stateScore = isDropTarget
+      ? (currentState === 'soft' ? 1 : currentState === 'medium' ? 0.76 : currentState === 'big' ? 0.48 : 0)
+      : (currentState === 'big' ? 1 : currentState === 'medium' ? 0.62 : currentState === 'soft' ? 0.22 : 0);
+    const structuralScore = isDropTarget && next.kind === 'outro' ? 1 : 0;
+    const confidence = isDropTarget
+      ? clamp(
+          0.22 * trendScore +
+          0.20 * gainScore +
+          0.18 * proximityScore +
+          0.10 * stateScore +
+          0.10 * barConfidence +
+          0.08 * tempoConfidence +
+          0.12 * structuralScore,
+          0, 1
+        )
+      : clamp(
+          0.34 * trendScore +
+          0.18 * gainScore +
+          0.16 * proximityScore +
+          0.14 * stateScore +
+          0.10 * barConfidence +
+          0.08 * tempoConfidence,
+          0, 1
+        );
 
     sectionPrediction = {
       current,
       next,
       beatsAway,
       trend:signal.trend,
+      transitionType:isDropTarget?'drop':'build',
       confidence,
       armed:sectionArmedIndex===next.index && now-lastSectionActionAt<SECTION_ACTION_COOLDOWN_MS
     };
@@ -3465,6 +3485,7 @@
 
     const next=sectionPrediction.next;
     const current=sectionPrediction.current;
+    const isDropPlan=sectionPrediction.transitionType==='drop';
     const beatsAway=Number(next.startBeat)-Number(transport.songBeat);
     if (beatsAway<5 || beatsAway>16) {
       updatePlanCandidate(null,now);
@@ -3494,43 +3515,60 @@
     const phraseScore=phrase
       ? clamp(.58*phraseProgress+.42*(phraseAligned?1:.22),0,1)
       : .55;
-    const trendScore=clamp((Number(sectionPrediction.trend||0)-0.025)/0.17,0,1);
+    const trendScore=isDropPlan
+      ? clamp((0.05-Number(sectionPrediction.trend||0))/0.17,0,1)
+      : clamp((Number(sectionPrediction.trend||0)-0.025)/0.17,0,1);
     const gainDelta=Number(next.gain||1)-Number(current?.gain||1);
-    const gainScore=clamp((gainDelta+0.02)/0.28,0,1);
-    const intensityScore=currentState==='big'?1:currentState==='medium'?0.68:currentState==='soft'?0.32:0;
+    const gainScore=isDropPlan
+      ? clamp((-gainDelta+0.02)/0.28,0,1)
+      : clamp((gainDelta+0.02)/0.28,0,1);
+    const intensityScore=isDropPlan
+      ? (currentState==='soft'?1:currentState==='medium'?0.76:currentState==='big'?0.48:0)
+      : (currentState==='big'?1:currentState==='medium'?0.68:currentState==='soft'?0.32:0);
     const harmonicScore=harmonicStrong
       ? clamp(harmonicMatch?.confidence||0,0,1)
       : 0.72;
     const proximityScore=beatsAway<=8?1:clamp(1-(beatsAway-8)/8,0,1);
-    const confidence=clamp(
-      0.31*sectionPrediction.confidence+
-      0.16*trendScore+
-      0.11*gainScore+
-      0.10*intensityScore+
-      0.09*barConfidence+
-      0.07*tempoConfidence+
-      0.06*harmonicScore+
-      0.04*proximityScore+
-      0.06*phraseScore,
-      0,1
-    );
+    const confidence=isDropPlan
+      ? clamp(
+          0.52*sectionPrediction.confidence+
+          0.12*gainScore+
+          0.08*proximityScore+
+          0.08*barConfidence+
+          0.06*tempoConfidence+
+          0.06*phraseScore+
+          0.08,
+          0,1
+        )
+      : clamp(
+          0.31*sectionPrediction.confidence+
+          0.16*trendScore+
+          0.11*gainScore+
+          0.10*intensityScore+
+          0.09*barConfidence+
+          0.07*tempoConfidence+
+          0.06*harmonicScore+
+          0.04*proximityScore+
+          0.06*phraseScore,
+          0,1
+        );
 
     let fillStyle='small';
-    if (
+    if (!isDropPlan && (
       confidence>=0.88 &&
       trendScore>=0.62 &&
       intensityScore>=0.68 &&
       (!phrase||phraseProgress>=.62)
-    ) fillStyle='big';
-    else if (
+    )) fillStyle='big';
+    else if (!isDropPlan && (
       confidence>=0.81 ||
       trendScore>=0.48 ||
       gainScore>=0.58 ||
       (phraseAligned&&phraseProgress>=.72)
-    ) fillStyle='medium';
+    )) fillStyle='medium';
     if(!healthPermissions().bigFill&&fillStyle==='big')fillStyle='medium';
 
-    const mode=beatsAway>8?'build':'fill-'+fillStyle;
+    const mode=isDropPlan?'drop':(beatsAway>8?'build':'fill-'+fillStyle);
     const key='plan:'+next.index+':'+fillStyle+':'+(phrase?.phraseBar||0);
     const stable=updatePlanCandidate(key,now);
     return {
