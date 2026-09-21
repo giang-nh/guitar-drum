@@ -150,6 +150,7 @@
   let fusionCandidateSince = 0;
   let lastFusionActionAt = 0;
   let lastMusicalActivityAt = performance.now();
+  let hasConfirmedGuitarActivity = false;
   let intentStage = 'active';
   let intentActionAt = 0;
   let transitionPlan = {mode:'stay',confidence:0,reason:'waiting'};
@@ -3207,10 +3208,22 @@
     intentActionAt=0;
   }
 
+  function guitarActivityEvidence() {
+    const thresholds=calibrationThresholds();
+    return (
+      inputClass==='guitar' ||
+      (inputClass==='mix' && spectralFrame.guitarEvidence>=Math.max(.40,thresholds.guitarEvidenceMin)) ||
+      spectralFrame.guitarEvidence>=Math.max(.52,thresholds.guitarEvidenceMin+.12)
+    );
+  }
+
   function updateActivityEvidence(now) {
     const recentOnset=lastOnsetAt>0 && now-lastOnsetAt<RESUME_ACTIVITY_MS;
-    const active=recentOnset && smoothedEnergy>=0.15;
-    if (active) lastMusicalActivityAt=now;
+    const active=recentOnset && smoothedEnergy>=0.15 && guitarActivityEvidence();
+    if (active) {
+      lastMusicalActivityAt=now;
+      hasConfirmedGuitarActivity=true;
+    }
   }
 
   function recentOnsetCount(now,windowMs=3200) {
@@ -3220,14 +3233,20 @@
   function intentEvidence(now,transport) {
     if (!transport?.playing || transport.paused || transport.countIn>0) {
       lastMusicalActivityAt=now;
-      return {silenceMs:0,recent:false,recentOnsets:0};
+      hasConfirmedGuitarActivity=false;
+      return {silenceMs:0,recent:false,recentOnsets:0,armed:false};
     }
-    const recent=lastOnsetAt>0 && now-lastOnsetAt<RESUME_ACTIVITY_MS && smoothedEnergy>=0.15;
+    const recent=
+      lastOnsetAt>0 &&
+      now-lastOnsetAt<RESUME_ACTIVITY_MS &&
+      smoothedEnergy>=0.15 &&
+      guitarActivityEvidence();
     const recentOnsets=recentOnsetCount(now);
     return {
-      silenceMs:Math.max(0,now-lastMusicalActivityAt),
+      silenceMs:hasConfirmedGuitarActivity?Math.max(0,now-lastMusicalActivityAt):0,
       recent,
-      recentOnsets
+      recentOnsets,
+      armed:hasConfirmedGuitarActivity
     };
   }
 
@@ -3701,7 +3720,7 @@
       return;
     }
 
-    if (intent.silenceMs>=STOP_HOLD_MS) {
+    if (intent.armed && intent.silenceMs>=STOP_HOLD_MS) {
       transitionPlan={mode:'drop',confidence:1,reason:'long silence'};
       intentStage='hold';
       performanceState={mode:'hold',confidence:1,reason:'long silence · hold next beat 1'};
@@ -3725,7 +3744,7 @@
       return;
     }
 
-    if (intent.silenceMs>=SILENCE_THIN_MS) {
+    if (intent.armed && intent.silenceMs>=SILENCE_THIN_MS) {
       transitionPlan={mode:'drop',confidence:clamp(intent.silenceMs/STOP_HOLD_MS,0,1),reason:'thin out'};
       intentStage='thin';
       performanceState={mode:'thin',confidence:clamp(intent.silenceMs/STOP_HOLD_MS,0,1),reason:'short silence · thin out'};
