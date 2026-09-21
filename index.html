@@ -308,6 +308,7 @@
 (() => {
   const core=window.GuitarDrumCore;
   if(!core)throw new Error('GuitarDrumCore missing');
+  const E2E_TRANSPORT_SPEED=new URLSearchParams(location.search).get('e2e')==='1'?40:1;
   const $ = s => document.querySelector(s);
   const songSel=$('#songSelect'), keySel=$('#keySelect'), bpm=$('#bpm'), bpmLabel=$('#bpmLabel');
   const intensity=$('#intensity'), intensityLabel=$('#intensityLabel'), humanize=$('#humanize'), humanizeLabel=$('#humanizeLabel'), fillBtn=$('#fill'), drumStyle=$('#drumStyle'), drumPattern=$('#drumPattern');
@@ -601,7 +602,7 @@
     fillBtn.disabled=false;
     status.textContent='Chuẩn bị từ Line '+(i+1)+'…';
     tick();
-    timer=setInterval(tick,25);
+    timer=setInterval(tick,schedulerIntervalMs());
   }
   function changeKey(){shift=(Number(keySel.value)-song.baseKey+12)%12;renderSheet();saveState()}
 
@@ -1175,7 +1176,7 @@
   function scheduleBeat(t){
     const beat=quarter%4;
     if(countIn>0){click(t,beat===0);visualBeat(beat,t,true);countIn--;quarter++;return}
-    const q=60/Number(bpm.value);
+    const q=(60/Number(bpm.value))/E2E_TRANSPORT_SPEED;
     humanContext={songBeat,quarter,beat,pattern:'',fill:false,energy:.5,health:'yellow'};
     humanHitSerial=0;
 
@@ -1286,7 +1287,8 @@
     }
     visualBeat(beat,t,false);quarter++;
   }
-  function tick(){if(!playing||paused)return;const q=60/Math.max(50,Math.min(90,Number(bpm.value)||62));while(nextTime<ctx.currentTime+.12){scheduleBeat(nextTime);nextTime+=q}}
+  function schedulerIntervalMs(){return E2E_TRANSPORT_SPEED>1?5:25}
+  function tick(){if(!playing||paused)return;const q=(60/Math.max(50,Math.min(90,Number(bpm.value)||62)))/E2E_TRANSPORT_SPEED;const lookAhead=E2E_TRANSPORT_SPEED>1?Math.max(.004,q*.45):.12;while(nextTime<ctx.currentTime+lookAhead){scheduleBeat(nextTime);nextTime+=q}}
 
   function pausePlayback(){
     if(!playing || paused)return;
@@ -1300,7 +1302,7 @@
 
   async function toggle(){
     await setup();
-    if(!playing){followSilenceMode='normal';followHeld=false;pendingFollowHold=false;pendingFollowResume=false;playing=true;paused=false;countIn=4;quarter=songBeat%4;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';stopBtn.disabled=false;fillBtn.disabled=false;status.textContent='Chuẩn bị…';tick();timer=setInterval(tick,25);return}
+    if(!playing){followSilenceMode='normal';followHeld=false;pendingFollowHold=false;pendingFollowResume=false;playing=true;paused=false;countIn=4;quarter=songBeat%4;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';stopBtn.disabled=false;fillBtn.disabled=false;status.textContent='Chuẩn bị…';tick();timer=setInterval(tick,schedulerIntervalMs());return}
     if(!paused){pausePlayback();return}
     followSilenceMode='normal';followHeld=false;pendingFollowHold=false;pendingFollowResume=false;
     paused=false;nextTime=ctx.currentTime+.08;toggleBtn.textContent='Ⅱ Pause';fillBtn.disabled=false;status.textContent='Tiếp tục Line '+(currentRow+1)+'…';

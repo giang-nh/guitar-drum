@@ -2,10 +2,6 @@ const { test, expect } = require('@playwright/test');
 
 async function installBrowserHarness(page) {
   await page.addInitScript(() => {
-    const realSetTimeout = window.setTimeout.bind(window);
-    window.setTimeout = (fn, ms = 0, ...args) =>
-      realSetTimeout(fn, Math.max(0, Number(ms || 0) / 20), ...args);
-
     class FakeParam {
       constructor(value = 0) { this.value = value; }
       setValueAtTime(value) { this.value = value; }
@@ -46,7 +42,7 @@ async function installBrowserHarness(page) {
         this._startedAt = performance.now();
       }
       get currentTime() {
-        return ((performance.now() - this._startedAt) / 1000) * 20;
+        return (performance.now() - this._startedAt) / 1000;
       }
       resume() { this.state = 'running'; return Promise.resolve(); }
       close() { this.state = 'closed'; return Promise.resolve(); }
@@ -105,14 +101,18 @@ async function installBrowserHarness(page) {
 }
 
 async function openSong(page, songId) {
+  const pageErrors=[];
+  page.on('pageerror',error=>pageErrors.push(error.message));
   await installBrowserHarness(page);
-  await page.goto('/');
+  await page.goto('/?e2e=1');
   await page.locator('#songSelect').selectOption(songId);
   await expect(page.locator('#songSelect')).toHaveValue(songId);
   if ((await page.locator('#viewToggle').textContent()).includes('Show all')) {
     await page.locator('#viewToggle').click();
   }
-  await expect(page.locator('#sheet .linePlay')).not.toHaveCount(0);
+  const expectedRows = await page.evaluate(() => window.GuitarDrumAPI.getCurrentSong().rows.length);
+  await expect(page.locator('#sheet .row')).toHaveCount(expectedRows);
+  await page.evaluate(() => { window.__e2ePageReady = true; });
 }
 
 async function captureTransport(page) {
@@ -141,7 +141,8 @@ async function lastRowOfSection(page, section) {
 
 async function playFromRow(page, rowIndex) {
   expect(rowIndex).toBeGreaterThanOrEqual(0);
-  await page.locator('#sheet .linePlay').nth(rowIndex).click();
+  await page.locator('#sheet .row').nth(rowIndex).click();
+  await page.locator('#toggle').click();
   await page.waitForFunction(() => window.GuitarDrumAPI.getTransport().playing === true);
 }
 
