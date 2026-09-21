@@ -2,107 +2,34 @@ const { test, expect } = require('@playwright/test');
 
 async function installBrowserHarness(page) {
   await page.addInitScript(() => {
-    class FakeParam {
-      constructor(value = 0) { this.value = value; }
-      setValueAtTime(value) { this.value = value; }
-      exponentialRampToValueAtTime(value) { this.value = value; }
-      linearRampToValueAtTime(value) { this.value = value; }
-    }
-
-    class FakeNode {
-      connect() { return this; }
-      disconnect() {}
-      start() {}
-      stop() {}
-    }
-
-    class FakeAnalyser extends FakeNode {
-      constructor() {
-        super();
-        this._fftSize = 4096;
-        this.frequencyBinCount = 2048;
-        this.smoothingTimeConstant = 0;
-        this.minDecibels = -90;
-        this.maxDecibels = -10;
-      }
-      set fftSize(value) {
-        this._fftSize = Number(value) || 4096;
-        this.frequencyBinCount = Math.floor(this._fftSize / 2);
-      }
-      get fftSize() { return this._fftSize; }
-      getFloatTimeDomainData(array) { array.fill(0); }
-      getFloatFrequencyData(array) { array.fill(-120); }
-    }
-
-    class FakeAudioContext {
-      constructor() {
-        this.state = 'running';
-        this.sampleRate = 44100;
-        this.destination = new FakeNode();
-        this._startedAt = performance.now();
-      }
-      get currentTime() {
-        return (performance.now() - this._startedAt) / 1000;
-      }
-      resume() { this.state = 'running'; return Promise.resolve(); }
-      close() { this.state = 'closed'; return Promise.resolve(); }
-      createGain() {
-        const node = new FakeNode();
-        node.gain = new FakeParam(1);
-        return node;
-      }
-      createDynamicsCompressor() {
-        const node = new FakeNode();
-        node.threshold = new FakeParam();
-        node.knee = new FakeParam();
-        node.ratio = new FakeParam();
-        node.attack = new FakeParam();
-        node.release = new FakeParam();
-        return node;
-      }
-      createOscillator() {
-        const node = new FakeNode();
-        node.frequency = new FakeParam(440);
-        node.type = 'sine';
-        return node;
-      }
-      createBiquadFilter() {
-        const node = new FakeNode();
-        node.frequency = new FakeParam();
-        node.Q = new FakeParam();
-        node.type = 'lowpass';
-        return node;
-      }
-      createBufferSource() {
-        const node = new FakeNode();
-        node.buffer = null;
-        return node;
-      }
-      createBuffer(channels, length) {
-        const data = Array.from({length:channels}, () => new Float32Array(length));
-        return { getChannelData: channel => data[channel] };
-      }
-      createMediaStreamSource() { return new FakeNode(); }
-      createAnalyser() { return new FakeAnalyser(); }
-    }
-
-    window.AudioContext = FakeAudioContext;
-    window.webkitAudioContext = FakeAudioContext;
-
+    const nativeMediaDevices = navigator.mediaDevices;
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
       value: {
-        getUserMedia: async () => ({
-          getTracks: () => [{ stop() {} }]
-        })
+        ...(nativeMediaDevices || {}),
+        getUserMedia: async () => {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          const micContext = new AC();
+          if (micContext.state === 'suspended') await micContext.resume();
+          const destination = micContext.createMediaStreamDestination();
+          window.__e2eMicContext = micContext;
+          return destination.stream;
+        }
       }
     });
   });
 }
 
 async function openSong(page, songId) {
-  const pageErrors=[];
-  page.on('pageerror',error=>pageErrors.push(error.message));
+  page.__e2eErrors=[];
+  let rejectPageError;
+  page.__e2ePageError=new Promise((_,reject)=>{rejectPageError=reject});
+  page.on('pageerror',error=>{
+    const message=error.stack||error.message||String(error);
+    page.__e2eErrors.push(message);
+    console.log('E2E_PAGE_ERROR:',message);
+    rejectPageError(new Error('Browser pageerror: '+message));
+  });
   await installBrowserHarness(page);
   await page.goto('/?e2e=1');
   await page.locator('#songSelect').selectOption(songId);
@@ -147,7 +74,11 @@ async function playFromRow(page, rowIndex) {
 }
 
 async function waitForNaturalEnd(page) {
-  await expect(page.locator('#status')).toContainText('Đã dừng · trở về đầu bài.', {timeout: 20000});
+  if(page.__e2eErrors?.length)throw new Error('Browser pageerror: '+page.__e2eErrors.join('\n'));
+  await Promise.race([
+    expect(page.locator('#status')).toContainText('Đã dừng · trở về đầu bài.', {timeout: 20000}),
+    page.__e2ePageError
+  ]);
 }
 
 async function history(page) {
